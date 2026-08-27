@@ -1,0 +1,145 @@
+# Generic Unity .gitignore
+# Intended for a Unity project root.
+# Project-specific assets, package names, Firebase binaries, and named build folders are intentionally NOT ignored.
+
+####################
+# Unity generated
+####################
+
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Ll]ogs/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Common build output directories
+/[Bb]uild/
+/[Bb]uilds/
+
+# Unity temporary files
+.utmp/
+sysinfo.txt
+mono_crash.*
+
+# Blender backup files generated beside .blend files
+*.blend1
+*.blend1.meta
+
+####################
+# IDE / editor
+####################
+
+.vs/
+.idea/
+.vscode/
+.gradle/
+.consulo/
+ExportedObj/
+
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.DotSettings.user
+
+# Generated Unity metadata for IDE/debug databases
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Auto-generated Rider Unity plugin
+/[Aa]ssets/Plugins/Editor/JetBrains*
+
+####################
+# OS generated
+####################
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+####################
+# Build artifacts
+####################
+
+*.apk
+*.aab
+*.app
+*.unitypackage
+*.unitypackage.meta
+
+####################
+# Addressables generated content
+####################
+
+/ServerData/
+/[Aa]ssets/StreamingAssets/aa*
+/[Aa]ssets/AddressableAssetsData/link.xml*
+/[Aa]ssets/Addressables_Temp*/
+/[Aa]ssets/AddressableAssetsData/*/*.bin*
+
+####################
+# Unity generated asset caches
+####################
+
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db.meta
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers.meta
+/[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+/[Aa]ssets/[Ss]ceneDependencyCache*
+
+####################
+# Third-party generated files
+####################
+
+# Crashlytics build output
+crashlytics-build.properties
+
+####################
+# Optional rules
+####################
+
+# Uncomment if you do not want Asset Store Tools tracked:
+# /[Aa]ssets/AssetStoreTools*
+
+# If your project generates Burst "DoNotShip" folders, prefer adding a
+# generic pattern only after confirming the exact naming convention used
+# by your Unity/Burst version.
