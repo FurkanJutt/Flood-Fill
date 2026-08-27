@@ -41,6 +41,11 @@ namespace FloodFill
             }
         }
 
+        public void SetSelected(bool selected)
+        {
+            transform.localScale = selected ? Vector3.one * 1.12f : Vector3.one;
+        }
+
         private void Awake()
         {
             EnsureReferences();

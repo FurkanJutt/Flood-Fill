@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 namespace FloodFill
 {
@@ -36,8 +40,12 @@ namespace FloodFill
 
         private readonly List<Cell> capturedCells = new List<Cell>();
         private Cell[,] cells;
+        private Cell selectedCell;
+        private Cell lastSelectedCell;
+        private int lastSelectionFrame = -1;
 
         public event Action BoardChanged;
+        public event Action<Cell> CellClicked;
 
         public int CurrentPlayerColor { get; private set; } = -1;
         public int CapturedCellCount => capturedCells.Count;
@@ -74,6 +82,7 @@ namespace FloodFill
                     cell.transform.localRotation = Quaternion.identity;
                     cell.transform.localScale = Vector3.one * cellSize;
                     cell.Initialize(x, y, colorIndex, colors[colorIndex]);
+                    cell.Clicked += HandleCellClicked;
                     cells[x, y] = cell;
                 }
             }
@@ -88,28 +97,34 @@ namespace FloodFill
             return true;
         }
 
-        public bool ChangePlayerColor(int colorIndex)
+        public bool RecolorCell(Cell cell, int colorIndex)
         {
-            if (cells == null || colorIndex < 0 || colorIndex >= colors.Length || colorIndex == CurrentPlayerColor)
+            if (cells == null || cell == null || colorIndex < 0 || colorIndex >= colors.Length)
             {
                 return false;
             }
 
-            CurrentPlayerColor = colorIndex;
-            Color selectedColor = colors[colorIndex];
-            var expansionQueue = new Queue<Cell>();
+            if (!IsInsideBoard(cell.X, cell.Y) || cells[cell.X, cell.Y] != cell || cell.ColorIndex == colorIndex)
+            {
+                return false;
+            }
 
+            cell.SetColor(colorIndex, colors[colorIndex]);
+            CurrentPlayerColor = colorIndex;
+
+            var expansionQueue = new Queue<Cell>();
             for (int i = 0; i < capturedCells.Count; i++)
             {
-                Cell capturedCell = capturedCells[i];
-                capturedCell.SetColor(colorIndex, selectedColor);
-                expansionQueue.Enqueue(capturedCell);
+                expansionQueue.Enqueue(capturedCells[i]);
             }
 
             ExpandCapturedRegion(expansionQueue, colorIndex, true);
             BoardChanged?.Invoke();
 
-            Debug.Log($"Selected color: {colorIndex}. Captured cells: {CapturedCellCount} / {TotalCellCount}", this);
+            Debug.Log(
+                $"Recolored cell ({cell.X}, {cell.Y}) to color {colorIndex}. " +
+                $"Captured cells: {CapturedCellCount} / {TotalCellCount}",
+                this);
             return true;
         }
 
@@ -120,6 +135,12 @@ namespace FloodFill
                 for (int i = boardRoot.childCount - 1; i >= 0; i--)
                 {
                     GameObject child = boardRoot.GetChild(i).gameObject;
+                    Cell cell = child.GetComponent<Cell>();
+                    if (cell != null)
+                    {
+                        cell.Clicked -= HandleCellClicked;
+                    }
+
                     child.SetActive(false);
 
                     if (Application.isPlaying)
@@ -135,6 +156,9 @@ namespace FloodFill
 
             cells = null;
             capturedCells.Clear();
+            selectedCell = null;
+            lastSelectedCell = null;
+            lastSelectionFrame = -1;
             CurrentPlayerColor = -1;
         }
 
@@ -167,7 +191,10 @@ namespace FloodFill
             ExpandCapturedRegion(queue, CurrentPlayerColor, false);
         }
 
-        private void ExpandCapturedRegion(Queue<Cell> queue, int targetColorIndex, bool animate)
+        private void ExpandCapturedRegion(
+            Queue<Cell> queue,
+            int targetColorIndex,
+            bool animate)
         {
             while (queue.Count > 0)
             {
@@ -194,6 +221,131 @@ namespace FloodFill
                     queue.Enqueue(neighbor);
                 }
             }
+        }
+
+        public bool TrySelectCellAtScreenPosition(Vector2 screenPosition)
+        {
+            if (cells == null || boardCamera == null)
+            {
+                return false;
+            }
+
+            float distanceFromCamera = Mathf.Abs(boardCamera.transform.position.z);
+            Vector3 worldPosition = boardCamera.ScreenToWorldPoint(
+                new Vector3(screenPosition.x, screenPosition.y, distanceFromCamera));
+            Collider2D hitCollider = Physics2D.OverlapPoint(worldPosition);
+            if (hitCollider == null || !hitCollider.TryGetComponent(out Cell cell))
+            {
+                return false;
+            }
+
+            if (!IsInsideBoard(cell.X, cell.Y) || cells[cell.X, cell.Y] != cell)
+            {
+                return false;
+            }
+
+            SelectCell(cell);
+            return true;
+        }
+
+        private void HandleCellClicked(Cell cell)
+        {
+            if (cell != null && IsInsideBoard(cell.X, cell.Y) && cells[cell.X, cell.Y] == cell)
+            {
+                SelectCell(cell);
+            }
+        }
+
+        private void SelectCell(Cell cell)
+        {
+            if (lastSelectedCell == cell && lastSelectionFrame == Time.frameCount)
+            {
+                return;
+            }
+
+            if (selectedCell != null && selectedCell != cell)
+            {
+                selectedCell.SetSelected(false);
+            }
+
+            selectedCell = cell;
+            lastSelectedCell = cell;
+            lastSelectionFrame = Time.frameCount;
+            selectedCell.SetSelected(true);
+            Debug.Log($"Cell selected: ({cell.X}, {cell.Y})", this);
+            CellClicked?.Invoke(cell);
+        }
+
+        private void Update()
+        {
+            if (!TryGetPointerPress(out Vector2 screenPosition, out int pointerId))
+            {
+                return;
+            }
+
+            if (IsPointerOverUI(pointerId))
+            {
+                return;
+            }
+
+            TrySelectCellAtScreenPosition(screenPosition);
+        }
+
+        private static bool IsPointerOverUI(int pointerId)
+        {
+            if (EventSystem.current == null)
+            {
+                return false;
+            }
+
+            return pointerId < 0
+                ? EventSystem.current.IsPointerOverGameObject()
+                : EventSystem.current.IsPointerOverGameObject(pointerId);
+        }
+
+        private static bool TryGetPointerPress(out Vector2 screenPosition, out int pointerId)
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Touchscreen.current != null)
+            {
+                var primaryTouch = Touchscreen.current.primaryTouch;
+                if (primaryTouch.press.wasReleasedThisFrame)
+                {
+                    screenPosition = primaryTouch.position.ReadValue();
+                    pointerId = primaryTouch.touchId.ReadValue();
+                    return true;
+                }
+            }
+
+            if (Mouse.current != null && Mouse.current.leftButton.wasReleasedThisFrame)
+            {
+                screenPosition = Mouse.current.position.ReadValue();
+                pointerId = -1;
+                return true;
+            }
+#else
+            if (Input.touchCount > 0)
+            {
+                Touch touch = Input.GetTouch(0);
+                if (touch.phase == TouchPhase.Ended)
+                {
+                    screenPosition = touch.position;
+                    pointerId = touch.fingerId;
+                    return true;
+                }
+            }
+
+            if (Input.GetMouseButtonUp(0))
+            {
+                screenPosition = Input.mousePosition;
+                pointerId = -1;
+                return true;
+            }
+#endif
+
+            screenPosition = default;
+            pointerId = -1;
+            return false;
         }
 
         private bool IsInsideBoard(int x, int y)

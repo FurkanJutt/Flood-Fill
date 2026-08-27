@@ -26,6 +26,7 @@ namespace FloodFill
         public int MoveCount { get; private set; }
         public int MaxMoves => maxMoves;
         public GameState State { get; private set; }
+        public int SelectedColorIndex { get; private set; } = -1;
 
         private void Start()
         {
@@ -35,6 +36,7 @@ namespace FloodFill
                 return;
             }
 
+            boardManager.CellClicked += HandleCellClicked;
             RestartGame();
         }
 
@@ -45,13 +47,29 @@ namespace FloodFill
                 return;
             }
 
-            if (!boardManager.ChangePlayerColor(colorIndex))
+            if (colorIndex < 0 || colorIndex >= boardManager.Colors.Count || colorIndex == SelectedColorIndex)
+            {
+                return;
+            }
+
+            SelectedColorIndex = colorIndex;
+            RefreshUI();
+            Debug.Log($"Selected paint color: {colorIndex}. Tap a cell to recolor it.", this);
+        }
+
+        private void HandleCellClicked(Cell cell)
+        {
+            if (State != GameState.Playing || SelectedColorIndex < 0)
+            {
+                return;
+            }
+
+            if (!boardManager.RecolorCell(cell, SelectedColorIndex))
             {
                 return;
             }
 
             MoveCount++;
-
             if (boardManager.IsFullyCaptured)
             {
                 FinishGame(GameState.Won);
@@ -88,6 +106,7 @@ namespace FloodFill
                 return;
             }
 
+            SelectedColorIndex = boardManager.CurrentPlayerColor;
             if (boardManager.IsFullyCaptured)
             {
                 FinishGame(GameState.Won);
@@ -171,7 +190,8 @@ namespace FloodFill
                         colorButton.SetVisualColor(boardManager.Colors[colorButton.ColorIndex]);
                     }
 
-                    colorButton.SetInteractable(canPlay && colorButton.ColorIndex != boardManager.CurrentPlayerColor);
+                    colorButton.SetSelected(colorButton.ColorIndex == SelectedColorIndex);
+                    colorButton.SetInteractable(canPlay && colorButton.ColorIndex != SelectedColorIndex);
                 }
             }
         }
@@ -215,6 +235,14 @@ namespace FloodFill
             }
 
             return valid;
+        }
+
+        private void OnDestroy()
+        {
+            if (boardManager != null)
+            {
+                boardManager.CellClicked -= HandleCellClicked;
+            }
         }
 
         private void OnValidate()

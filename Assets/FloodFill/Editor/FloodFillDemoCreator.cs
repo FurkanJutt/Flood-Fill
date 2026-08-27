@@ -117,6 +117,7 @@ namespace FloodFill.Editor
             camera.nearClipPlane = 0.1f;
             camera.farClipPlane = 100f;
             cameraObject.AddComponent<AudioListener>();
+            cameraObject.AddComponent<Physics2DRaycaster>();
             return camera;
         }
 
@@ -192,6 +193,16 @@ namespace FloodFill.Editor
             capturedText = CreateText("CapturedText", canvas, "Captured: 0%", 42f, FontStyles.Normal);
             SetRect(capturedText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -224f), new Vector2(620f, 64f));
+
+            TMP_Text instructions = CreateText(
+                "InstructionsText",
+                canvas,
+                "Select a color, then tap a cell",
+                30f,
+                FontStyles.Normal);
+            instructions.color = new Color(0.70f, 0.73f, 0.82f);
+            SetRect(instructions.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -282f), new Vector2(720f, 50f));
 
             Button restartButton = CreateTextButton(
                 "RestartButton",
@@ -413,11 +424,19 @@ namespace FloodFill.Editor
 
         private static Cell CreateCellPrefab(Sprite squareSprite)
         {
-            var cellObject = new GameObject("Cell", typeof(SpriteRenderer), typeof(Cell));
+            var cellObject = new GameObject(
+                "Cell",
+                typeof(SpriteRenderer),
+                typeof(BoxCollider2D),
+                typeof(Cell));
             SpriteRenderer renderer = cellObject.GetComponent<SpriteRenderer>();
             renderer.sprite = squareSprite;
             renderer.color = Color.white;
             renderer.sortingOrder = 0;
+
+            BoxCollider2D collider = cellObject.GetComponent<BoxCollider2D>();
+            collider.size = Vector2.one;
+            collider.offset = Vector2.zero;
 
             Cell cell = cellObject.GetComponent<Cell>();
             cell.Initialize(0, 0, 0, Color.white);
