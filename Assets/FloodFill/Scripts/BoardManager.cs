@@ -26,15 +26,6 @@ namespace FloodFill
         [SerializeField, Min(1)] private int height = 10;
         [SerializeField, Min(0.05f)] private float cellSize = 0.8f;
         [SerializeField, Min(0f)] private float cellSpacing = 0.06f;
-        [SerializeField] private Color[] colors =
-        {
-            new Color(0.93f, 0.25f, 0.25f),
-            new Color(0.25f, 0.78f, 0.38f),
-            new Color(0.20f, 0.48f, 0.95f),
-            new Color(0.98f, 0.82f, 0.20f),
-            new Color(0.62f, 0.32f, 0.86f),
-            new Color(1.00f, 0.52f, 0.16f)
-        };
 
         [Header("References")]
         [SerializeField] private Transform boardRoot;
@@ -43,6 +34,7 @@ namespace FloodFill
 
         private readonly List<Cell> capturedCells = new List<Cell>();
         private static readonly List<RaycastResult> UiRaycastResults = new List<RaycastResult>();
+        private Color[] activeColors = Array.Empty<Color>();
         private Cell[,] cells;
         private Cell selectedCell;
         private Cell lastSelectedCell;
@@ -71,7 +63,6 @@ namespace FloodFill
             ? CapturedCellCount * 100f / TotalCellCount
             : 0f;
         public bool IsFullyCaptured => CapturedCellCount == TotalCellCount && TotalCellCount > 0;
-        public IReadOnlyList<Color> Colors => colors;
         public float LastRecolorAnimationDuration { get; private set; }
 
         public bool GenerateBoard()
@@ -94,13 +85,13 @@ namespace FloodFill
             {
                 for (int y = 0; y < height; y++)
                 {
-                    int colorIndex = UnityEngine.Random.Range(0, colors.Length);
+                    int colorIndex = UnityEngine.Random.Range(0, activeColors.Length);
                     Cell cell = Instantiate(cellPrefab, boardRoot);
                     cell.name = $"Cell_{x}_{y}";
                     cell.transform.localPosition = new Vector3(startX + x * step, startY + y * step, 0f);
                     cell.transform.localRotation = Quaternion.identity;
                     cell.transform.localScale = Vector3.one * cellSize;
-                    cell.Initialize(x, y, colorIndex, colors[colorIndex]);
+                    cell.Initialize(x, y, colorIndex, activeColors[colorIndex]);
                     cells[x, y] = cell;
                 }
             }
@@ -117,7 +108,7 @@ namespace FloodFill
 
         public bool RecolorConnectedRegion(Cell cell, int colorIndex)
         {
-            if (cells == null || cell == null || colorIndex < 0 || colorIndex >= colors.Length)
+            if (cells == null || cell == null || colorIndex < 0 || colorIndex >= activeColors.Length)
             {
                 return false;
             }
@@ -156,7 +147,7 @@ namespace FloodFill
                 int currentDepth = depthByCell[current];
                 float animationDuration = current.AnimateColor(
                     newColorIndex,
-                    colors[newColorIndex],
+                    activeColors[newColorIndex],
                     currentDepth * WaveStepDelay);
                 LastRecolorAnimationDuration = Mathf.Max(
                     LastRecolorAnimationDuration,
@@ -233,8 +224,7 @@ namespace FloodFill
             int boardWidth,
             int boardHeight,
             float size,
-            float spacing,
-            Color[] palette)
+            float spacing)
         {
             boardRoot = root;
             cellPrefab = prefab;
@@ -243,7 +233,21 @@ namespace FloodFill
             height = Mathf.Max(1, boardHeight);
             cellSize = Mathf.Max(0.05f, size);
             cellSpacing = Mathf.Max(0f, spacing);
-            colors = palette;
+        }
+
+        public void SetActiveColors(IReadOnlyList<Color> palette)
+        {
+            if (palette == null)
+            {
+                activeColors = Array.Empty<Color>();
+                return;
+            }
+
+            activeColors = new Color[palette.Count];
+            for (int i = 0; i < palette.Count; i++)
+            {
+                activeColors[i] = palette[i];
+            }
         }
 
         private void CaptureInitialRegion(Cell startingCell)
@@ -626,9 +630,9 @@ namespace FloodFill
                 return false;
             }
 
-            if (colors == null || colors.Length < 2)
+            if (activeColors == null || activeColors.Length < 2)
             {
-                Debug.LogError("Flood Fill requires at least two configured colors.", this);
+                Debug.LogError("Flood Fill requires at least two active colors from GameManager.", this);
                 return false;
             }
 

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
@@ -18,6 +19,19 @@ namespace FloodFill
         [SerializeField, Min(0f)] private float resultRevealDelay = 0.25f;
         [SerializeField] private BoardManager boardManager;
 
+        [Header("Colors")]
+        [SerializeField] private Color[] colors =
+        {
+            new Color(0.93f, 0.25f, 0.25f),
+            new Color(0.25f, 0.78f, 0.38f),
+            new Color(0.20f, 0.48f, 0.95f),
+            new Color(0.98f, 0.82f, 0.20f),
+            new Color(0.62f, 0.32f, 0.86f),
+            new Color(1.00f, 0.52f, 0.16f),
+            new Color(1.00f, 0.00f, 1.00f),
+            new Color(0.30f, 0.82f, 0.80f)
+        };
+
         [Header("UI")]
         [SerializeField] private TMP_Text movesText;
         [SerializeField] private TMP_Text capturedText;
@@ -29,9 +43,11 @@ namespace FloodFill
         public int MaxMoves => maxMoves;
         public GameState State { get; private set; }
         public int SelectedColorIndex { get; private set; } = -1;
+        public IReadOnlyList<Color> ActiveColors => activeColors;
 
         private bool awaitingResult;
         private Coroutine resultRevealCoroutine;
+        private Color[] activeColors = System.Array.Empty<Color>();
 
         private void Start()
         {
@@ -52,7 +68,7 @@ namespace FloodFill
                 return;
             }
 
-            if (colorIndex < 0 || colorIndex >= boardManager.Colors.Count || colorIndex == SelectedColorIndex)
+            if (colorIndex < 0 || colorIndex >= activeColors.Length || colorIndex == SelectedColorIndex)
             {
                 return;
             }
@@ -106,11 +122,21 @@ namespace FloodFill
             awaitingResult = false;
             MoveCount = 0;
             State = GameState.Playing;
+            SelectedColorIndex = -1;
 
             if (resultPanel != null)
             {
                 resultPanel.SetActive(false);
             }
+
+            if (!SelectRandomActiveColors())
+            {
+                SetColorInputEnabled(false);
+                return;
+            }
+
+            boardManager.SetActiveColors(activeColors);
+            ApplyActiveColorsToButtons();
 
             if (!boardManager.GenerateBoard())
             {
@@ -118,7 +144,6 @@ namespace FloodFill
                 return;
             }
 
-            SelectedColorIndex = -1;
             if (boardManager.IsFullyCaptured)
             {
                 FinishGame(GameState.Won);
@@ -156,7 +181,8 @@ namespace FloodFill
             TMP_Text capturedLabel,
             GameObject endPanel,
             TMP_Text endLabel,
-            ColorButton[] buttons)
+            ColorButton[] buttons,
+            Color[] colorPool)
         {
             boardManager = board;
             maxMoves = Mathf.Max(1, moveLimit);
@@ -165,6 +191,7 @@ namespace FloodFill
             resultPanel = endPanel;
             resultText = endLabel;
             colorButtons = buttons;
+            colors = colorPool;
         }
 
         private void FinishGame(GameState finalState)
@@ -222,9 +249,9 @@ namespace FloodFill
                 ColorButton colorButton = colorButtons[i];
                 if (colorButton != null)
                 {
-                    if (colorButton.ColorIndex >= 0 && colorButton.ColorIndex < boardManager.Colors.Count)
+                    if (colorButton.ColorIndex >= 0 && colorButton.ColorIndex < activeColors.Length)
                     {
-                        colorButton.SetVisualColor(boardManager.Colors[colorButton.ColorIndex]);
+                        colorButton.SetVisualColor(activeColors[colorButton.ColorIndex]);
                     }
 
                     colorButton.SetSelected(colorButton.ColorIndex == SelectedColorIndex);
@@ -254,6 +281,44 @@ namespace FloodFill
             }
         }
 
+        private bool SelectRandomActiveColors()
+        {
+            int requiredColorCount = colorButtons != null ? colorButtons.Length : 0;
+            if (colors == null || requiredColorCount < 2 || colors.Length < requiredColorCount)
+            {
+                Debug.LogError(
+                    $"Flood Fill needs at least {requiredColorCount} colors in GameManager's color pool.",
+                    this);
+                activeColors = System.Array.Empty<Color>();
+                return false;
+            }
+
+            var availableColors = new List<Color>(colors);
+            activeColors = new Color[requiredColorCount];
+            for (int i = 0; i < requiredColorCount; i++)
+            {
+                int randomIndex = Random.Range(0, availableColors.Count);
+                activeColors[i] = availableColors[randomIndex];
+                availableColors.RemoveAt(randomIndex);
+            }
+
+            return true;
+        }
+
+        private void ApplyActiveColorsToButtons()
+        {
+            for (int i = 0; i < colorButtons.Length; i++)
+            {
+                ColorButton colorButton = colorButtons[i];
+                if (colorButton != null &&
+                    colorButton.ColorIndex >= 0 &&
+                    colorButton.ColorIndex < activeColors.Length)
+                {
+                    colorButton.SetVisualColor(activeColors[colorButton.ColorIndex]);
+                }
+            }
+        }
+
         private bool ValidateReferences()
         {
             bool valid = true;
@@ -273,6 +338,14 @@ namespace FloodFill
             if (colorButtons == null || colorButtons.Length < 2)
             {
                 Debug.LogError("Flood Fill GameManager requires at least two color buttons.", this);
+                valid = false;
+            }
+
+            if (colors == null || colorButtons == null || colors.Length < colorButtons.Length)
+            {
+                Debug.LogError(
+                    "Flood Fill GameManager needs at least one source color for every color button.",
+                    this);
                 valid = false;
             }
 

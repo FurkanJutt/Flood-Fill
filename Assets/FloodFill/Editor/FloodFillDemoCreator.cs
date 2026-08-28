@@ -20,6 +20,7 @@ namespace FloodFill.Editor
         private const string ScenePath = SceneFolder + "/FloodFillDemo.unity";
         private const string CellPrefabPath = PrefabFolder + "/Cell.prefab";
         private const string SquareSpritePath = GeneratedFolder + "/Square.png";
+        private const int DefaultActiveColorCount = 6;
 
         private static readonly Color[] DefaultColors =
         {
@@ -28,7 +29,9 @@ namespace FloodFill.Editor
             new Color(0.20f, 0.48f, 0.95f),
             new Color(0.98f, 0.82f, 0.20f),
             new Color(0.62f, 0.32f, 0.86f),
-            new Color(1.00f, 0.52f, 0.16f)
+            new Color(1.00f, 0.52f, 0.16f),
+            new Color(1.00f, 0.00f, 1.00f),
+            new Color(0.30f, 0.82f, 0.80f)
         };
 
         [MenuItem("Tools/Flood Fill/Create Demo")]
@@ -82,7 +85,8 @@ namespace FloodFill.Editor
                 capturedText,
                 resultPanel,
                 resultText,
-                colorButtons);
+                colorButtons,
+                (Color[])DefaultColors.Clone());
 
             EditorUtility.SetDirty(boardManager);
             EditorUtility.SetDirty(gameManager);
@@ -135,8 +139,7 @@ namespace FloodFill.Editor
                 10,
                 10,
                 0.8f,
-                0.06f,
-                (Color[])DefaultColors.Clone());
+                0.06f);
             return boardManager;
         }
 
@@ -231,8 +234,8 @@ namespace FloodFill.Editor
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
 
-            var buttons = new ColorButton[DefaultColors.Length];
-            for (int i = 0; i < DefaultColors.Length; i++)
+            var buttons = new ColorButton[DefaultActiveColorCount];
+            for (int i = 0; i < DefaultActiveColorCount; i++)
             {
                 GameObject buttonObject = CreateUIObject($"ColorButton_{i + 1}", controlsObject.transform);
                 RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
