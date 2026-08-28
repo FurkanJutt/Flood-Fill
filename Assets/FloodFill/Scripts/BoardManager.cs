@@ -418,7 +418,7 @@ namespace FloodFill
 
             if (pointerPhase == PointerPhase.Held)
             {
-                if (!IsPointerOverUI(screenPosition))
+                if (!IsPointerOverBlockingUI(screenPosition))
                 {
                     TryPreviewCellAtScreenPosition(screenPosition);
                 }
@@ -427,7 +427,7 @@ namespace FloodFill
 
             if (pointerPhase == PointerPhase.Released)
             {
-                bool releasedOverUI = IsPointerOverUI(screenPosition);
+                bool releasedOverUI = IsPointerOverBlockingUI(screenPosition);
                 CancelPointerGesture();
                 if (!releasedOverUI)
                 {
@@ -445,7 +445,7 @@ namespace FloodFill
 
         private void BeginPointerGesture(Vector2 screenPosition, int pointerId)
         {
-            if (IsPointerOverUI(screenPosition))
+            if (IsPointerOverBlockingUI(screenPosition))
             {
                 return;
             }
@@ -462,7 +462,7 @@ namespace FloodFill
             activePointerId = -1;
         }
 
-        private static bool IsPointerOverUI(Vector2 screenPosition)
+        private static bool IsPointerOverBlockingUI(Vector2 screenPosition)
         {
             if (EventSystem.current == null)
             {
@@ -478,7 +478,9 @@ namespace FloodFill
 
             for (int i = 0; i < UiRaycastResults.Count; i++)
             {
-                if (UiRaycastResults[i].module is GraphicRaycaster)
+                RaycastResult result = UiRaycastResults[i];
+                if (result.module is GraphicRaycaster &&
+                    result.gameObject.GetComponentInParent<ColorButton>() == null)
                 {
                     UiRaycastResults.Clear();
                     return true;

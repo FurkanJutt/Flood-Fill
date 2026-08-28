@@ -1,15 +1,27 @@
+using DG.Tweening;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace FloodFill
 {
     [RequireComponent(typeof(Button), typeof(Image))]
-    public sealed class ColorButton : MonoBehaviour
+    public sealed class ColorButton : MonoBehaviour, IPointerDownHandler
     {
         [SerializeField] private int colorIndex;
         [SerializeField] private Button button;
         [SerializeField] private Image buttonImage;
         [SerializeField] private GameManager gameManager;
+
+        [Header("Press Animation")]
+        [SerializeField, Min(1f)] private float selectedScale = 1.12f;
+        [SerializeField, Min(1f)] private float pressPopScale = 1.10f;
+        [SerializeField, Min(0.01f)] private float pressPopUpDuration = 0.10f;
+        [SerializeField, Min(0.01f)] private float pressPopDownDuration = 0.18f;
+
+        private Vector3 restingScale = Vector3.one;
+        private bool isSelected;
+        private Sequence pressSequence;
 
         public int ColorIndex => colorIndex;
 
@@ -43,27 +55,31 @@ namespace FloodFill
 
         public void SetSelected(bool selected)
         {
-            transform.localScale = selected ? Vector3.one * 1.12f : Vector3.one;
+            isSelected = selected;
+            pressSequence?.Kill();
+            pressSequence = null;
+            transform.DOKill();
+            transform.localScale = GetTargetScale();
         }
 
         private void Awake()
         {
+            restingScale = transform.localScale;
             EnsureReferences();
-            if (button != null)
-            {
-                button.onClick.AddListener(HandleClick);
-            }
         }
 
-        private void OnDestroy()
+        public void OnPointerDown(PointerEventData eventData)
         {
-            if (button != null)
+            if (eventData.button != PointerEventData.InputButton.Left)
             {
-                button.onClick.RemoveListener(HandleClick);
+                return;
             }
+
+            SelectColorImmediately();
+            PlayPressAnimation();
         }
 
-        private void HandleClick()
+        private void SelectColorImmediately()
         {
             if (gameManager == null)
             {
@@ -72,6 +88,24 @@ namespace FloodFill
             }
 
             gameManager.SelectColor(colorIndex);
+        }
+
+        private void PlayPressAnimation()
+        {
+            pressSequence?.Kill();
+            transform.DOKill();
+            Vector3 targetScale = GetTargetScale();
+            pressSequence = DOTween.Sequence()
+                .Append(transform.DOScale(targetScale * pressPopScale, pressPopUpDuration)
+                    .SetEase(Ease.OutBack))
+                .Append(transform.DOScale(targetScale, pressPopDownDuration)
+                    .SetEase(Ease.OutSine))
+                .OnComplete(() => pressSequence = null);
+        }
+
+        private Vector3 GetTargetScale()
+        {
+            return restingScale * (isSelected ? selectedScale : 1f);
         }
 
         private void EnsureReferences()
@@ -85,6 +119,12 @@ namespace FloodFill
             {
                 buttonImage = GetComponent<Image>();
             }
+        }
+
+        private void OnDestroy()
+        {
+            pressSequence?.Kill();
+            transform.DOKill();
         }
 
 #if UNITY_EDITOR
