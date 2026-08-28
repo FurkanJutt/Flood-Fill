@@ -1,3 +1,4 @@
+using System.Collections;
 using TMPro;
 using UnityEngine;
 
@@ -14,6 +15,7 @@ namespace FloodFill
 
         [Header("Game")]
         [SerializeField, Min(1)] private int maxMoves = 25;
+        [SerializeField, Min(0f)] private float resultRevealDelay = 0.25f;
         [SerializeField] private BoardManager boardManager;
 
         [Header("UI")]
@@ -27,6 +29,9 @@ namespace FloodFill
         public int MaxMoves => maxMoves;
         public GameState State { get; private set; }
         public int SelectedColorIndex { get; private set; } = -1;
+
+        private bool awaitingResult;
+        private Coroutine resultRevealCoroutine;
 
         private void Start()
         {
@@ -42,7 +47,7 @@ namespace FloodFill
 
         public void SelectColor(int colorIndex)
         {
-            if (State != GameState.Playing || boardManager == null)
+            if (State != GameState.Playing || awaitingResult || boardManager == null)
             {
                 return;
             }
@@ -59,7 +64,7 @@ namespace FloodFill
 
         private void HandleCellClicked(Cell cell)
         {
-            if (State != GameState.Playing || SelectedColorIndex < 0)
+            if (State != GameState.Playing || awaitingResult || SelectedColorIndex < 0)
             {
                 return;
             }
@@ -72,11 +77,11 @@ namespace FloodFill
             MoveCount++;
             if (boardManager.IsFullyCaptured)
             {
-                FinishGame(GameState.Won);
+                ScheduleResult(GameState.Won);
             }
             else if (MoveCount >= maxMoves)
             {
-                FinishGame(GameState.Lost);
+                ScheduleResult(GameState.Lost);
             }
             else
             {
@@ -92,6 +97,13 @@ namespace FloodFill
                 return;
             }
 
+            if (resultRevealCoroutine != null)
+            {
+                StopCoroutine(resultRevealCoroutine);
+                resultRevealCoroutine = null;
+            }
+
+            awaitingResult = false;
             MoveCount = 0;
             State = GameState.Playing;
 
@@ -114,6 +126,27 @@ namespace FloodFill
             }
 
             RefreshUI();
+        }
+
+        private void ScheduleResult(GameState finalState)
+        {
+            awaitingResult = true;
+            RefreshUI();
+            SetColorInputEnabled(false);
+            float delay = boardManager.LastRecolorAnimationDuration + resultRevealDelay;
+            resultRevealCoroutine = StartCoroutine(RevealResultAfterDelay(finalState, delay));
+        }
+
+        private IEnumerator RevealResultAfterDelay(GameState finalState, float delay)
+        {
+            if (delay > 0f)
+            {
+                yield return new WaitForSeconds(delay);
+            }
+
+            resultRevealCoroutine = null;
+            awaitingResult = false;
+            FinishGame(finalState);
         }
 
         public void Configure(
@@ -175,6 +208,7 @@ namespace FloodFill
             }
 
             bool canPlay = State == GameState.Playing;
+            boardManager.SetInputEnabled(canPlay && !awaitingResult);
             if (colorButtons == null)
             {
                 return;
@@ -198,6 +232,11 @@ namespace FloodFill
 
         private void SetColorInputEnabled(bool enabledInput)
         {
+            if (boardManager != null)
+            {
+                boardManager.SetInputEnabled(enabledInput);
+            }
+
             if (colorButtons == null)
             {
                 return;

@@ -45,6 +45,7 @@ namespace FloodFill
         private Cell selectedCell;
         private Cell lastSelectedCell;
         private int lastSelectionFrame = -1;
+        private bool inputEnabled = true;
 
         public event Action BoardChanged;
         public event Action<Cell> CellClicked;
@@ -57,6 +58,7 @@ namespace FloodFill
             : 0f;
         public bool IsFullyCaptured => CapturedCellCount == TotalCellCount && TotalCellCount > 0;
         public IReadOnlyList<Color> Colors => colors;
+        public float LastRecolorAnimationDuration { get; private set; }
 
         public bool GenerateBoard()
         {
@@ -68,6 +70,7 @@ namespace FloodFill
             ClearBoard();
             cells = new Cell[width, height];
             capturedCells.Clear();
+            LastRecolorAnimationDuration = 0f;
 
             float step = cellSize + cellSpacing;
             float startX = -(width - 1) * step * 0.5f;
@@ -112,16 +115,9 @@ namespace FloodFill
             }
 
             int originalColorIndex = cell.ColorIndex;
+            LastRecolorAnimationDuration = 0f;
             int recoloredCellCount = RecolorMatchingComponent(cell, originalColorIndex, colorIndex);
-            CurrentPlayerColor = colorIndex;
-
-            var expansionQueue = new Queue<Cell>();
-            for (int i = 0; i < capturedCells.Count; i++)
-            {
-                expansionQueue.Enqueue(capturedCells[i]);
-            }
-
-            ExpandCapturedRegion(expansionQueue, colorIndex, true);
+            RecalculateCapturedRegion(cell);
             BoardChanged?.Invoke();
 
             Debug.Log(
@@ -145,10 +141,13 @@ namespace FloodFill
             {
                 Cell current = queue.Dequeue();
                 int currentDepth = depthByCell[current];
-                current.AnimateColor(
+                float animationDuration = current.AnimateColor(
                     newColorIndex,
                     colors[newColorIndex],
                     currentDepth * WaveStepDelay);
+                LastRecolorAnimationDuration = Mathf.Max(
+                    LastRecolorAnimationDuration,
+                    animationDuration);
 
                 for (int i = 0; i < NeighborDirections.Length; i++)
                 {
@@ -206,6 +205,12 @@ namespace FloodFill
             lastSelectedCell = null;
             lastSelectionFrame = -1;
             CurrentPlayerColor = -1;
+            LastRecolorAnimationDuration = 0f;
+        }
+
+        public void SetInputEnabled(bool enabledInput)
+        {
+            inputEnabled = enabledInput;
         }
 
         public void Configure(
@@ -234,13 +239,32 @@ namespace FloodFill
             startingCell.SetCaptured(true, false);
             capturedCells.Add(startingCell);
             queue.Enqueue(startingCell);
-            ExpandCapturedRegion(queue, CurrentPlayerColor, false);
+            ExpandCapturedRegion(queue, CurrentPlayerColor, false, null);
+        }
+
+        private void RecalculateCapturedRegion(Cell originCell)
+        {
+            var previouslyCaptured = new HashSet<Cell>(capturedCells);
+            for (int i = 0; i < capturedCells.Count; i++)
+            {
+                capturedCells[i].SetCaptured(false, false);
+            }
+
+            capturedCells.Clear();
+            CurrentPlayerColor = originCell.ColorIndex;
+
+            var queue = new Queue<Cell>();
+            originCell.SetCaptured(true, !previouslyCaptured.Contains(originCell));
+            capturedCells.Add(originCell);
+            queue.Enqueue(originCell);
+            ExpandCapturedRegion(queue, CurrentPlayerColor, true, previouslyCaptured);
         }
 
         private void ExpandCapturedRegion(
             Queue<Cell> queue,
             int targetColorIndex,
-            bool animate)
+            bool animate,
+            HashSet<Cell> previouslyCaptured)
         {
             while (queue.Count > 0)
             {
@@ -262,7 +286,9 @@ namespace FloodFill
                         continue;
                     }
 
-                    neighbor.SetCaptured(true, animate);
+                    bool shouldAnimate = animate &&
+                        (previouslyCaptured == null || !previouslyCaptured.Contains(neighbor));
+                    neighbor.SetCaptured(true, shouldAnimate);
                     capturedCells.Add(neighbor);
                     queue.Enqueue(neighbor);
                 }
@@ -271,7 +297,7 @@ namespace FloodFill
 
         public bool TrySelectCellAtScreenPosition(Vector2 screenPosition)
         {
-            if (cells == null || boardCamera == null)
+            if (!inputEnabled || cells == null || boardCamera == null)
             {
                 return false;
             }
@@ -296,7 +322,7 @@ namespace FloodFill
 
         private void HandleCellClicked(Cell cell)
         {
-            if (cell != null && IsInsideBoard(cell.X, cell.Y) && cells[cell.X, cell.Y] == cell)
+            if (inputEnabled && cell != null && IsInsideBoard(cell.X, cell.Y) && cells[cell.X, cell.Y] == cell)
             {
                 SelectCell(cell);
             }

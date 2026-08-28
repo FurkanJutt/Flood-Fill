@@ -55,24 +55,27 @@ namespace FloodFill
             }
         }
 
-        public void AnimateColor(int colorIndex, Color color, float delay)
+        public float AnimateColor(int colorIndex, Color color, float delay)
         {
             ColorIndex = colorIndex;
             EnsureRenderer();
             if (spriteRenderer == null)
             {
-                return;
+                return 0f;
             }
 
+            float safeDelay = Mathf.Max(0f, delay);
             colorWaveSequence?.Kill();
             Color anticipationColor = Color.Lerp(spriteRenderer.color, Color.black, 0.16f);
             Color flashColor = Color.Lerp(color, Color.white, 0.52f);
             colorWaveSequence = DOTween.Sequence()
-                .AppendInterval(Mathf.Max(0f, delay))
+                .AppendInterval(safeDelay)
                 .Append(spriteRenderer.DOColor(anticipationColor, WaveAnticipationDuration).SetEase(Ease.InQuad))
                 .Append(spriteRenderer.DOColor(flashColor, WaveFlashDuration).SetEase(Ease.OutCubic))
                 .Append(spriteRenderer.DOColor(color, WaveFillDuration).SetEase(Ease.OutSine))
                 .OnComplete(() => colorWaveSequence = null);
+
+            return safeDelay + WaveAnticipationDuration + WaveFlashDuration + WaveFillDuration;
         }
 
         public void SetCaptured(bool captured, bool animate = true)
