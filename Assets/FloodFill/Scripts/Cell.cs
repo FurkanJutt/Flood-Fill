@@ -11,12 +11,15 @@ namespace FloodFill
         private const float CaptureStartScale = 0.85f;
         private const float CaptureDuration = 0.16f;
         private const float SelectedScale = 0.82f;
+        private const float WaveFlashDuration = 0.07f;
+        private const float WaveFillDuration = 0.13f;
 
         [SerializeField] private SpriteRenderer spriteRenderer;
         [SerializeField] private BoxCollider2D cellCollider;
 
         private Vector3 restingScale = Vector3.one;
         private bool isSelected;
+        private Sequence colorWaveSequence;
 
         public int X { get; private set; }
         public int Y { get; private set; }
@@ -45,8 +48,28 @@ namespace FloodFill
 
             if (spriteRenderer != null)
             {
+                colorWaveSequence?.Kill();
+                colorWaveSequence = null;
                 spriteRenderer.color = color;
             }
+        }
+
+        public void AnimateColor(int colorIndex, Color color, float delay)
+        {
+            ColorIndex = colorIndex;
+            EnsureRenderer();
+            if (spriteRenderer == null)
+            {
+                return;
+            }
+
+            colorWaveSequence?.Kill();
+            Color flashColor = Color.Lerp(color, Color.white, 0.32f);
+            colorWaveSequence = DOTween.Sequence()
+                .AppendInterval(Mathf.Max(0f, delay))
+                .Append(spriteRenderer.DOColor(flashColor, WaveFlashDuration).SetEase(Ease.OutQuad))
+                .Append(spriteRenderer.DOColor(color, WaveFillDuration).SetEase(Ease.InOutSine))
+                .OnComplete(() => colorWaveSequence = null);
         }
 
         public void SetCaptured(bool captured, bool animate = true)
@@ -121,6 +144,12 @@ namespace FloodFill
 
         private void OnDestroy()
         {
+            colorWaveSequence?.Kill();
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.DOKill();
+            }
+
             transform.DOKill();
         }
 

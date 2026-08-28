@@ -10,6 +10,8 @@ namespace FloodFill
 {
     public sealed class BoardManager : MonoBehaviour
     {
+        private const float WaveStepDelay = 0.045f;
+
         private static readonly Vector2Int[] NeighborDirections =
         {
             Vector2Int.up,
@@ -134,13 +136,19 @@ namespace FloodFill
         {
             var queue = new Queue<Cell>();
             var visited = new HashSet<Cell>();
+            var depthByCell = new Dictionary<Cell, int>();
             queue.Enqueue(startingCell);
             visited.Add(startingCell);
+            depthByCell.Add(startingCell, 0);
 
             while (queue.Count > 0)
             {
                 Cell current = queue.Dequeue();
-                current.SetColor(newColorIndex, colors[newColorIndex]);
+                int currentDepth = depthByCell[current];
+                current.AnimateColor(
+                    newColorIndex,
+                    colors[newColorIndex],
+                    currentDepth * WaveStepDelay);
 
                 for (int i = 0; i < NeighborDirections.Length; i++)
                 {
@@ -158,6 +166,7 @@ namespace FloodFill
                     }
 
                     visited.Add(neighbor);
+                    depthByCell.Add(neighbor, currentDepth + 1);
                     queue.Enqueue(neighbor);
                 }
             }
