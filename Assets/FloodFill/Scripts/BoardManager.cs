@@ -50,7 +50,7 @@ namespace FloodFill
         private bool inputEnabled = true;
         private bool pointerGestureActive;
         private int activePointerId = -1;
-        private readonly HashSet<Cell> gestureAnimatedCells = new HashSet<Cell>();
+        private Cell pointerPreviewCell;
 
         private enum PointerPhase
         {
@@ -188,6 +188,8 @@ namespace FloodFill
 
         public void ClearBoard()
         {
+            CancelPointerGesture();
+
             if (boardRoot != null)
             {
                 for (int i = boardRoot.childCount - 1; i >= 0; i--)
@@ -211,7 +213,6 @@ namespace FloodFill
             selectedCell = null;
             lastSelectedCell = null;
             lastSelectionFrame = -1;
-            CancelPointerGesture();
             CurrentPlayerColor = -1;
             LastRecolorAnimationDuration = 0f;
         }
@@ -322,15 +323,31 @@ namespace FloodFill
         {
             if (!inputEnabled || !TryGetCellAtScreenPosition(screenPosition, out Cell cell))
             {
+                SetPointerPreviewCell(null);
                 return false;
             }
 
-            if (gestureAnimatedCells.Add(cell))
+            SetPointerPreviewCell(cell);
+            return true;
+        }
+
+        private void SetPointerPreviewCell(Cell cell)
+        {
+            if (pointerPreviewCell == cell)
             {
-                cell.PlayPointerPop();
+                return;
             }
 
-            return true;
+            if (pointerPreviewCell != null)
+            {
+                pointerPreviewCell.StopPointerPop();
+            }
+
+            pointerPreviewCell = cell;
+            if (pointerPreviewCell != null)
+            {
+                pointerPreviewCell.StartPointerPopLoop();
+            }
         }
 
         private bool TryGetCellAtScreenPosition(Vector2 screenPosition, out Cell cell)
@@ -390,17 +407,7 @@ namespace FloodFill
 
             if (pointerPhase == PointerPhase.Pressed)
             {
-                if (IsPointerOverUI(screenPosition))
-                {
-                    return;
-                }
-
-                gestureAnimatedCells.Clear();
-                if (TryPreviewCellAtScreenPosition(screenPosition))
-                {
-                    pointerGestureActive = true;
-                    activePointerId = pointerId;
-                }
+                BeginPointerGesture(screenPosition, pointerId);
                 return;
             }
 
@@ -436,11 +443,23 @@ namespace FloodFill
             }
         }
 
+        private void BeginPointerGesture(Vector2 screenPosition, int pointerId)
+        {
+            if (IsPointerOverUI(screenPosition))
+            {
+                return;
+            }
+
+            pointerGestureActive = true;
+            activePointerId = pointerId;
+            TryPreviewCellAtScreenPosition(screenPosition);
+        }
+
         private void CancelPointerGesture()
         {
+            SetPointerPreviewCell(null);
             pointerGestureActive = false;
             activePointerId = -1;
-            gestureAnimatedCells.Clear();
         }
 
         private static bool IsPointerOverUI(Vector2 screenPosition)

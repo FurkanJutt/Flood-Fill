@@ -12,12 +12,13 @@ namespace FloodFill
         private const float WaveAnticipationDuration = 0.04f;
         private const float WaveFlashDuration = 0.09f;
         private const float WaveFillDuration = 0.16f;
-        private const float PointerPopScale = 1.12f;
-        private const float PointerPopUpDuration = 0.07f;
-        private const float PointerPopDownDuration = 0.13f;
-
         [SerializeField] private SpriteRenderer spriteRenderer;
         [SerializeField] private BoxCollider2D cellCollider;
+
+        [Header("Pointer Pop Animation")]
+        [SerializeField, Min(1f)] private float pointerPopScale = 1.12f;
+        [SerializeField, Min(0.01f)] private float pointerPopUpDuration = 0.18f;
+        [SerializeField, Min(0.01f)] private float pointerPopDownDuration = 0.30f;
 
         private Vector3 restingScale = Vector3.one;
         private bool isSelected;
@@ -106,17 +107,30 @@ namespace FloodFill
             transform.localScale = GetTargetScale();
         }
 
-        public void PlayPointerPop()
+        public void StartPointerPopLoop()
         {
+            if (pointerPopSequence != null && pointerPopSequence.IsActive())
+            {
+                return;
+            }
+
             pointerPopSequence?.Kill();
             transform.DOKill();
             Vector3 targetScale = GetTargetScale();
             pointerPopSequence = DOTween.Sequence()
-                .Append(transform.DOScale(targetScale * PointerPopScale, PointerPopUpDuration)
+                .Append(transform.DOScale(targetScale * pointerPopScale, pointerPopUpDuration)
                     .SetEase(Ease.OutBack))
-                .Append(transform.DOScale(targetScale, PointerPopDownDuration)
+                .Append(transform.DOScale(targetScale, pointerPopDownDuration)
                     .SetEase(Ease.OutSine))
-                .OnComplete(() => pointerPopSequence = null);
+                .SetLoops(-1, LoopType.Restart);
+        }
+
+        public void StopPointerPop()
+        {
+            pointerPopSequence?.Kill();
+            pointerPopSequence = null;
+            transform.DOKill();
+            transform.DOScale(GetTargetScale(), pointerPopDownDuration).SetEase(Ease.OutSine);
         }
 
         private void PlayCaptureAnimation()
