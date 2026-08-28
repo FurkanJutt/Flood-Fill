@@ -2824,7 +2824,7 @@ MonoBehaviour:
   resultRevealDelay: 0.25
   boardManager: {fileID: 460029613}
   colors:
-  - {r: 0.93, g: 0.25, b: 0.25, a: 1}
+  - {r: 1, g: 0, b: 0, a: 1}
   - {r: 0.25, g: 0.78, b: 0.38, a: 1}
   - {r: 0.2, g: 0.48, b: 0.95, a: 1}
   - {r: 0.98, g: 0.82, b: 0.2, a: 1}
@@ -2832,8 +2832,8 @@ MonoBehaviour:
   - {r: 1, g: 0.52, b: 0.16, a: 1}
   - {r: 1, g: 0, b: 1, a: 1}
   - {r: 0.3, g: 0.82, b: 0.8, a: 1}
-  - {r: 0.5019608, g: 0.5019608, b: 0, a: 1}
-  - {r: 0.627451, g: 0.3215686, b: 0.1764706, a: 1}
+  - {r: 0, g: 1, b: 0, a: 1}
+  - {r: 1, g: 0.3217391, b: 0, a: 1}
   movesText: {fileID: 319010519}
   capturedText: {fileID: 256157224}
   resultPanel: {fileID: 580592192}
