@@ -97,7 +97,7 @@ namespace FloodFill
             return true;
         }
 
-        public bool RecolorCell(Cell cell, int colorIndex)
+        public bool RecolorConnectedRegion(Cell cell, int colorIndex)
         {
             if (cells == null || cell == null || colorIndex < 0 || colorIndex >= colors.Length)
             {
@@ -109,7 +109,8 @@ namespace FloodFill
                 return false;
             }
 
-            cell.SetColor(colorIndex, colors[colorIndex]);
+            int originalColorIndex = cell.ColorIndex;
+            int recoloredCellCount = RecolorMatchingComponent(cell, originalColorIndex, colorIndex);
             CurrentPlayerColor = colorIndex;
 
             var expansionQueue = new Queue<Cell>();
@@ -122,10 +123,46 @@ namespace FloodFill
             BoardChanged?.Invoke();
 
             Debug.Log(
-                $"Recolored cell ({cell.X}, {cell.Y}) to color {colorIndex}. " +
+                $"Recolored {recoloredCellCount} connected cell(s) from ({cell.X}, {cell.Y}) " +
+                $"to color {colorIndex}. " +
                 $"Captured cells: {CapturedCellCount} / {TotalCellCount}",
                 this);
             return true;
+        }
+
+        private int RecolorMatchingComponent(Cell startingCell, int originalColorIndex, int newColorIndex)
+        {
+            var queue = new Queue<Cell>();
+            var visited = new HashSet<Cell>();
+            queue.Enqueue(startingCell);
+            visited.Add(startingCell);
+
+            while (queue.Count > 0)
+            {
+                Cell current = queue.Dequeue();
+                current.SetColor(newColorIndex, colors[newColorIndex]);
+
+                for (int i = 0; i < NeighborDirections.Length; i++)
+                {
+                    int neighborX = current.X + NeighborDirections[i].x;
+                    int neighborY = current.Y + NeighborDirections[i].y;
+                    if (!IsInsideBoard(neighborX, neighborY))
+                    {
+                        continue;
+                    }
+
+                    Cell neighbor = cells[neighborX, neighborY];
+                    if (visited.Contains(neighbor) || neighbor.ColorIndex != originalColorIndex)
+                    {
+                        continue;
+                    }
+
+                    visited.Add(neighbor);
+                    queue.Enqueue(neighbor);
+                }
+            }
+
+            return visited.Count;
         }
 
         public void ClearBoard()

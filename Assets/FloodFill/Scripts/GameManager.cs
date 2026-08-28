@@ -64,7 +64,7 @@ namespace FloodFill
                 return;
             }
 
-            if (!boardManager.RecolorCell(cell, SelectedColorIndex))
+            if (!boardManager.RecolorConnectedRegion(cell, SelectedColorIndex))
             {
                 return;
             }
@@ -106,7 +106,7 @@ namespace FloodFill
                 return;
             }
 
-            SelectedColorIndex = boardManager.CurrentPlayerColor;
+            SelectedColorIndex = -1;
             if (boardManager.IsFullyCaptured)
             {
                 FinishGame(GameState.Won);

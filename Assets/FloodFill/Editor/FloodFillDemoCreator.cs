@@ -197,7 +197,7 @@ namespace FloodFill.Editor
             TMP_Text instructions = CreateText(
                 "InstructionsText",
                 canvas,
-                "Select a color, then tap a cell",
+                "Select a color, then tap a connected group",
                 30f,
                 FontStyles.Normal);
             instructions.color = new Color(0.70f, 0.73f, 0.82f);
