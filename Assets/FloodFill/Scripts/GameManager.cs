@@ -204,7 +204,10 @@ namespace FloodFill
 
             if (capturedText != null)
             {
-                capturedText.text = $"Captured: {Mathf.RoundToInt(boardManager.CapturedPercentage)}%";
+                int displayedPercentage = MoveCount == 0
+                    ? 0
+                    : Mathf.RoundToInt(boardManager.CapturedPercentage);
+                capturedText.text = $"Captured: {displayedPercentage}%";
             }
 
             bool canPlay = State == GameState.Playing;
