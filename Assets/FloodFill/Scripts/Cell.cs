@@ -11,8 +11,9 @@ namespace FloodFill
         private const float CaptureStartScale = 0.85f;
         private const float CaptureDuration = 0.16f;
         private const float SelectedScale = 0.82f;
-        private const float WaveFlashDuration = 0.07f;
-        private const float WaveFillDuration = 0.13f;
+        private const float WaveAnticipationDuration = 0.04f;
+        private const float WaveFlashDuration = 0.09f;
+        private const float WaveFillDuration = 0.16f;
 
         [SerializeField] private SpriteRenderer spriteRenderer;
         [SerializeField] private BoxCollider2D cellCollider;
@@ -64,11 +65,13 @@ namespace FloodFill
             }
 
             colorWaveSequence?.Kill();
-            Color flashColor = Color.Lerp(color, Color.white, 0.32f);
+            Color anticipationColor = Color.Lerp(spriteRenderer.color, Color.black, 0.16f);
+            Color flashColor = Color.Lerp(color, Color.white, 0.52f);
             colorWaveSequence = DOTween.Sequence()
                 .AppendInterval(Mathf.Max(0f, delay))
-                .Append(spriteRenderer.DOColor(flashColor, WaveFlashDuration).SetEase(Ease.OutQuad))
-                .Append(spriteRenderer.DOColor(color, WaveFillDuration).SetEase(Ease.InOutSine))
+                .Append(spriteRenderer.DOColor(anticipationColor, WaveAnticipationDuration).SetEase(Ease.InQuad))
+                .Append(spriteRenderer.DOColor(flashColor, WaveFlashDuration).SetEase(Ease.OutCubic))
+                .Append(spriteRenderer.DOColor(color, WaveFillDuration).SetEase(Ease.OutSine))
                 .OnComplete(() => colorWaveSequence = null);
         }
 

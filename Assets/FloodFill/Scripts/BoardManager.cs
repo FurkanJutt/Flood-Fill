@@ -10,7 +10,7 @@ namespace FloodFill
 {
     public sealed class BoardManager : MonoBehaviour
     {
-        private const float WaveStepDelay = 0.045f;
+        private const float WaveStepDelay = 0.055f;
 
         private static readonly Vector2Int[] NeighborDirections =
         {
