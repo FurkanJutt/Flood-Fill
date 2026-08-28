@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -41,11 +42,24 @@ namespace FloodFill
         [SerializeField] private Camera boardCamera;
 
         private readonly List<Cell> capturedCells = new List<Cell>();
+        private static readonly List<RaycastResult> UiRaycastResults = new List<RaycastResult>();
         private Cell[,] cells;
         private Cell selectedCell;
         private Cell lastSelectedCell;
         private int lastSelectionFrame = -1;
         private bool inputEnabled = true;
+        private bool pointerGestureActive;
+        private int activePointerId = -1;
+        private readonly HashSet<Cell> gestureAnimatedCells = new HashSet<Cell>();
+
+        private enum PointerPhase
+        {
+            None,
+            Pressed,
+            Held,
+            Released,
+            Canceled
+        }
 
         public event Action BoardChanged;
         public event Action<Cell> CellClicked;
@@ -87,7 +101,6 @@ namespace FloodFill
                     cell.transform.localRotation = Quaternion.identity;
                     cell.transform.localScale = Vector3.one * cellSize;
                     cell.Initialize(x, y, colorIndex, colors[colorIndex]);
-                    cell.Clicked += HandleCellClicked;
                     cells[x, y] = cell;
                 }
             }
@@ -180,12 +193,6 @@ namespace FloodFill
                 for (int i = boardRoot.childCount - 1; i >= 0; i--)
                 {
                     GameObject child = boardRoot.GetChild(i).gameObject;
-                    Cell cell = child.GetComponent<Cell>();
-                    if (cell != null)
-                    {
-                        cell.Clicked -= HandleCellClicked;
-                    }
-
                     child.SetActive(false);
 
                     if (Application.isPlaying)
@@ -204,6 +211,7 @@ namespace FloodFill
             selectedCell = null;
             lastSelectedCell = null;
             lastSelectionFrame = -1;
+            CancelPointerGesture();
             CurrentPlayerColor = -1;
             LastRecolorAnimationDuration = 0f;
         }
@@ -211,6 +219,10 @@ namespace FloodFill
         public void SetInputEnabled(bool enabledInput)
         {
             inputEnabled = enabledInput;
+            if (!inputEnabled)
+            {
+                CancelPointerGesture();
+            }
         }
 
         public void Configure(
@@ -297,7 +309,34 @@ namespace FloodFill
 
         public bool TrySelectCellAtScreenPosition(Vector2 screenPosition)
         {
-            if (!inputEnabled || cells == null || boardCamera == null)
+            if (!inputEnabled || !TryGetCellAtScreenPosition(screenPosition, out Cell cell))
+            {
+                return false;
+            }
+
+            SelectCell(cell);
+            return true;
+        }
+
+        public bool TryPreviewCellAtScreenPosition(Vector2 screenPosition)
+        {
+            if (!inputEnabled || !TryGetCellAtScreenPosition(screenPosition, out Cell cell))
+            {
+                return false;
+            }
+
+            if (gestureAnimatedCells.Add(cell))
+            {
+                cell.PlayPointerPop();
+            }
+
+            return true;
+        }
+
+        private bool TryGetCellAtScreenPosition(Vector2 screenPosition, out Cell cell)
+        {
+            cell = null;
+            if (cells == null || boardCamera == null)
             {
                 return false;
             }
@@ -306,7 +345,7 @@ namespace FloodFill
             Vector3 worldPosition = boardCamera.ScreenToWorldPoint(
                 new Vector3(screenPosition.x, screenPosition.y, distanceFromCamera));
             Collider2D hitCollider = Physics2D.OverlapPoint(worldPosition);
-            if (hitCollider == null || !hitCollider.TryGetComponent(out Cell cell))
+            if (hitCollider == null || !hitCollider.TryGetComponent(out cell))
             {
                 return false;
             }
@@ -316,16 +355,7 @@ namespace FloodFill
                 return false;
             }
 
-            SelectCell(cell);
             return true;
-        }
-
-        private void HandleCellClicked(Cell cell)
-        {
-            if (inputEnabled && cell != null && IsInsideBoard(cell.X, cell.Y) && cells[cell.X, cell.Y] == cell)
-            {
-                SelectCell(cell);
-            }
         }
 
         private void SelectCell(Cell cell)
@@ -350,73 +380,215 @@ namespace FloodFill
 
         private void Update()
         {
-            if (!TryGetPointerPress(out Vector2 screenPosition, out int pointerId))
+            if (!inputEnabled || !TryGetPointerState(
+                    out Vector2 screenPosition,
+                    out int pointerId,
+                    out PointerPhase pointerPhase))
             {
                 return;
             }
 
-            if (IsPointerOverUI(pointerId))
+            if (pointerPhase == PointerPhase.Pressed)
+            {
+                if (IsPointerOverUI(screenPosition))
+                {
+                    return;
+                }
+
+                gestureAnimatedCells.Clear();
+                if (TryPreviewCellAtScreenPosition(screenPosition))
+                {
+                    pointerGestureActive = true;
+                    activePointerId = pointerId;
+                }
+                return;
+            }
+
+            if (!pointerGestureActive || pointerId != activePointerId)
             {
                 return;
             }
 
-            TrySelectCellAtScreenPosition(screenPosition);
+            if (pointerPhase == PointerPhase.Held)
+            {
+                if (!IsPointerOverUI(screenPosition))
+                {
+                    TryPreviewCellAtScreenPosition(screenPosition);
+                }
+                return;
+            }
+
+            if (pointerPhase == PointerPhase.Released)
+            {
+                bool releasedOverUI = IsPointerOverUI(screenPosition);
+                CancelPointerGesture();
+                if (!releasedOverUI)
+                {
+                    TrySelectCellAtScreenPosition(screenPosition);
+                }
+
+                return;
+            }
+
+            if (pointerPhase == PointerPhase.Canceled)
+            {
+                CancelPointerGesture();
+            }
         }
 
-        private static bool IsPointerOverUI(int pointerId)
+        private void CancelPointerGesture()
+        {
+            pointerGestureActive = false;
+            activePointerId = -1;
+            gestureAnimatedCells.Clear();
+        }
+
+        private static bool IsPointerOverUI(Vector2 screenPosition)
         {
             if (EventSystem.current == null)
             {
                 return false;
             }
 
-            return pointerId < 0
-                ? EventSystem.current.IsPointerOverGameObject()
-                : EventSystem.current.IsPointerOverGameObject(pointerId);
+            var pointerEventData = new PointerEventData(EventSystem.current)
+            {
+                position = screenPosition
+            };
+            UiRaycastResults.Clear();
+            EventSystem.current.RaycastAll(pointerEventData, UiRaycastResults);
+
+            for (int i = 0; i < UiRaycastResults.Count; i++)
+            {
+                if (UiRaycastResults[i].module is GraphicRaycaster)
+                {
+                    UiRaycastResults.Clear();
+                    return true;
+                }
+            }
+
+            UiRaycastResults.Clear();
+            return false;
         }
 
-        private static bool TryGetPointerPress(out Vector2 screenPosition, out int pointerId)
+        private static bool TryGetPointerState(
+            out Vector2 screenPosition,
+            out int pointerId,
+            out PointerPhase pointerPhase)
         {
 #if ENABLE_INPUT_SYSTEM
             if (Touchscreen.current != null)
             {
                 var primaryTouch = Touchscreen.current.primaryTouch;
+                if (primaryTouch.press.wasPressedThisFrame)
+                {
+                    screenPosition = primaryTouch.position.ReadValue();
+                    pointerId = primaryTouch.touchId.ReadValue();
+                    pointerPhase = PointerPhase.Pressed;
+                    return true;
+                }
+
                 if (primaryTouch.press.wasReleasedThisFrame)
                 {
                     screenPosition = primaryTouch.position.ReadValue();
                     pointerId = primaryTouch.touchId.ReadValue();
+                    pointerPhase = PointerPhase.Released;
                     return true;
                 }
+
+                if (primaryTouch.press.isPressed)
+                {
+                    screenPosition = primaryTouch.position.ReadValue();
+                    pointerId = primaryTouch.touchId.ReadValue();
+                    pointerPhase = PointerPhase.Held;
+                    return true;
+                }
+            }
+
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                screenPosition = Mouse.current.position.ReadValue();
+                pointerId = -1;
+                pointerPhase = PointerPhase.Pressed;
+                return true;
             }
 
             if (Mouse.current != null && Mouse.current.leftButton.wasReleasedThisFrame)
             {
                 screenPosition = Mouse.current.position.ReadValue();
                 pointerId = -1;
+                pointerPhase = PointerPhase.Released;
+                return true;
+            }
+
+            if (Mouse.current != null && Mouse.current.leftButton.isPressed)
+            {
+                screenPosition = Mouse.current.position.ReadValue();
+                pointerId = -1;
+                pointerPhase = PointerPhase.Held;
                 return true;
             }
 #else
             if (Input.touchCount > 0)
             {
                 Touch touch = Input.GetTouch(0);
+                if (touch.phase == TouchPhase.Began)
+                {
+                    screenPosition = touch.position;
+                    pointerId = touch.fingerId;
+                    pointerPhase = PointerPhase.Pressed;
+                    return true;
+                }
+
                 if (touch.phase == TouchPhase.Ended)
                 {
                     screenPosition = touch.position;
                     pointerId = touch.fingerId;
+                    pointerPhase = PointerPhase.Released;
                     return true;
                 }
+
+                if (touch.phase == TouchPhase.Canceled)
+                {
+                    screenPosition = touch.position;
+                    pointerId = touch.fingerId;
+                    pointerPhase = PointerPhase.Canceled;
+                    return true;
+                }
+
+                screenPosition = touch.position;
+                pointerId = touch.fingerId;
+                pointerPhase = PointerPhase.Held;
+                return true;
+            }
+
+            if (Input.GetMouseButtonDown(0))
+            {
+                screenPosition = Input.mousePosition;
+                pointerId = -1;
+                pointerPhase = PointerPhase.Pressed;
+                return true;
             }
 
             if (Input.GetMouseButtonUp(0))
             {
                 screenPosition = Input.mousePosition;
                 pointerId = -1;
+                pointerPhase = PointerPhase.Released;
+                return true;
+            }
+
+            if (Input.GetMouseButton(0))
+            {
+                screenPosition = Input.mousePosition;
+                pointerId = -1;
+                pointerPhase = PointerPhase.Held;
                 return true;
             }
 #endif
 
             screenPosition = default;
             pointerId = -1;
+            pointerPhase = PointerPhase.None;
             return false;
         }
 

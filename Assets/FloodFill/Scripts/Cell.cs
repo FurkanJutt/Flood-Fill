@@ -1,12 +1,10 @@
-using System;
 using DG.Tweening;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 namespace FloodFill
 {
     [RequireComponent(typeof(SpriteRenderer), typeof(BoxCollider2D))]
-    public sealed class Cell : MonoBehaviour, IPointerClickHandler
+    public sealed class Cell : MonoBehaviour
     {
         private const float CaptureStartScale = 0.85f;
         private const float CaptureDuration = 0.16f;
@@ -14,6 +12,9 @@ namespace FloodFill
         private const float WaveAnticipationDuration = 0.04f;
         private const float WaveFlashDuration = 0.09f;
         private const float WaveFillDuration = 0.16f;
+        private const float PointerPopScale = 1.12f;
+        private const float PointerPopUpDuration = 0.07f;
+        private const float PointerPopDownDuration = 0.13f;
 
         [SerializeField] private SpriteRenderer spriteRenderer;
         [SerializeField] private BoxCollider2D cellCollider;
@@ -21,14 +22,13 @@ namespace FloodFill
         private Vector3 restingScale = Vector3.one;
         private bool isSelected;
         private Sequence colorWaveSequence;
+        private Sequence pointerPopSequence;
 
         public int X { get; private set; }
         public int Y { get; private set; }
         public int ColorIndex { get; private set; }
         public bool IsCaptured { get; private set; }
         public SpriteRenderer SpriteRenderer => spriteRenderer;
-
-        public event Action<Cell> Clicked;
 
         public void Initialize(int x, int y, int colorIndex, Color color)
         {
@@ -100,16 +100,23 @@ namespace FloodFill
             }
 
             isSelected = selected;
+            pointerPopSequence?.Kill();
+            pointerPopSequence = null;
             transform.DOKill();
             transform.localScale = GetTargetScale();
         }
 
-        public void OnPointerClick(PointerEventData eventData)
+        public void PlayPointerPop()
         {
-            if (eventData.button == PointerEventData.InputButton.Left)
-            {
-                Clicked?.Invoke(this);
-            }
+            pointerPopSequence?.Kill();
+            transform.DOKill();
+            Vector3 targetScale = GetTargetScale();
+            pointerPopSequence = DOTween.Sequence()
+                .Append(transform.DOScale(targetScale * PointerPopScale, PointerPopUpDuration)
+                    .SetEase(Ease.OutBack))
+                .Append(transform.DOScale(targetScale, PointerPopDownDuration)
+                    .SetEase(Ease.OutSine))
+                .OnComplete(() => pointerPopSequence = null);
         }
 
         private void PlayCaptureAnimation()
@@ -151,6 +158,7 @@ namespace FloodFill
         private void OnDestroy()
         {
             colorWaveSequence?.Kill();
+            pointerPopSequence?.Kill();
             if (spriteRenderer != null)
             {
                 spriteRenderer.DOKill();
