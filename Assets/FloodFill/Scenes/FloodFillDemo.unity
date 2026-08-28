@@ -155,6 +155,10 @@ MonoBehaviour:
   button: {fileID: 5587751}
   buttonImage: {fileID: 5587750}
   gameManager: {fileID: 2103629468}
+  selectedScale: 1.12
+  pressPopScale: 1.1
+  pressPopUpDuration: 0.1
+  pressPopDownDuration: 0.18
 --- !u!114 &5587750
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -251,8 +255,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 748717508}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 130, y: 130}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -292,6 +296,10 @@ MonoBehaviour:
   button: {fileID: 64804063}
   buttonImage: {fileID: 64804062}
   gameManager: {fileID: 2103629468}
+  selectedScale: 1.12
+  pressPopScale: 1.1
+  pressPopUpDuration: 0.1
+  pressPopDownDuration: 0.18
 --- !u!114 &64804062
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -388,8 +396,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 748717508}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 130, y: 130}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -783,7 +791,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294964722
   m_fontColor: {r: 0.95, g: 0.96, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -796,7 +804,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -999,7 +1007,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294964722
   m_fontColor: {r: 0.95, g: 0.96, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -1012,7 +1020,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -1286,6 +1294,10 @@ MonoBehaviour:
   button: {fileID: 553842841}
   buttonImage: {fileID: 553842840}
   gameManager: {fileID: 2103629468}
+  selectedScale: 1.12
+  pressPopScale: 1.1
+  pressPopUpDuration: 0.1
+  pressPopDownDuration: 0.18
 --- !u!114 &553842840
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1382,8 +1394,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 748717508}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 130, y: 130}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -1529,7 +1541,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294964722
   m_fontColor: {r: 0.95, g: 0.96, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -1542,7 +1554,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -1735,6 +1747,10 @@ MonoBehaviour:
   button: {fileID: 1086177991}
   buttonImage: {fileID: 1086177990}
   gameManager: {fileID: 2103629468}
+  selectedScale: 1.12
+  pressPopScale: 1.1
+  pressPopUpDuration: 0.1
+  pressPopDownDuration: 0.18
 --- !u!114 &1086177990
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1831,8 +1847,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 748717508}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 130, y: 130}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -1914,7 +1930,7 @@ Canvas:
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
   m_UseReflectionProbes: 0
-  m_AdditionalShaderChannelsFlag: 0
+  m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
   m_SortingOrder: 0
@@ -2011,7 +2027,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294964722
   m_fontColor: {r: 0.95, g: 0.96, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -2024,7 +2040,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -2422,7 +2438,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4291934898
   m_fontColor: {r: 0.7, g: 0.73, b: 0.82, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -2435,7 +2451,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -2529,6 +2545,10 @@ MonoBehaviour:
   button: {fileID: 1984778966}
   buttonImage: {fileID: 1984778965}
   gameManager: {fileID: 2103629468}
+  selectedScale: 1.12
+  pressPopScale: 1.1
+  pressPopUpDuration: 0.1
+  pressPopDownDuration: 0.18
 --- !u!114 &1984778965
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2625,8 +2645,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 748717508}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 130, y: 130}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -2666,6 +2686,10 @@ MonoBehaviour:
   button: {fileID: 2012238489}
   buttonImage: {fileID: 2012238488}
   gameManager: {fileID: 2103629468}
+  selectedScale: 1.12
+  pressPopScale: 1.1
+  pressPopUpDuration: 0.1
+  pressPopDownDuration: 0.18
 --- !u!114 &2012238488
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2762,8 +2786,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 748717508}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 130, y: 130}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -2797,6 +2821,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FloodFill.GameManager
   maxMoves: 25
+  resultRevealDelay: 0.25
   boardManager: {fileID: 460029613}
   colors:
   - {r: 0.93, g: 0.25, b: 0.25, a: 1}
@@ -2807,6 +2832,8 @@ MonoBehaviour:
   - {r: 1, g: 0.52, b: 0.16, a: 1}
   - {r: 1, g: 0, b: 1, a: 1}
   - {r: 0.3, g: 0.82, b: 0.8, a: 1}
+  - {r: 0.5019608, g: 0.5019608, b: 0, a: 1}
+  - {r: 0.627451, g: 0.3215686, b: 0.1764706, a: 1}
   movesText: {fileID: 319010519}
   capturedText: {fileID: 256157224}
   resultPanel: {fileID: 580592192}
