@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using DG.Tweening;
 using FloodFill.Shapes;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -44,6 +45,11 @@ namespace FloodFill
         [SerializeField] private Color shapeBorderColor = Color.white;
         [SerializeField, Min(0.005f)] private float shapeBorderWidth = 0.055f;
 
+        [Header("Win Celebration")]
+        [SerializeField, Min(1f)] private float winPopScale = 1.09f;
+        [SerializeField, Min(0.01f)] private float winPopUpDuration = 0.35f;
+        [SerializeField, Min(0.01f)] private float winPopSettleDuration = 0.55f;
+
         [Header("References")]
         [SerializeField] private Transform boardRoot;
         [SerializeField] private Cell cellPrefab;
@@ -55,6 +61,7 @@ namespace FloodFill
         private bool[,] activeMask;
         private ShapeBounds activeBounds = ShapeBounds.Invalid;
         private int totalCellCount;
+        private GameObject completionBackingObject;
         private Cell[,] cells;
         private Cell selectedCell;
         private Cell lastSelectedCell;
@@ -63,6 +70,9 @@ namespace FloodFill
         private bool pointerGestureActive;
         private int activePointerId = -1;
         private Cell pointerPreviewCell;
+        private Sequence winCelebrationSequence;
+        private Vector3 boardRestingScale = Vector3.one;
+        private bool hasBoardRestingScale;
 
         private enum PointerPhase
         {
@@ -85,6 +95,7 @@ namespace FloodFill
         public bool IsFullyCaptured => CapturedCellCount == TotalCellCount && TotalCellCount > 0;
         public float LastRecolorAnimationDuration { get; private set; }
         public int LastNewlyCapturedCellCount { get; private set; }
+        public float LastWinCelebrationDuration { get; private set; }
         public Cell StartingCell { get; private set; }
         public BoardShapeMode ShapeMode => shapeMode;
         public ShapeBounds ActiveBounds => activeBounds;
@@ -99,6 +110,7 @@ namespace FloodFill
                 return false;
             }
 
+            CacheBoardRestingScale();
             ClearBoard();
             if (!TryCreateActiveMask())
             {
@@ -230,6 +242,8 @@ namespace FloodFill
         public void ClearBoard()
         {
             CancelPointerGesture();
+            StopWinCelebration();
+            completionBackingObject = null;
 
             if (boardRoot != null)
             {
@@ -260,9 +274,109 @@ namespace FloodFill
             CurrentPlayerColor = -1;
             LastRecolorAnimationDuration = 0f;
             LastNewlyCapturedCellCount = 0;
+            LastWinCelebrationDuration = 0f;
             StartingCell = null;
             LastGenerationSeed = 0;
             LastGenerationAttempt = 0;
+        }
+
+        public float PlayWinCelebration()
+        {
+            if (!IsFullyCaptured || boardRoot == null || CurrentPlayerColor < 0 ||
+                CurrentPlayerColor >= activeColors.Length)
+            {
+                LastWinCelebrationDuration = Mathf.Max(0f, LastRecolorAnimationDuration);
+                return LastWinCelebrationDuration;
+            }
+
+            CacheBoardRestingScale();
+            StopWinCelebration();
+            float waveDelay = Mathf.Max(0f, LastRecolorAnimationDuration);
+            float popUpDuration = Mathf.Max(0.01f, winPopUpDuration);
+            float settleDuration = Mathf.Max(0.01f, winPopSettleDuration);
+            Vector3 poppedScale = boardRestingScale * Mathf.Max(1f, winPopScale);
+
+            CreateCompletionBacking();
+            winCelebrationSequence = DOTween.Sequence()
+                .AppendInterval(waveDelay)
+                .Append(boardRoot.DOScale(poppedScale, popUpDuration).SetEase(Ease.OutBack))
+                .Append(boardRoot.DOScale(boardRestingScale, settleDuration).SetEase(Ease.OutSine))
+                .OnComplete(() => winCelebrationSequence = null);
+            LastWinCelebrationDuration = waveDelay + popUpDuration + settleDuration;
+            return LastWinCelebrationDuration;
+        }
+
+        private void CreateCompletionBacking()
+        {
+            if (completionBackingObject != null || cells == null || boardRoot == null ||
+                CurrentPlayerColor < 0 || CurrentPlayerColor >= activeColors.Length)
+            {
+                return;
+            }
+
+            SpriteRenderer templateRenderer = cellPrefab != null
+                ? cellPrefab.GetComponent<SpriteRenderer>()
+                : null;
+            if (templateRenderer == null || templateRenderer.sprite == null)
+            {
+                return;
+            }
+
+            completionBackingObject = new GameObject("CompletionBacking");
+            completionBackingObject.transform.SetParent(boardRoot, false);
+            float backingSize = cellSize + cellSpacing + 0.002f;
+            Color winningColor = activeColors[CurrentPlayerColor];
+
+            for (int x = 0; x < cells.GetLength(0); x++)
+            {
+                for (int y = 0; y < cells.GetLength(1); y++)
+                {
+                    Cell cell = cells[x, y];
+                    if (cell == null)
+                    {
+                        continue;
+                    }
+
+                    var tileObject = new GameObject($"Backing_{x}_{y}");
+                    tileObject.transform.SetParent(completionBackingObject.transform, false);
+                    tileObject.transform.localPosition = cell.transform.localPosition;
+                    tileObject.transform.localRotation = cell.transform.localRotation;
+                    tileObject.transform.localScale = Vector3.one * backingSize;
+
+                    var backingRenderer = tileObject.AddComponent<SpriteRenderer>();
+                    backingRenderer.sprite = templateRenderer.sprite;
+                    backingRenderer.sharedMaterial = templateRenderer.sharedMaterial;
+                    backingRenderer.color = winningColor;
+                    backingRenderer.flipX = templateRenderer.flipX;
+                    backingRenderer.flipY = templateRenderer.flipY;
+                    backingRenderer.sortingLayerID = templateRenderer.sortingLayerID;
+                    backingRenderer.sortingOrder = templateRenderer.sortingOrder - 2;
+                    backingRenderer.maskInteraction = templateRenderer.maskInteraction;
+                }
+            }
+        }
+
+        private void CacheBoardRestingScale()
+        {
+            if (!hasBoardRestingScale && boardRoot != null)
+            {
+                boardRestingScale = boardRoot.localScale;
+                hasBoardRestingScale = true;
+            }
+        }
+
+        private void StopWinCelebration()
+        {
+            winCelebrationSequence?.Kill();
+            winCelebrationSequence = null;
+            if (boardRoot != null)
+            {
+                boardRoot.DOKill();
+                if (hasBoardRestingScale)
+                {
+                    boardRoot.localScale = boardRestingScale;
+                }
+            }
         }
 
         private void CreateShapeBorder()
@@ -338,6 +452,7 @@ namespace FloodFill
             float spacing)
         {
             boardRoot = root;
+            hasBoardRestingScale = false;
             cellPrefab = prefab;
             boardCamera = targetCamera;
             width = Mathf.Max(1, boardWidth);
@@ -930,10 +1045,18 @@ namespace FloodFill
             cellSize = Mathf.Max(0.05f, cellSize);
             cellSpacing = Mathf.Max(0f, cellSpacing);
             shapeBorderWidth = Mathf.Max(0.005f, shapeBorderWidth);
+            winPopScale = Mathf.Max(1f, winPopScale);
+            winPopUpDuration = Mathf.Max(0.01f, winPopUpDuration);
+            winPopSettleDuration = Mathf.Max(0.01f, winPopSettleDuration);
             if (proceduralSettings == null)
             {
                 proceduralSettings = new ProceduralShapeSettings();
             }
+        }
+
+        private void OnDestroy()
+        {
+            StopWinCelebration();
         }
 
         [ContextMenu("Generate Board")]

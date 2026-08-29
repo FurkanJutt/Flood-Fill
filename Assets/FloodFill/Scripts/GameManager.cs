@@ -27,7 +27,7 @@ namespace FloodFill
 
         [Header("Game")]
         [SerializeField, Min(1)] private int maxMoves = 25;
-        [SerializeField, Min(0f)] private float resultRevealDelay = 0.25f;
+        [SerializeField, Min(0f)] private float resultRevealDelay = 0.75f;
         [SerializeField] private BoardManager boardManager;
         [SerializeField] private GridSize gridSize = GridSize.Size16x16;
 
@@ -178,7 +178,7 @@ namespace FloodFill
 
             if (boardManager.IsFullyCaptured)
             {
-                FinishGame(GameState.Won);
+                ScheduleResult(GameState.Won);
                 return;
             }
 
@@ -199,7 +199,10 @@ namespace FloodFill
             awaitingResult = true;
             RefreshUI();
             SetColorInputEnabled(false);
-            float delay = boardManager.LastRecolorAnimationDuration + resultRevealDelay;
+            float animationDuration = finalState == GameState.Won
+                ? boardManager.PlayWinCelebration()
+                : boardManager.LastRecolorAnimationDuration;
+            float delay = animationDuration + resultRevealDelay;
             resultRevealCoroutine = StartCoroutine(RevealResultAfterDelay(finalState, delay));
         }
 

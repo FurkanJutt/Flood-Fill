@@ -772,7 +772,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -1399,6 +1399,9 @@ MonoBehaviour:
   showShapeBorder: 1
   shapeBorderColor: {r: 1, g: 1, b: 1, a: 1}
   shapeBorderWidth: 0.055
+  winPopScale: 1.09
+  winPopUpDuration: 0.35
+  winPopSettleDuration: 0.55
   boardRoot: {fileID: 1032252817}
   cellPrefab: {fileID: 3206582947587686290, guid: 846a92cea97e24d5e9d175424ca95ea9, type: 3}
   boardCamera: {fileID: 321759720}
@@ -2982,9 +2985,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FloodFill.GameManager
   maxMoves: 25
-  resultRevealDelay: 0.25
+  resultRevealDelay: 0.75
   boardManager: {fileID: 460029613}
-  gridSize: 16
+  gridSize: 12
   minimumRandomScore: 21
   maximumRandomScore: 49
   minimumCellsForScoreMultiplier: 4
