@@ -55,7 +55,6 @@ namespace FloodFill
         private bool[,] activeMask;
         private ShapeBounds activeBounds = ShapeBounds.Invalid;
         private int totalCellCount;
-        private Mesh shapeBorderMesh;
         private Cell[,] cells;
         private Cell selectedCell;
         private Cell lastSelectedCell;
@@ -231,7 +230,6 @@ namespace FloodFill
         public void ClearBoard()
         {
             CancelPointerGesture();
-            DestroyShapeBorderMesh();
 
             if (boardRoot != null)
             {
@@ -274,52 +272,45 @@ namespace FloodFill
                 return;
             }
 
-            shapeBorderMesh = ShapeBorderMeshBuilder.Build(
+            IReadOnlyList<Vector3[]> contours = ShapeBorderContourBuilder.BuildContours(
                 activeMask,
                 activeBounds,
                 cellSize,
-                cellSpacing,
-                shapeBorderWidth,
-                shapeBorderColor);
-            if (shapeBorderMesh == null)
+                cellSpacing);
+            if (contours.Count == 0)
             {
                 return;
             }
 
             var borderObject = new GameObject("ShapeBorder");
             borderObject.transform.SetParent(boardRoot, false);
-            var meshFilter = borderObject.AddComponent<MeshFilter>();
-            var meshRenderer = borderObject.AddComponent<MeshRenderer>();
-            meshFilter.sharedMesh = shapeBorderMesh;
-
             SpriteRenderer cellRenderer = cellPrefab != null
                 ? cellPrefab.GetComponent<SpriteRenderer>()
                 : null;
-            if (cellRenderer != null)
+            for (int contourIndex = 0; contourIndex < contours.Count; contourIndex++)
             {
-                meshRenderer.sharedMaterial = cellRenderer.sharedMaterial;
-                meshRenderer.sortingLayerID = cellRenderer.sortingLayerID;
-                meshRenderer.sortingOrder = cellRenderer.sortingOrder - 1;
-            }
-        }
+                var contourObject = new GameObject($"Contour_{contourIndex}");
+                contourObject.transform.SetParent(borderObject.transform, false);
+                var lineRenderer = contourObject.AddComponent<LineRenderer>();
+                lineRenderer.useWorldSpace = false;
+                lineRenderer.loop = true;
+                lineRenderer.alignment = LineAlignment.TransformZ;
+                lineRenderer.textureMode = LineTextureMode.Stretch;
+                lineRenderer.widthMultiplier = shapeBorderWidth * 2f;
+                lineRenderer.numCornerVertices = 3;
+                lineRenderer.numCapVertices = 0;
+                lineRenderer.startColor = shapeBorderColor;
+                lineRenderer.endColor = shapeBorderColor;
+                lineRenderer.positionCount = contours[contourIndex].Length;
+                lineRenderer.SetPositions(contours[contourIndex]);
 
-        private void DestroyShapeBorderMesh()
-        {
-            if (shapeBorderMesh == null)
-            {
-                return;
+                if (cellRenderer != null)
+                {
+                    lineRenderer.sharedMaterial = cellRenderer.sharedMaterial;
+                    lineRenderer.sortingLayerID = cellRenderer.sortingLayerID;
+                    lineRenderer.sortingOrder = cellRenderer.sortingOrder - 1;
+                }
             }
-
-            if (Application.isPlaying)
-            {
-                Destroy(shapeBorderMesh);
-            }
-            else
-            {
-                DestroyImmediate(shapeBorderMesh);
-            }
-
-            shapeBorderMesh = null;
         }
 
         public void SetInputEnabled(bool enabledInput)
