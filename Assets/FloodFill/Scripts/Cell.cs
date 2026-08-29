@@ -8,7 +8,6 @@ namespace FloodFill
     {
         private const float CaptureStartScale = 0.85f;
         private const float CaptureDuration = 0.16f;
-        private const float SelectedScale = 0.82f;
         private const float WaveAnticipationDuration = 0.04f;
         private const float WaveFlashDuration = 0.09f;
         private const float WaveFillDuration = 0.16f;
@@ -143,7 +142,7 @@ namespace FloodFill
 
         private Vector3 GetTargetScale()
         {
-            return restingScale * (isSelected ? SelectedScale : 1f);
+            return restingScale;
         }
 
         private void EnsureRenderer()

@@ -70,7 +70,8 @@ namespace FloodFill.Editor
 
             TMP_Text movesText;
             TMP_Text capturedText;
-            CreateHeader(canvas.transform, gameManager, out movesText, out capturedText);
+            TMP_Text scoreText;
+            CreateHeader(canvas.transform, gameManager, out movesText, out capturedText, out scoreText);
 
             ColorButton[] colorButtons = CreateColorControls(canvas.transform, gameManager);
 
@@ -83,6 +84,7 @@ namespace FloodFill.Editor
                 25,
                 movesText,
                 capturedText,
+                scoreText,
                 resultPanel,
                 resultText,
                 colorButtons,
@@ -183,7 +185,8 @@ namespace FloodFill.Editor
             Transform canvas,
             GameManager gameManager,
             out TMP_Text movesText,
-            out TMP_Text capturedText)
+            out TMP_Text capturedText,
+            out TMP_Text scoreText)
         {
             TMP_Text title = CreateText("Title", canvas, "FLOOD FILL", 68f, FontStyles.Bold);
             SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
@@ -197,6 +200,10 @@ namespace FloodFill.Editor
             SetRect(capturedText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -224f), new Vector2(620f, 64f));
 
+            scoreText = CreateText("ScoreText", canvas, "Score: 0", 42f, FontStyles.Normal);
+            SetRect(scoreText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -282f), new Vector2(620f, 64f));
+
             TMP_Text instructions = CreateText(
                 "InstructionsText",
                 canvas,
@@ -205,7 +212,7 @@ namespace FloodFill.Editor
                 FontStyles.Normal);
             instructions.color = new Color(0.70f, 0.73f, 0.82f);
             SetRect(instructions.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -282f), new Vector2(720f, 50f));
+                new Vector2(0f, -340f), new Vector2(720f, 50f));
 
             Button restartButton = CreateTextButton(
                 "RestartButton",

@@ -19,6 +19,13 @@ namespace FloodFill
         [SerializeField, Min(0f)] private float resultRevealDelay = 0.25f;
         [SerializeField] private BoardManager boardManager;
 
+        [Header("Scoring")]
+        [SerializeField, Min(1)] private int minimumRandomScore = 21;
+        [SerializeField, Min(1)] private int maximumRandomScore = 49;
+        [SerializeField, Min(1)] private int minimumCellsForScoreMultiplier = 4;
+        [SerializeField, Min(2)] private int minimumScoreMultiplier = 3;
+        [SerializeField, Min(2)] private int maximumScoreMultiplier = 7;
+
         [Header("Colors")]
         [SerializeField] private Color[] colors =
         {
@@ -35,12 +42,17 @@ namespace FloodFill
         [Header("UI")]
         [SerializeField] private TMP_Text movesText;
         [SerializeField] private TMP_Text capturedText;
+        [SerializeField] private TMP_Text scoreText;
         [SerializeField] private GameObject resultPanel;
         [SerializeField] private TMP_Text resultText;
         [SerializeField] private ColorButton[] colorButtons;
 
         public int MoveCount { get; private set; }
         public int MaxMoves => maxMoves;
+        public int Score { get; private set; }
+        public int LastScoreGain { get; private set; }
+        public int LastRandomBaseScore { get; private set; }
+        public int LastScoreMultiplier { get; private set; } = 1;
         public GameState State { get; private set; }
         public int SelectedColorIndex { get; private set; } = -1;
         public IReadOnlyList<Color> ActiveColors => activeColors;
@@ -90,6 +102,7 @@ namespace FloodFill
                 return;
             }
 
+            AwardScore(boardManager.LastNewlyCapturedCellCount);
             MoveCount++;
             if (boardManager.IsFullyCaptured)
             {
@@ -121,6 +134,10 @@ namespace FloodFill
 
             awaitingResult = false;
             MoveCount = 0;
+            Score = 0;
+            LastScoreGain = 0;
+            LastRandomBaseScore = 0;
+            LastScoreMultiplier = 1;
             State = GameState.Playing;
             SelectedColorIndex = -1;
 
@@ -179,6 +196,7 @@ namespace FloodFill
             int moveLimit,
             TMP_Text movesLabel,
             TMP_Text capturedLabel,
+            TMP_Text scoreLabel,
             GameObject endPanel,
             TMP_Text endLabel,
             ColorButton[] buttons,
@@ -188,6 +206,7 @@ namespace FloodFill
             maxMoves = Mathf.Max(1, moveLimit);
             movesText = movesLabel;
             capturedText = capturedLabel;
+            scoreText = scoreLabel;
             resultPanel = endPanel;
             resultText = endLabel;
             colorButtons = buttons;
@@ -203,8 +222,8 @@ namespace FloodFill
             if (resultText != null)
             {
                 resultText.text = finalState == GameState.Won
-                    ? $"YOU WIN!\n\nMoves used: {MoveCount}"
-                    : $"OUT OF MOVES\n\nMoves used: {MoveCount} / {maxMoves}";
+                    ? $"YOU WIN!\n\nMoves used: {MoveCount}\nScore: {Score:N0}"
+                    : $"OUT OF MOVES\n\nMoves used: {MoveCount} / {maxMoves}\nScore: {Score:N0}";
             }
 
             if (resultPanel != null)
@@ -235,6 +254,11 @@ namespace FloodFill
                     ? 0
                     : Mathf.RoundToInt(boardManager.CapturedPercentage);
                 capturedText.text = $"Captured: {displayedPercentage}%";
+            }
+
+            if (scoreText != null)
+            {
+                scoreText.text = $"Score: {Score:N0}";
             }
 
             bool canPlay = State == GameState.Playing;
@@ -305,6 +329,36 @@ namespace FloodFill
             return true;
         }
 
+        private void AwardScore(int newlyCapturedCellCount)
+        {
+            if (newlyCapturedCellCount <= 0)
+            {
+                LastScoreGain = 0;
+                LastRandomBaseScore = 0;
+                LastScoreMultiplier = 1;
+                return;
+            }
+
+            LastRandomBaseScore = Random.Range(minimumRandomScore, maximumRandomScore + 1);
+            if (newlyCapturedCellCount < minimumCellsForScoreMultiplier)
+            {
+                LastScoreMultiplier = 1;
+            }
+            else
+            {
+                int cellsAtMinimumMultiplier =
+                    minimumCellsForScoreMultiplier + minimumScoreMultiplier - 1;
+                LastScoreMultiplier = newlyCapturedCellCount <= cellsAtMinimumMultiplier
+                    ? minimumScoreMultiplier
+                    : Mathf.Min(
+                        maximumScoreMultiplier,
+                        minimumScoreMultiplier + newlyCapturedCellCount - cellsAtMinimumMultiplier);
+            }
+
+            LastScoreGain = LastRandomBaseScore * LastScoreMultiplier;
+            Score += LastScoreGain;
+        }
+
         private void ApplyActiveColorsToButtons()
         {
             for (int i = 0; i < colorButtons.Length; i++)
@@ -329,7 +383,8 @@ namespace FloodFill
                 valid = false;
             }
 
-            if (movesText == null || capturedText == null || resultPanel == null || resultText == null)
+            if (movesText == null || capturedText == null || scoreText == null ||
+                resultPanel == null || resultText == null)
             {
                 Debug.LogError("Flood Fill GameManager is missing one or more UI references.", this);
                 valid = false;
@@ -363,6 +418,11 @@ namespace FloodFill
         private void OnValidate()
         {
             maxMoves = Mathf.Max(1, maxMoves);
+            minimumRandomScore = Mathf.Max(1, minimumRandomScore);
+            maximumRandomScore = Mathf.Max(minimumRandomScore, maximumRandomScore);
+            minimumCellsForScoreMultiplier = Mathf.Max(1, minimumCellsForScoreMultiplier);
+            minimumScoreMultiplier = Mathf.Max(2, minimumScoreMultiplier);
+            maximumScoreMultiplier = Mathf.Max(minimumScoreMultiplier, maximumScoreMultiplier);
         }
     }
 }

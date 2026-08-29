@@ -64,6 +64,7 @@ namespace FloodFill
             : 0f;
         public bool IsFullyCaptured => CapturedCellCount == TotalCellCount && TotalCellCount > 0;
         public float LastRecolorAnimationDuration { get; private set; }
+        public int LastNewlyCapturedCellCount { get; private set; }
 
         public bool GenerateBoard()
         {
@@ -76,6 +77,7 @@ namespace FloodFill
             cells = new Cell[width, height];
             capturedCells.Clear();
             LastRecolorAnimationDuration = 0f;
+            LastNewlyCapturedCellCount = 0;
 
             float step = cellSize + cellSpacing;
             float startX = -(width - 1) * step * 0.5f;
@@ -120,6 +122,7 @@ namespace FloodFill
 
             int originalColorIndex = cell.ColorIndex;
             LastRecolorAnimationDuration = 0f;
+            LastNewlyCapturedCellCount = 0;
             int recoloredCellCount = RecolorMatchingComponent(cell, originalColorIndex, colorIndex);
             RecalculateCapturedRegion(cell);
             BoardChanged?.Invoke();
@@ -206,6 +209,7 @@ namespace FloodFill
             lastSelectionFrame = -1;
             CurrentPlayerColor = -1;
             LastRecolorAnimationDuration = 0f;
+            LastNewlyCapturedCellCount = 0;
         }
 
         public void SetInputEnabled(bool enabledInput)
@@ -275,6 +279,14 @@ namespace FloodFill
             capturedCells.Add(originCell);
             queue.Enqueue(originCell);
             ExpandCapturedRegion(queue, CurrentPlayerColor, true, previouslyCaptured);
+
+            for (int i = 0; i < capturedCells.Count; i++)
+            {
+                if (!previouslyCaptured.Contains(capturedCells[i]))
+                {
+                    LastNewlyCapturedCellCount++;
+                }
+            }
         }
 
         private void ExpandCapturedRegion(
