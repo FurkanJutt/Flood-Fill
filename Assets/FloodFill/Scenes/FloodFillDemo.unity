@@ -1372,10 +1372,33 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: adf69ff0e50db4c72b041a8ff8568d5f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FloodFill.BoardManager
-  width: 10
-  height: 10
+  width: 16
+  height: 16
   cellSize: 0.8
   cellSpacing: 0.06
+  shapeMode: 1
+  proceduralSettings:
+    minFillPercent: 0.38
+    maxFillPercent: 0.58
+    edgeMargin: 1
+    minimumShapeWidth: 7
+    minimumShapeHeight: 7
+    minBrushRadius: 0
+    maxBrushRadius: 1
+    brushChance: 0.3
+    branchChance: 0.3
+    directionPersistence: 0.25
+    centerBias: 0.15
+    seedOffsetRadius: 2
+    cleanupIterations: 1
+    spikeRemovalChance: 0.35
+    maxGenerationAttempts: 20
+    useRandomSeed: 1
+    fixedSeed: 12345
+    logGeneratedMask: 0
+  showShapeBorder: 1
+  shapeBorderColor: {r: 1, g: 1, b: 1, a: 1}
+  shapeBorderWidth: 0.055
   boardRoot: {fileID: 1032252817}
   cellPrefab: {fileID: 3206582947587686290, guid: 846a92cea97e24d5e9d175424ca95ea9, type: 3}
   boardCamera: {fileID: 321759720}
@@ -2961,6 +2984,7 @@ MonoBehaviour:
   maxMoves: 25
   resultRevealDelay: 0.25
   boardManager: {fileID: 460029613}
+  gridSize: 16
   minimumRandomScore: 21
   maximumRandomScore: 49
   minimumCellsForScoreMultiplier: 4

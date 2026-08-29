@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
+using FloodFill.Shapes;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -21,11 +23,26 @@ namespace FloodFill
             Vector2Int.right
         };
 
+        public enum BoardShapeMode
+        {
+            Rectangle,
+            Procedural
+        }
+
         [Header("Board")]
-        [SerializeField, Min(1)] private int width = 10;
-        [SerializeField, Min(1)] private int height = 10;
+        [SerializeField, HideInInspector, Min(1)] private int width = 10;
+        [SerializeField, HideInInspector, Min(1)] private int height = 10;
         [SerializeField, Min(0.05f)] private float cellSize = 0.8f;
         [SerializeField, Min(0f)] private float cellSpacing = 0.06f;
+
+        [Header("Shape Generation")]
+        [SerializeField] private BoardShapeMode shapeMode = BoardShapeMode.Procedural;
+        [SerializeField] private ProceduralShapeSettings proceduralSettings = new ProceduralShapeSettings();
+
+        [Header("Shape Border")]
+        [SerializeField] private bool showShapeBorder = true;
+        [SerializeField] private Color shapeBorderColor = Color.white;
+        [SerializeField, Min(0.005f)] private float shapeBorderWidth = 0.055f;
 
         [Header("References")]
         [SerializeField] private Transform boardRoot;
@@ -35,6 +52,10 @@ namespace FloodFill
         private readonly List<Cell> capturedCells = new List<Cell>();
         private static readonly List<RaycastResult> UiRaycastResults = new List<RaycastResult>();
         private Color[] activeColors = Array.Empty<Color>();
+        private bool[,] activeMask;
+        private ShapeBounds activeBounds = ShapeBounds.Invalid;
+        private int totalCellCount;
+        private Mesh shapeBorderMesh;
         private Cell[,] cells;
         private Cell selectedCell;
         private Cell lastSelectedCell;
@@ -58,13 +79,19 @@ namespace FloodFill
 
         public int CurrentPlayerColor { get; private set; } = -1;
         public int CapturedCellCount => capturedCells.Count;
-        public int TotalCellCount => width * height;
+        public int TotalCellCount => totalCellCount;
         public float CapturedPercentage => TotalCellCount > 0
             ? CapturedCellCount * 100f / TotalCellCount
             : 0f;
         public bool IsFullyCaptured => CapturedCellCount == TotalCellCount && TotalCellCount > 0;
         public float LastRecolorAnimationDuration { get; private set; }
         public int LastNewlyCapturedCellCount { get; private set; }
+        public Cell StartingCell { get; private set; }
+        public BoardShapeMode ShapeMode => shapeMode;
+        public ShapeBounds ActiveBounds => activeBounds;
+        public int LastGenerationSeed { get; private set; }
+        public int LastGenerationAttempt { get; private set; }
+        public ProceduralShapeSettings ProceduralSettings => proceduralSettings;
 
         public bool GenerateBoard()
         {
@@ -74,23 +101,36 @@ namespace FloodFill
             }
 
             ClearBoard();
+            if (!TryCreateActiveMask())
+            {
+                return false;
+            }
+
             cells = new Cell[width, height];
             capturedCells.Clear();
             LastRecolorAnimationDuration = 0f;
             LastNewlyCapturedCellCount = 0;
 
             float step = cellSize + cellSpacing;
-            float startX = -(width - 1) * step * 0.5f;
-            float startY = -(height - 1) * step * 0.5f;
+            float shapeCenterX = (activeBounds.MinX + activeBounds.MaxX) * 0.5f;
+            float shapeCenterY = (activeBounds.MinY + activeBounds.MaxY) * 0.5f;
 
             for (int x = 0; x < width; x++)
             {
                 for (int y = 0; y < height; y++)
                 {
+                    if (!activeMask[x, y])
+                    {
+                        continue;
+                    }
+
                     int colorIndex = UnityEngine.Random.Range(0, activeColors.Length);
                     Cell cell = Instantiate(cellPrefab, boardRoot);
                     cell.name = $"Cell_{x}_{y}";
-                    cell.transform.localPosition = new Vector3(startX + x * step, startY + y * step, 0f);
+                    cell.transform.localPosition = new Vector3(
+                        (x - shapeCenterX) * step,
+                        (y - shapeCenterY) * step,
+                        0f);
                     cell.transform.localRotation = Quaternion.identity;
                     cell.transform.localScale = Vector3.one * cellSize;
                     cell.Initialize(x, y, colorIndex, activeColors[colorIndex]);
@@ -98,13 +138,25 @@ namespace FloodFill
                 }
             }
 
-            Cell startingCell = cells[0, 0];
-            CurrentPlayerColor = startingCell.ColorIndex;
-            CaptureInitialRegion(startingCell);
+            CreateShapeBorder();
+
+            StartingCell = FindBottomLeftStartingCell();
+            if (StartingCell == null)
+            {
+                Debug.LogError("Flood Fill could not find an active starting cell.", this);
+                ClearBoard();
+                return false;
+            }
+
+            CurrentPlayerColor = StartingCell.ColorIndex;
+            CaptureInitialRegion(StartingCell);
             FitCameraToBoard();
             BoardChanged?.Invoke();
 
-            Debug.Log($"Flood Fill board generated: {width}x{height}", this);
+            Debug.Log(
+                $"Flood Fill board generated. Mode: {shapeMode}. Logical size: {width}x{height}. " +
+                $"Active cells: {TotalCellCount}. Bounds: {activeBounds.Width}x{activeBounds.Height}.",
+                this);
             return true;
         }
 
@@ -115,7 +167,7 @@ namespace FloodFill
                 return false;
             }
 
-            if (!IsInsideBoard(cell.X, cell.Y) || cells[cell.X, cell.Y] != cell || cell.ColorIndex == colorIndex)
+            if (GetCell(cell.X, cell.Y) != cell || cell.ColorIndex == colorIndex)
             {
                 return false;
             }
@@ -160,13 +212,9 @@ namespace FloodFill
                 {
                     int neighborX = current.X + NeighborDirections[i].x;
                     int neighborY = current.Y + NeighborDirections[i].y;
-                    if (!IsInsideBoard(neighborX, neighborY))
-                    {
-                        continue;
-                    }
-
-                    Cell neighbor = cells[neighborX, neighborY];
-                    if (visited.Contains(neighbor) || neighbor.ColorIndex != originalColorIndex)
+                    Cell neighbor = GetCell(neighborX, neighborY);
+                    if (neighbor == null || visited.Contains(neighbor) ||
+                        neighbor.ColorIndex != originalColorIndex)
                     {
                         continue;
                     }
@@ -183,6 +231,7 @@ namespace FloodFill
         public void ClearBoard()
         {
             CancelPointerGesture();
+            DestroyShapeBorderMesh();
 
             if (boardRoot != null)
             {
@@ -203,6 +252,9 @@ namespace FloodFill
             }
 
             cells = null;
+            activeMask = null;
+            activeBounds = ShapeBounds.Invalid;
+            totalCellCount = 0;
             capturedCells.Clear();
             selectedCell = null;
             lastSelectedCell = null;
@@ -210,6 +262,64 @@ namespace FloodFill
             CurrentPlayerColor = -1;
             LastRecolorAnimationDuration = 0f;
             LastNewlyCapturedCellCount = 0;
+            StartingCell = null;
+            LastGenerationSeed = 0;
+            LastGenerationAttempt = 0;
+        }
+
+        private void CreateShapeBorder()
+        {
+            if (!showShapeBorder || activeMask == null || boardRoot == null)
+            {
+                return;
+            }
+
+            shapeBorderMesh = ShapeBorderMeshBuilder.Build(
+                activeMask,
+                activeBounds,
+                cellSize,
+                cellSpacing,
+                shapeBorderWidth,
+                shapeBorderColor);
+            if (shapeBorderMesh == null)
+            {
+                return;
+            }
+
+            var borderObject = new GameObject("ShapeBorder");
+            borderObject.transform.SetParent(boardRoot, false);
+            var meshFilter = borderObject.AddComponent<MeshFilter>();
+            var meshRenderer = borderObject.AddComponent<MeshRenderer>();
+            meshFilter.sharedMesh = shapeBorderMesh;
+
+            SpriteRenderer cellRenderer = cellPrefab != null
+                ? cellPrefab.GetComponent<SpriteRenderer>()
+                : null;
+            if (cellRenderer != null)
+            {
+                meshRenderer.sharedMaterial = cellRenderer.sharedMaterial;
+                meshRenderer.sortingLayerID = cellRenderer.sortingLayerID;
+                meshRenderer.sortingOrder = cellRenderer.sortingOrder - 1;
+            }
+        }
+
+        private void DestroyShapeBorderMesh()
+        {
+            if (shapeBorderMesh == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(shapeBorderMesh);
+            }
+            else
+            {
+                DestroyImmediate(shapeBorderMesh);
+            }
+
+            shapeBorderMesh = null;
         }
 
         public void SetInputEnabled(bool enabledInput)
@@ -219,6 +329,12 @@ namespace FloodFill
             {
                 CancelPointerGesture();
             }
+        }
+
+        public void SetGridSize(int boardWidth, int boardHeight)
+        {
+            width = Mathf.Max(1, boardWidth);
+            height = Mathf.Max(1, boardHeight);
         }
 
         public void Configure(
@@ -304,13 +420,9 @@ namespace FloodFill
                     int neighborX = current.X + NeighborDirections[i].x;
                     int neighborY = current.Y + NeighborDirections[i].y;
 
-                    if (!IsInsideBoard(neighborX, neighborY))
-                    {
-                        continue;
-                    }
-
-                    Cell neighbor = cells[neighborX, neighborY];
-                    if (neighbor.IsCaptured || neighbor.ColorIndex != targetColorIndex)
+                    Cell neighbor = GetCell(neighborX, neighborY);
+                    if (neighbor == null || neighbor.IsCaptured ||
+                        neighbor.ColorIndex != targetColorIndex)
                     {
                         continue;
                     }
@@ -383,7 +495,7 @@ namespace FloodFill
                 return false;
             }
 
-            if (!IsInsideBoard(cell.X, cell.Y) || cells[cell.X, cell.Y] != cell)
+            if (GetCell(cell.X, cell.Y) != cell)
             {
                 return false;
             }
@@ -634,6 +746,140 @@ namespace FloodFill
             return x >= 0 && x < width && y >= 0 && y < height;
         }
 
+        public Cell GetCell(int x, int y)
+        {
+            return cells != null && IsInsideBoard(x, y) ? cells[x, y] : null;
+        }
+
+        public bool IsActiveCoordinate(int x, int y)
+        {
+            return activeMask != null && IsInsideBoard(x, y) && activeMask[x, y];
+        }
+
+        public void SetShapeMode(BoardShapeMode mode)
+        {
+            shapeMode = mode;
+        }
+
+        private bool TryCreateActiveMask()
+        {
+            if (shapeMode == BoardShapeMode.Rectangle)
+            {
+                activeMask = new bool[width, height];
+                for (int x = 0; x < width; x++)
+                {
+                    for (int y = 0; y < height; y++)
+                    {
+                        activeMask[x, y] = true;
+                    }
+                }
+
+                activeBounds = new ShapeBounds(0, width - 1, 0, height - 1);
+                totalCellCount = width * height;
+                LastGenerationSeed = 0;
+                LastGenerationAttempt = 1;
+                return true;
+            }
+
+            int seed = proceduralSettings.useRandomSeed
+                ? CreateRandomGenerationSeed()
+                : proceduralSettings.fixedSeed;
+            if (!ProceduralShapeGenerator.TryGenerate(
+                    width,
+                    height,
+                    proceduralSettings,
+                    seed,
+                    out ProceduralShapeResult result))
+            {
+                Debug.LogError(
+                    $"Procedural shape generation failed after " +
+                    $"{proceduralSettings.maxGenerationAttempts} attempts. " +
+                    "Falling back to a full rectangle.",
+                    this);
+                activeMask = new bool[width, height];
+                for (int x = 0; x < width; x++)
+                {
+                    for (int y = 0; y < height; y++)
+                    {
+                        activeMask[x, y] = true;
+                    }
+                }
+
+                activeBounds = new ShapeBounds(0, width - 1, 0, height - 1);
+                totalCellCount = width * height;
+                LastGenerationSeed = seed;
+                LastGenerationAttempt = proceduralSettings.maxGenerationAttempts;
+                return true;
+            }
+
+            activeMask = result.Mask;
+            activeBounds = result.Bounds;
+            totalCellCount = result.ActiveCellCount;
+            LastGenerationSeed = result.Seed;
+            LastGenerationAttempt = result.GenerationAttempt;
+
+            float fillPercent = totalCellCount * 100f / (width * height);
+            Debug.Log(
+                $"Procedural shape generated. Logical size: {width}x{height}. " +
+                $"Active cells: {totalCellCount}. Fill: {fillPercent:0.#}%. " +
+                $"Bounds: {activeBounds.Width}x{activeBounds.Height}. " +
+                $"Generation attempt: {LastGenerationAttempt}. Seed: {LastGenerationSeed}.",
+                this);
+            if (proceduralSettings.logGeneratedMask)
+            {
+                Debug.Log(BuildMaskLog(), this);
+            }
+
+            return true;
+        }
+
+        private static int CreateRandomGenerationSeed()
+        {
+            return Guid.NewGuid().GetHashCode();
+        }
+
+        private Cell FindBottomLeftStartingCell()
+        {
+            if (cells == null || !activeBounds.IsValid)
+            {
+                return null;
+            }
+
+            for (int y = activeBounds.MinY; y <= activeBounds.MaxY; y++)
+            {
+                for (int x = activeBounds.MinX; x <= activeBounds.MaxX; x++)
+                {
+                    Cell cell = GetCell(x, y);
+                    if (cell != null)
+                    {
+                        return cell;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private string BuildMaskLog()
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("Procedural board mask (X = active, . = inactive):");
+            for (int y = height - 1; y >= 0; y--)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    builder.Append(IsActiveCoordinate(x, y) ? 'X' : '.');
+                }
+
+                if (y > 0)
+                {
+                    builder.AppendLine();
+                }
+            }
+
+            return builder.ToString();
+        }
+
         private bool ValidateConfiguration()
         {
             if (width < 1 || height < 1)
@@ -654,6 +900,11 @@ namespace FloodFill
                 return false;
             }
 
+            if (shapeMode == BoardShapeMode.Procedural && proceduralSettings == null)
+            {
+                proceduralSettings = new ProceduralShapeSettings();
+            }
+
             return true;
         }
 
@@ -665,8 +916,12 @@ namespace FloodFill
                 return;
             }
 
-            float boardWidth = width * cellSize + Mathf.Max(0, width - 1) * cellSpacing;
-            float boardHeight = height * cellSize + Mathf.Max(0, height - 1) * cellSpacing;
+            int visibleWidth = activeBounds.IsValid ? activeBounds.Width : width;
+            int visibleHeight = activeBounds.IsValid ? activeBounds.Height : height;
+            float boardWidth = visibleWidth * cellSize +
+                Mathf.Max(0, visibleWidth - 1) * cellSpacing;
+            float boardHeight = visibleHeight * cellSize +
+                Mathf.Max(0, visibleHeight - 1) * cellSpacing;
             float aspect = Screen.height > 0 ? (float)Screen.width / Screen.height : 9f / 16f;
             aspect = Mathf.Max(0.1f, aspect);
 
@@ -683,6 +938,23 @@ namespace FloodFill
             height = Mathf.Max(1, height);
             cellSize = Mathf.Max(0.05f, cellSize);
             cellSpacing = Mathf.Max(0f, cellSpacing);
+            shapeBorderWidth = Mathf.Max(0.005f, shapeBorderWidth);
+            if (proceduralSettings == null)
+            {
+                proceduralSettings = new ProceduralShapeSettings();
+            }
+        }
+
+        [ContextMenu("Generate Board")]
+        private void GenerateBoardFromContextMenu()
+        {
+            if (!Application.isPlaying)
+            {
+                Debug.LogWarning("Generate Board is available while the game is running.", this);
+                return;
+            }
+
+            GenerateBoard();
         }
     }
 }

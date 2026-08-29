@@ -14,10 +14,22 @@ namespace FloodFill
             Lost
         }
 
+        public enum GridSize
+        {
+            Size10x10 = 10,
+            Size12x12 = 12,
+            Size15x15 = 15,
+            Size16x16 = 16,
+            Size18x18 = 18,
+            Size20x20 = 20,
+            Size24x24 = 24
+        }
+
         [Header("Game")]
         [SerializeField, Min(1)] private int maxMoves = 25;
         [SerializeField, Min(0f)] private float resultRevealDelay = 0.25f;
         [SerializeField] private BoardManager boardManager;
+        [SerializeField] private GridSize gridSize = GridSize.Size16x16;
 
         [Header("Scoring")]
         [SerializeField, Min(1)] private int minimumRandomScore = 21;
@@ -49,6 +61,7 @@ namespace FloodFill
 
         public int MoveCount { get; private set; }
         public int MaxMoves => maxMoves;
+        public int SelectedGridSize => (int)gridSize;
         public int Score { get; private set; }
         public int LastScoreGain { get; private set; }
         public int LastRandomBaseScore { get; private set; }
@@ -126,6 +139,8 @@ namespace FloodFill
                 return;
             }
 
+            ApplySelectedGridSize();
+
             if (resultRevealCoroutine != null)
             {
                 StopCoroutine(resultRevealCoroutine);
@@ -168,6 +183,15 @@ namespace FloodFill
             }
 
             RefreshUI();
+        }
+
+        public void SetGrid()
+        {
+            ApplySelectedGridSize();
+            if (Application.isPlaying)
+            {
+                RestartGame();
+            }
         }
 
         private void ScheduleResult(GameState finalState)
@@ -357,6 +381,15 @@ namespace FloodFill
 
             LastScoreGain = LastRandomBaseScore * LastScoreMultiplier;
             Score += LastScoreGain;
+        }
+
+        private void ApplySelectedGridSize()
+        {
+            if (boardManager != null)
+            {
+                int dimension = (int)gridSize;
+                boardManager.SetGridSize(dimension, dimension);
+            }
         }
 
         private void ApplyActiveColorsToButtons()

@@ -138,8 +138,8 @@ namespace FloodFill.Editor
                 boardRootObject.transform,
                 cellPrefab,
                 mainCamera,
-                10,
-                10,
+                16,
+                16,
                 0.8f,
                 0.06f);
             return boardManager;
