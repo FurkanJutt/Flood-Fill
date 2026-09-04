@@ -57,6 +57,38 @@ namespace FloodFill.Shapes
             public Vector2Int Direction { get; }
         }
 
+        private readonly struct GrowthProfile
+        {
+            public GrowthProfile(
+                float brushChance,
+                float branchChance,
+                float directionPersistence,
+                float centerBias,
+                float lobeStrength,
+                float axisBias,
+                bool favorHorizontalGrowth,
+                Vector2Int[] attractors)
+            {
+                BrushChance = brushChance;
+                BranchChance = branchChance;
+                DirectionPersistence = directionPersistence;
+                CenterBias = centerBias;
+                LobeStrength = lobeStrength;
+                AxisBias = axisBias;
+                FavorHorizontalGrowth = favorHorizontalGrowth;
+                Attractors = attractors;
+            }
+
+            public float BrushChance { get; }
+            public float BranchChance { get; }
+            public float DirectionPersistence { get; }
+            public float CenterBias { get; }
+            public float LobeStrength { get; }
+            public float AxisBias { get; }
+            public bool FavorHorizontalGrowth { get; }
+            public Vector2Int[] Attractors { get; }
+        }
+
         public static bool TryGenerate(
             int width,
             int height,
@@ -101,6 +133,13 @@ namespace FloodFill.Shapes
                 int attemptSeed = unchecked(seed + attempt * 104729);
                 var random = new System.Random(attemptSeed);
                 int targetCells = random.Next(minimumCells, maximumCells + 1);
+                GrowthProfile profile = CreateGrowthProfile(
+                    minAllowedX,
+                    maxAllowedX,
+                    minAllowedY,
+                    maxAllowedY,
+                    settings,
+                    random);
                 bool[,] mask = GenerateConnectedMask(
                     width,
                     height,
@@ -110,6 +149,7 @@ namespace FloodFill.Shapes
                     maxAllowedY,
                     targetCells,
                     settings,
+                    profile,
                     random);
 
                 CleanupMask(
@@ -120,6 +160,16 @@ namespace FloodFill.Shapes
                     maxAllowedY,
                     minimumCells,
                     maximumCells,
+                    settings,
+                    random);
+
+                ApplyShapeVariation(
+                    mask,
+                    minAllowedX,
+                    maxAllowedX,
+                    minAllowedY,
+                    maxAllowedY,
+                    minimumCells,
                     settings,
                     random);
 
@@ -265,6 +315,7 @@ namespace FloodFill.Shapes
             int maxAllowedY,
             int targetCells,
             ProceduralShapeSettings settings,
+            GrowthProfile profile,
             System.Random random)
         {
             var mask = new bool[width, height];
@@ -307,7 +358,7 @@ namespace FloodFill.Shapes
                     centerY,
                     maxAllowedX - minAllowedX + 1,
                     maxAllowedY - minAllowedY + 1,
-                    settings,
+                    profile,
                     random);
                 FrontierCandidate selected = frontier[selectedIndex];
                 frontier.RemoveAt(selectedIndex);
@@ -328,7 +379,7 @@ namespace FloodFill.Shapes
 
                 int minimumRadius = Mathf.Max(0, settings.minBrushRadius);
                 int maximumRadius = Mathf.Max(minimumRadius, settings.maxBrushRadius);
-                int brushRadius = random.NextDouble() <= Mathf.Clamp01(settings.brushChance)
+                int brushRadius = random.NextDouble() <= profile.BrushChance
                     ? random.Next(minimumRadius, maximumRadius + 1)
                     : 0;
                 if (brushRadius > 0 && activeCells.Count < targetCells)
@@ -359,7 +410,7 @@ namespace FloodFill.Shapes
             int centerY,
             int allowedWidth,
             int allowedHeight,
-            ProceduralShapeSettings settings,
+            GrowthProfile profile,
             System.Random random)
         {
             var weights = new double[frontier.Count];
@@ -371,20 +422,45 @@ namespace FloodFill.Shapes
                 float distance = Mathf.Abs(candidate.Position.x - centerX) +
                     Mathf.Abs(candidate.Position.y - centerY);
                 float centerFactor = 1f - Mathf.Clamp01(distance / maximumDistance);
-                double weight = 1d + Mathf.Clamp01(settings.centerBias) * centerFactor * 3d;
+                double weight = 1d + profile.CenterBias * centerFactor * 3d;
 
                 if (candidate.Direction == lastDirection && lastDirection != Vector2Int.zero)
                 {
-                    weight *= 1d + Mathf.Clamp01(settings.directionPersistence) * 4d;
+                    weight *= 1d + profile.DirectionPersistence * 4d;
                 }
 
                 if (candidate.Parent == lastCell)
                 {
-                    weight *= 1d + (1d - Mathf.Clamp01(settings.branchChance)) * 2d;
+                    weight *= 1d + (1d - profile.BranchChance) * 2d;
                 }
                 else
                 {
-                    weight *= 1d + Mathf.Clamp01(settings.branchChance);
+                    weight *= 1d + profile.BranchChance;
+                }
+
+                bool movesOnFavoredAxis = profile.FavorHorizontalGrowth
+                    ? candidate.Direction.x != 0
+                    : candidate.Direction.y != 0;
+                if (movesOnFavoredAxis)
+                {
+                    weight *= 1d + profile.AxisBias * 2.5d;
+                }
+
+                if (profile.Attractors != null && profile.Attractors.Length > 0)
+                {
+                    int closestAttractorDistance = int.MaxValue;
+                    for (int attractorIndex = 0;
+                         attractorIndex < profile.Attractors.Length;
+                         attractorIndex++)
+                    {
+                        closestAttractorDistance = Mathf.Min(
+                            closestAttractorDistance,
+                            ManhattanDistance(candidate.Position, profile.Attractors[attractorIndex]));
+                    }
+
+                    float attractorFactor = 1f - Mathf.Clamp01(
+                        closestAttractorDistance / maximumDistance);
+                    weight *= 1d + profile.LobeStrength * attractorFactor * 4d;
                 }
 
                 weights[i] = weight;
@@ -402,6 +478,97 @@ namespace FloodFill.Shapes
             }
 
             return weights.Length - 1;
+        }
+
+        private static GrowthProfile CreateGrowthProfile(
+            int minAllowedX,
+            int maxAllowedX,
+            int minAllowedY,
+            int maxAllowedY,
+            ProceduralShapeSettings settings,
+            System.Random random)
+        {
+            float variation = Mathf.Clamp01(settings.shapeVariation);
+            int archetype = random.Next(0, 5);
+            float brushChance;
+            float branchChance;
+            float directionPersistence;
+            float centerBias;
+            float lobeStrength;
+            float axisBias;
+
+            switch (archetype)
+            {
+                case 0: // Compact and chunky.
+                    brushChance = 0.72f;
+                    branchChance = 0.78f;
+                    directionPersistence = 0.08f;
+                    centerBias = 0.55f;
+                    lobeStrength = 0.20f;
+                    axisBias = 0.05f;
+                    break;
+                case 1: // Long branching paths.
+                    brushChance = 0.08f;
+                    branchChance = 0.12f;
+                    directionPersistence = 0.82f;
+                    centerBias = 0.02f;
+                    lobeStrength = 0.48f;
+                    axisBias = 0.25f;
+                    break;
+                case 2: // Several pronounced lobes.
+                    brushChance = 0.48f;
+                    branchChance = 0.52f;
+                    directionPersistence = 0.30f;
+                    centerBias = 0.06f;
+                    lobeStrength = 1f;
+                    axisBias = 0.12f;
+                    break;
+                case 3: // Wide or tall stretched silhouette.
+                    brushChance = 0.32f;
+                    branchChance = 0.42f;
+                    directionPersistence = 0.62f;
+                    centerBias = 0.10f;
+                    lobeStrength = 0.55f;
+                    axisBias = 0.90f;
+                    break;
+                default: // Uneven, jagged growth.
+                    brushChance = 0.03f;
+                    branchChance = 0.68f;
+                    directionPersistence = 0.22f;
+                    centerBias = 0f;
+                    lobeStrength = 0.72f;
+                    axisBias = 0.18f;
+                    break;
+            }
+
+            brushChance = Mathf.Lerp(Mathf.Clamp01(settings.brushChance), brushChance, variation);
+            branchChance = Mathf.Lerp(Mathf.Clamp01(settings.branchChance), branchChance, variation);
+            directionPersistence = Mathf.Lerp(
+                Mathf.Clamp01(settings.directionPersistence),
+                directionPersistence,
+                variation);
+            centerBias = Mathf.Lerp(Mathf.Clamp01(settings.centerBias), centerBias, variation);
+            lobeStrength = Mathf.Lerp(0f, lobeStrength * Mathf.Clamp01(settings.lobeStrength), variation);
+            axisBias = Mathf.Lerp(0f, axisBias, variation);
+
+            int attractorCount = lobeStrength <= 0.01f ? 0 : random.Next(2, 5);
+            var attractors = new Vector2Int[attractorCount];
+            for (int i = 0; i < attractors.Length; i++)
+            {
+                attractors[i] = new Vector2Int(
+                    random.Next(minAllowedX, maxAllowedX + 1),
+                    random.Next(minAllowedY, maxAllowedY + 1));
+            }
+
+            return new GrowthProfile(
+                Mathf.Clamp01(brushChance),
+                Mathf.Clamp01(branchChance),
+                Mathf.Clamp01(directionPersistence),
+                Mathf.Clamp01(centerBias),
+                Mathf.Clamp01(lobeStrength),
+                Mathf.Clamp01(axisBias),
+                random.Next(0, 2) == 0,
+                attractors);
         }
 
         private static void PaintBrush(
@@ -557,6 +724,132 @@ namespace FloodFill.Shapes
                     activeCellCount--;
                 }
             }
+        }
+
+        private static void ApplyShapeVariation(
+            bool[,] mask,
+            int minAllowedX,
+            int maxAllowedX,
+            int minAllowedY,
+            int maxAllowedY,
+            int minimumCells,
+            ProceduralShapeSettings settings,
+            System.Random random)
+        {
+            float variation = Mathf.Clamp01(settings.shapeVariation);
+            if (variation <= 0f)
+            {
+                return;
+            }
+
+            int activeCellCount = CountActiveCells(mask);
+            int maximumNotches = Mathf.Clamp(settings.maxEdgeNotches, 0, 20);
+            if (maximumNotches > 0 &&
+                random.NextDouble() <= Mathf.Clamp01(settings.edgeNotchChance) * variation)
+            {
+                int targetNotches = random.Next(1, maximumNotches + 1);
+                for (int notch = 0; notch < targetNotches && activeCellCount > minimumCells; notch++)
+                {
+                    List<Vector2Int> candidates = CollectRemovalCandidates(
+                        mask,
+                        minAllowedX,
+                        maxAllowedX,
+                        minAllowedY,
+                        maxAllowedY,
+                        false);
+                    if (!TryRemoveRandomConnectedCell(
+                            mask,
+                            candidates,
+                            minimumCells,
+                            ref activeCellCount,
+                            random))
+                    {
+                        break;
+                    }
+                }
+            }
+
+            int maximumCavities = Mathf.Clamp(settings.maxCavities, 0, 8);
+            if (maximumCavities > 0 &&
+                random.NextDouble() <= Mathf.Clamp01(settings.cavityChance) * variation)
+            {
+                int targetCavities = random.Next(1, maximumCavities + 1);
+                for (int cavity = 0; cavity < targetCavities && activeCellCount > minimumCells; cavity++)
+                {
+                    List<Vector2Int> candidates = CollectRemovalCandidates(
+                        mask,
+                        minAllowedX,
+                        maxAllowedX,
+                        minAllowedY,
+                        maxAllowedY,
+                        true);
+                    if (!TryRemoveRandomConnectedCell(
+                            mask,
+                            candidates,
+                            minimumCells,
+                            ref activeCellCount,
+                            random))
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        private static List<Vector2Int> CollectRemovalCandidates(
+            bool[,] mask,
+            int minAllowedX,
+            int maxAllowedX,
+            int minAllowedY,
+            int maxAllowedY,
+            bool requireEnclosedCell)
+        {
+            var candidates = new List<Vector2Int>();
+            for (int x = minAllowedX; x <= maxAllowedX; x++)
+            {
+                for (int y = minAllowedY; y <= maxAllowedY; y++)
+                {
+                    if (!mask[x, y])
+                    {
+                        continue;
+                    }
+
+                    int activeNeighbors = CountActiveNeighbors(mask, x, y);
+                    if (requireEnclosedCell
+                        ? activeNeighbors == Directions.Length
+                        : activeNeighbors >= 2 && activeNeighbors < Directions.Length)
+                    {
+                        candidates.Add(new Vector2Int(x, y));
+                    }
+                }
+            }
+
+            return candidates;
+        }
+
+        private static bool TryRemoveRandomConnectedCell(
+            bool[,] mask,
+            List<Vector2Int> candidates,
+            int minimumCells,
+            ref int activeCellCount,
+            System.Random random)
+        {
+            while (candidates.Count > 0 && activeCellCount > minimumCells)
+            {
+                int candidateIndex = random.Next(0, candidates.Count);
+                Vector2Int candidate = candidates[candidateIndex];
+                candidates.RemoveAt(candidateIndex);
+                mask[candidate.x, candidate.y] = false;
+                if (ValidateConnectivity(mask, activeCellCount - 1))
+                {
+                    activeCellCount--;
+                    return true;
+                }
+
+                mask[candidate.x, candidate.y] = true;
+            }
+
+            return false;
         }
 
         private static int CountActiveNeighbors(bool[,] mask, int x, int y)

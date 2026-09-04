@@ -1630,6 +1630,12 @@ MonoBehaviour:
     directionPersistence: 0.25
     centerBias: 0.15
     seedOffsetRadius: 2
+    shapeVariation: 0.85
+    lobeStrength: 0.75
+    edgeNotchChance: 0.7
+    maxEdgeNotches: 8
+    cavityChance: 0.55
+    maxCavities: 4
     cleanupIterations: 1
     spikeRemovalChance: 0.35
     maxGenerationAttempts: 20
