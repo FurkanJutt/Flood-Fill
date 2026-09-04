@@ -25,6 +25,17 @@ namespace FloodFill
             Size24x24 = 24
         }
 
+        private static readonly GridSize[] GridSizeOptions =
+        {
+            GridSize.Size10x10,
+            GridSize.Size12x12,
+            GridSize.Size15x15,
+            GridSize.Size16x16,
+            GridSize.Size18x18,
+            GridSize.Size20x20,
+            GridSize.Size24x24
+        };
+
         [Header("Game")]
         [SerializeField, Min(1)] private int maxMoves = 25;
         [SerializeField, Min(0f)] private float resultRevealDelay = 0.75f;
@@ -55,6 +66,7 @@ namespace FloodFill
         [SerializeField] private TMP_Text movesText;
         [SerializeField] private TMP_Text capturedText;
         [SerializeField] private TMP_Text scoreText;
+        [SerializeField] private TMP_Dropdown boardSizeDropdown;
         [SerializeField] private GameObject resultPanel;
         [SerializeField] private TMP_Text resultText;
         [SerializeField] private ColorButton[] colorButtons;
@@ -83,6 +95,7 @@ namespace FloodFill
             }
 
             boardManager.CellClicked += HandleCellClicked;
+            InitializeBoardSizeDropdown();
             RestartGame();
         }
 
@@ -139,6 +152,7 @@ namespace FloodFill
                 return;
             }
 
+            SyncGridSizeFromDropdown();
             ApplySelectedGridSize();
 
             if (resultRevealCoroutine != null)
@@ -224,6 +238,7 @@ namespace FloodFill
             TMP_Text movesLabel,
             TMP_Text capturedLabel,
             TMP_Text scoreLabel,
+            TMP_Dropdown sizeDropdown,
             GameObject endPanel,
             TMP_Text endLabel,
             ColorButton[] buttons,
@@ -234,6 +249,7 @@ namespace FloodFill
             movesText = movesLabel;
             capturedText = capturedLabel;
             scoreText = scoreLabel;
+            boardSizeDropdown = sizeDropdown;
             resultPanel = endPanel;
             resultText = endLabel;
             colorButtons = buttons;
@@ -395,6 +411,45 @@ namespace FloodFill
             }
         }
 
+        private void InitializeBoardSizeDropdown()
+        {
+            if (boardSizeDropdown == null)
+            {
+                return;
+            }
+
+            var options = new List<string>(GridSizeOptions.Length);
+            for (int i = 0; i < GridSizeOptions.Length; i++)
+            {
+                int dimension = (int)GridSizeOptions[i];
+                options.Add($"{dimension} x {dimension}");
+            }
+
+            boardSizeDropdown.ClearOptions();
+            boardSizeDropdown.AddOptions(options);
+            int selectedIndex = System.Array.IndexOf(GridSizeOptions, gridSize);
+            boardSizeDropdown.SetValueWithoutNotify(Mathf.Max(0, selectedIndex));
+            boardSizeDropdown.RefreshShownValue();
+            boardSizeDropdown.onValueChanged.RemoveListener(HandleBoardSizeDropdownChanged);
+            boardSizeDropdown.onValueChanged.AddListener(HandleBoardSizeDropdownChanged);
+        }
+
+        private void HandleBoardSizeDropdownChanged(int optionIndex)
+        {
+            if (optionIndex >= 0 && optionIndex < GridSizeOptions.Length)
+            {
+                gridSize = GridSizeOptions[optionIndex];
+            }
+        }
+
+        private void SyncGridSizeFromDropdown()
+        {
+            if (boardSizeDropdown != null)
+            {
+                HandleBoardSizeDropdownChanged(boardSizeDropdown.value);
+            }
+        }
+
         private void ApplyActiveColorsToButtons()
         {
             for (int i = 0; i < colorButtons.Length; i++)
@@ -445,6 +500,11 @@ namespace FloodFill
 
         private void OnDestroy()
         {
+            if (boardSizeDropdown != null)
+            {
+                boardSizeDropdown.onValueChanged.RemoveListener(HandleBoardSizeDropdownChanged);
+            }
+
             if (boardManager != null)
             {
                 boardManager.CellClicked -= HandleCellClicked;

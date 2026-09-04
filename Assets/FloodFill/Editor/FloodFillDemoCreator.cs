@@ -71,7 +71,14 @@ namespace FloodFill.Editor
             TMP_Text movesText;
             TMP_Text capturedText;
             TMP_Text scoreText;
-            CreateHeader(canvas.transform, gameManager, out movesText, out capturedText, out scoreText);
+            TMP_Dropdown boardSizeDropdown;
+            CreateHeader(
+                canvas.transform,
+                gameManager,
+                out movesText,
+                out capturedText,
+                out scoreText,
+                out boardSizeDropdown);
 
             ColorButton[] colorButtons = CreateColorControls(canvas.transform, gameManager);
 
@@ -85,6 +92,7 @@ namespace FloodFill.Editor
                 movesText,
                 capturedText,
                 scoreText,
+                boardSizeDropdown,
                 resultPanel,
                 resultText,
                 colorButtons,
@@ -186,7 +194,8 @@ namespace FloodFill.Editor
             GameManager gameManager,
             out TMP_Text movesText,
             out TMP_Text capturedText,
-            out TMP_Text scoreText)
+            out TMP_Text scoreText,
+            out TMP_Dropdown boardSizeDropdown)
         {
             TMP_Text title = CreateText("Title", canvas, "FLOOD FILL", 68f, FontStyles.Bold);
             SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
@@ -224,6 +233,102 @@ namespace FloodFill.Editor
             SetRect(restartButton.GetComponent<RectTransform>(), Vector2.one, Vector2.one,
                 new Vector2(-120f, -62f), new Vector2(190f, 76f));
             UnityEventTools.AddPersistentListener(restartButton.onClick, gameManager.RestartGame);
+
+            boardSizeDropdown = CreateBoardSizeDropdown(canvas);
+        }
+
+        internal static TMP_Dropdown CreateBoardSizeDropdown(Transform canvas)
+        {
+            GameObject dropdownObject = TMP_DefaultControls.CreateDropdown(
+                new TMP_DefaultControls.Resources());
+            dropdownObject.name = "BoardSizeDropdown";
+            dropdownObject.transform.SetParent(canvas, false);
+            SetRect(
+                dropdownObject.GetComponent<RectTransform>(),
+                new Vector2(0f, 1f),
+                new Vector2(0f, 1f),
+                new Vector2(120f, -62f),
+                new Vector2(190f, 76f));
+
+            TMP_Dropdown dropdown = dropdownObject.GetComponent<TMP_Dropdown>();
+            dropdown.navigation = new Navigation { mode = Navigation.Mode.None };
+            dropdown.colors = CreateButtonColors();
+            dropdown.ClearOptions();
+            dropdown.AddOptions(new System.Collections.Generic.List<string>
+            {
+                "10 x 10",
+                "12 x 12",
+                "15 x 15",
+                "16 x 16",
+                "18 x 18",
+                "20 x 20",
+                "24 x 24"
+            });
+            dropdown.SetValueWithoutNotify(3);
+
+            Image background = dropdownObject.GetComponent<Image>();
+            background.color = new Color(0.18f, 0.20f, 0.28f);
+
+            if (dropdown.captionText != null)
+            {
+                dropdown.captionText.font = TMP_Settings.defaultFontAsset;
+                dropdown.captionText.fontSize = 30f;
+                dropdown.captionText.fontStyle = FontStyles.Bold;
+                dropdown.captionText.color = new Color(0.95f, 0.96f, 1f);
+                dropdown.captionText.alignment = TextAlignmentOptions.Center;
+                dropdown.captionText.rectTransform.offsetMin = new Vector2(8f, 0f);
+                dropdown.captionText.rectTransform.offsetMax = new Vector2(-36f, 0f);
+            }
+
+            if (dropdown.itemText != null)
+            {
+                dropdown.itemText.font = TMP_Settings.defaultFontAsset;
+                dropdown.itemText.fontSize = 27f;
+                dropdown.itemText.color = new Color(0.95f, 0.96f, 1f);
+                RectTransform itemRect = dropdown.itemText.transform.parent as RectTransform;
+                if (itemRect != null)
+                {
+                    itemRect.sizeDelta = new Vector2(itemRect.sizeDelta.x, 50f);
+                }
+            }
+
+            if (dropdown.template != null)
+            {
+                dropdown.template.sizeDelta = new Vector2(0f, 350f);
+                Image templateBackground = dropdown.template.GetComponent<Image>();
+                if (templateBackground != null)
+                {
+                    templateBackground.color = new Color(0.12f, 0.14f, 0.21f, 1f);
+                }
+
+                Toggle itemToggle = dropdown.template.GetComponentInChildren<Toggle>(true);
+                if (itemToggle != null)
+                {
+                    itemToggle.colors = CreateButtonColors();
+                    Image itemBackground = itemToggle.targetGraphic as Image;
+                    if (itemBackground != null)
+                    {
+                        itemBackground.color = new Color(0.18f, 0.20f, 0.28f, 1f);
+                    }
+                }
+            }
+
+            Transform existingArrow = dropdownObject.transform.Find("Arrow");
+            if (existingArrow != null)
+            {
+                existingArrow.gameObject.SetActive(false);
+            }
+
+            TMP_Text arrow = CreateText("ArrowLabel", dropdownObject.transform, "▼", 24f, FontStyles.Bold);
+            SetRect(
+                arrow.rectTransform,
+                new Vector2(1f, 0.5f),
+                new Vector2(1f, 0.5f),
+                new Vector2(-20f, 0f),
+                new Vector2(32f, 50f));
+
+            dropdown.RefreshShownValue();
+            return dropdown;
         }
 
         private static ColorButton[] CreateColorControls(Transform canvas, GameManager gameManager)
