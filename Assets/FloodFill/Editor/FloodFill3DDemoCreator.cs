@@ -21,8 +21,13 @@ namespace FloodFill.Editor
         private const string MaterialFolder = RootFolder + "/Materials";
         private const string ScenePath = SceneFolder + "/FloodFill3DDemo.unity";
         private const string PrefabPath = PrefabFolder + "/VoxelCell3D.prefab";
-        private const string MaterialPath = MaterialFolder + "/Voxel3D.mat";
+        private const string MaterialPath = MaterialFolder + "/VoxelFlatKit.mat";
+        private const string PreviousMaterialPath = MaterialFolder + "/Voxel3D.mat";
         private const string SourceArtFolder = "Assets/SourceArt";
+        private const string FlatKitFolder = "Assets/FlatKit";
+        private const string FlatKitShaderPath =
+            "Assets/FlatKit/Shaders/StylizedSurface/StylizedSurface.shader";
+        private const string FlatKitShaderName = "FlatKit/Stylized Surface";
 
         private static readonly Color[] Palette =
         {
@@ -48,6 +53,11 @@ namespace FloodFill.Editor
             EnsureFolder(MaterialFolder);
 
             Material voxelMaterial = CreateOrUpdateVoxelMaterial();
+            if (voxelMaterial == null)
+            {
+                Debug.LogError("Flood Fill 3D demo creation failed because no usable voxel shader was found.");
+                return;
+            }
             GameObject cubeModel = FindImportedCubeModel(out string cubeAssetPath);
             VoxelCell3D voxelPrefab = CreateOrUpdateVoxelPrefab(
                 cubeModel,
@@ -114,20 +124,53 @@ namespace FloodFill.Editor
                 $"Voxel source: {(string.IsNullOrEmpty(cubeAssetPath) ? "Unity cube fallback" : cubeAssetPath)}.");
         }
 
+        [MenuItem("Tools/Flood Fill/Upgrade Existing 3D Demo Rendering")]
+        public static void UpgradeExisting3DDemoRendering()
+        {
+            EnsureFolder(RootFolder);
+            EnsureFolder(PrefabFolder);
+            EnsureFolder(MaterialFolder);
+
+            Material voxelMaterial = CreateOrUpdateVoxelMaterial();
+            if (voxelMaterial == null)
+            {
+                Debug.LogError("The existing 3D demo could not be upgraded because no usable voxel shader was found.");
+                return;
+            }
+
+            if (!AssignSharedMaterialToExistingVoxelPrefab(voxelMaterial))
+            {
+                Debug.LogWarning(
+                    $"No voxel prefab was found at {PrefabPath}. Use Tools > Flood Fill > Create 3D Demo first.");
+                return;
+            }
+
+            AssetDatabase.SaveAssets();
+            Debug.Log(
+                $"Existing Flood Fill 3D voxel prefab now uses the shared {MaterialPath} material.");
+        }
+
         private static Material CreateOrUpdateVoxelMaterial()
         {
             Material material = AssetDatabase.LoadAssetAtPath<Material>(MaterialPath);
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ??
-                Shader.Find("Standard") ??
-                Shader.Find("Unlit/Color");
+            Shader shader = FindFlatKitToonShader();
+            bool usingFlatKit = shader != null;
+            if (!usingFlatKit)
+            {
+                Debug.LogWarning(
+                    "Flat Kit toon shader could not be located. Falling back to the previous voxel shader.");
+                shader = FindPreviousVoxelShader();
+            }
+
             if (shader == null)
             {
-                throw new InvalidOperationException("No compatible lit or unlit shader was found.");
+                Debug.LogError("No compatible Flat Kit, URP Lit, Standard, or Unlit shader was found.");
+                return null;
             }
 
             if (material == null)
             {
-                material = new Material(shader) { name = "Voxel3D" };
+                material = new Material(shader) { name = "VoxelFlatKit" };
                 AssetDatabase.CreateAsset(material, MaterialPath);
             }
             else
@@ -135,26 +178,184 @@ namespace FloodFill.Editor
                 material.shader = shader;
             }
 
-            if (material.HasProperty("_BaseColor"))
+            if (usingFlatKit)
             {
-                material.SetColor("_BaseColor", Color.white);
+                ConfigureFlatKitVoxelMaterial(material);
             }
-            if (material.HasProperty("_Color"))
+            else
             {
-                material.SetColor("_Color", Color.white);
-            }
-            if (material.HasProperty("_Smoothness"))
-            {
-                material.SetFloat("_Smoothness", 0.34f);
-            }
-            if (material.HasProperty("_Metallic"))
-            {
-                material.SetFloat("_Metallic", 0.04f);
+                ConfigureFallbackVoxelMaterial(material);
             }
 
+            // The verified Flat Kit shader contains multi_compile_instancing in its lit passes.
             material.enableInstancing = true;
             EditorUtility.SetDirty(material);
             return material;
+        }
+
+        private static Shader FindFlatKitToonShader()
+        {
+            Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(FlatKitShaderPath);
+            if (shader != null && shader.name == FlatKitShaderName)
+            {
+                return shader;
+            }
+
+            if (!AssetDatabase.IsValidFolder(FlatKitFolder))
+            {
+                return null;
+            }
+
+            string[] shaderGuids = AssetDatabase.FindAssets("t:Shader", new[] { FlatKitFolder });
+            for (int i = 0; i < shaderGuids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(shaderGuids[i]);
+                Shader candidate = AssetDatabase.LoadAssetAtPath<Shader>(path);
+                if (candidate != null && candidate.name == FlatKitShaderName)
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
+        }
+
+        private static Shader FindPreviousVoxelShader()
+        {
+            Material previousMaterial = AssetDatabase.LoadAssetAtPath<Material>(PreviousMaterialPath);
+            if (previousMaterial != null && previousMaterial.shader != null && previousMaterial.shader.isSupported)
+            {
+                return previousMaterial.shader;
+            }
+
+            return Shader.Find("Universal Render Pipeline/Lit") ??
+                Shader.Find("Standard") ??
+                Shader.Find("Unlit/Color");
+        }
+
+        private static void ConfigureFlatKitVoxelMaterial(Material material)
+        {
+            SetColorIfPresent(material, "_BaseColor", Color.white);
+            SetColorIfPresent(material, "_ColorDim", new Color(0.55f, 0.58f, 0.68f, 1f));
+            SetColorIfPresent(material, "_FlatSpecularColor", new Color(1f, 1f, 1f, 1f));
+            SetColorIfPresent(material, "_EmissionColor", Color.black);
+            SetColorIfPresent(material, "_UnityShadowColor", new Color(0.16f, 0.19f, 0.28f, 0.35f));
+            SetColorIfPresent(material, "_OutlineColor", new Color(0.025f, 0.035f, 0.075f, 1f));
+
+            SetFloatIfPresent(material, "_CelPrimaryMode", 1f);
+            SetFloatIfPresent(material, "_SelfShadingSize", 0.52f);
+            SetFloatIfPresent(material, "_ShadowEdgeSize", 0.06f);
+            SetFloatIfPresent(material, "_Flatness", 0.92f);
+            SetFloatIfPresent(material, "_CelExtraEnabled", 0f);
+            SetFloatIfPresent(material, "_SpecularEnabled", 1f);
+            SetFloatIfPresent(material, "_FlatSpecularSize", 0.08f);
+            SetFloatIfPresent(material, "_FlatSpecularEdgeSmoothness", 0.35f);
+            SetFloatIfPresent(material, "_RimEnabled", 0f);
+            SetFloatIfPresent(material, "_GradientEnabled", 0f);
+            SetFloatIfPresent(material, "_OutlineEnabled", 0f);
+            SetFloatIfPresent(material, "_LightContribution", 0.35f);
+            SetFloatIfPresent(material, "_LightFalloffSize", 0.0001f);
+            SetFloatIfPresent(material, "_UnityShadowMode", 1f);
+            SetFloatIfPresent(material, "_UnityShadowPower", 0.18f);
+            SetFloatIfPresent(material, "_UnityShadowSharpness", 2f);
+            SetFloatIfPresent(material, "_Surface", 0f);
+            SetFloatIfPresent(material, "_AlphaClip", 0f);
+            SetFloatIfPresent(material, "_SrcBlend", 1f);
+            SetFloatIfPresent(material, "_DstBlend", 0f);
+            SetFloatIfPresent(material, "_ZWrite", 1f);
+            SetFloatIfPresent(material, "_Cull", 2f);
+
+            SetKeyword(material, "_CELPRIMARYMODE_SINGLE", true);
+            SetKeyword(material, "_CELPRIMARYMODE_NONE", false);
+            SetKeyword(material, "_CELPRIMARYMODE_STEPS", false);
+            SetKeyword(material, "_CELPRIMARYMODE_CURVE", false);
+            SetKeyword(material, "DR_CEL_EXTRA_ON", false);
+            SetKeyword(material, "DR_SPECULAR_ON", true);
+            SetKeyword(material, "DR_RIM_ON", false);
+            SetKeyword(material, "DR_GRADIENT_ON", false);
+            SetKeyword(material, "DR_OUTLINE_ON", false);
+            SetKeyword(material, "_UNITYSHADOWMODE_MULTIPLY", true);
+            SetKeyword(material, "_UNITYSHADOWMODE_COLOR", false);
+            SetKeyword(material, "_ALPHATEST_ON", false);
+            SetKeyword(material, "_ALPHAPREMULTIPLY_ON", false);
+            SetKeyword(material, "_EMISSION", false);
+
+            material.SetShaderPassEnabled("Outline", false);
+            material.SetShaderPassEnabled("SRPDEFAULTUNLIT", false);
+            material.SetOverrideTag("RenderType", "Opaque");
+            material.renderQueue = -1;
+        }
+
+        private static void ConfigureFallbackVoxelMaterial(Material material)
+        {
+            SetColorIfPresent(material, "_BaseColor", Color.white);
+            SetColorIfPresent(material, "_Color", Color.white);
+            SetFloatIfPresent(material, "_Smoothness", 0.34f);
+            SetFloatIfPresent(material, "_Metallic", 0.04f);
+        }
+
+        private static void SetColorIfPresent(Material material, string propertyName, Color value)
+        {
+            if (material.HasProperty(propertyName))
+            {
+                material.SetColor(propertyName, value);
+            }
+        }
+
+        private static void SetFloatIfPresent(Material material, string propertyName, float value)
+        {
+            if (material.HasProperty(propertyName))
+            {
+                material.SetFloat(propertyName, value);
+            }
+        }
+
+        private static void SetKeyword(Material material, string keyword, bool enabled)
+        {
+            if (enabled)
+            {
+                material.EnableKeyword(keyword);
+            }
+            else
+            {
+                material.DisableKeyword(keyword);
+            }
+        }
+
+        private static bool AssignSharedMaterialToExistingVoxelPrefab(Material material)
+        {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null)
+            {
+                return false;
+            }
+
+            GameObject prefabContents = PrefabUtility.LoadPrefabContents(PrefabPath);
+            try
+            {
+                MeshRenderer[] renderers = prefabContents.GetComponentsInChildren<MeshRenderer>(true);
+                if (renderers.Length == 0)
+                {
+                    return false;
+                }
+
+                for (int i = 0; i < renderers.Length; i++)
+                {
+                    int materialSlotCount = Mathf.Max(1, renderers[i].sharedMaterials.Length);
+                    var sharedMaterials = new Material[materialSlotCount];
+                    for (int slot = 0; slot < materialSlotCount; slot++)
+                    {
+                        sharedMaterials[slot] = material;
+                    }
+                    renderers[i].sharedMaterials = sharedMaterials;
+                }
+
+                PrefabUtility.SaveAsPrefabAsset(prefabContents, PrefabPath);
+                return true;
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(prefabContents);
+            }
         }
 
         private static GameObject FindImportedCubeModel(out string assetPath)

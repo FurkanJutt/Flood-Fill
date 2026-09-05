@@ -7,6 +7,7 @@ namespace FloodFill.ThreeD
     public sealed class VoxelCell3D : MonoBehaviour
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int FlatKitShadedColorId = Shader.PropertyToID("_ColorDim");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
         private static MaterialPropertyBlock sharedPropertyBlock;
 
@@ -65,6 +66,12 @@ namespace FloodFill.ThreeD
                 if (material != null && material.HasProperty(BaseColorId))
                 {
                     sharedPropertyBlock.SetColor(BaseColorId, color);
+                    if (material.HasProperty(FlatKitShadedColorId))
+                    {
+                        sharedPropertyBlock.SetColor(
+                            FlatKitShadedColorId,
+                            GetFlatKitShadedColor(color));
+                    }
                 }
                 else
                 {
@@ -74,6 +81,17 @@ namespace FloodFill.ThreeD
                 targetRenderer.SetPropertyBlock(sharedPropertyBlock);
                 sharedPropertyBlock.Clear();
             }
+        }
+
+        private static Color GetFlatKitShadedColor(Color baseColor)
+        {
+            // Flat Kit's single-step cel mode blends from _ColorDim to _BaseColor.
+            // Keep the shadow tied to the gameplay hue while giving it a subtle cool bias.
+            return new Color(
+                baseColor.r * 0.55f,
+                baseColor.g * 0.58f,
+                baseColor.b * 0.68f,
+                baseColor.a);
         }
 
         public void SetCaptured(bool captured, bool animate)
