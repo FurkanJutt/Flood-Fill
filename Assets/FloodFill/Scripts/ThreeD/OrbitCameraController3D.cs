@@ -15,6 +15,12 @@ namespace FloodFill.ThreeD
         [SerializeField] private Transform cameraPivot;
         [SerializeField] private Camera targetCamera;
 
+        [Header("Camera Fill Light")]
+        [SerializeField] private bool useCameraFillLight = true;
+        [SerializeField] private Light cameraFillLight;
+        [SerializeField] private Color cameraFillColor = new Color(0.86f, 0.91f, 1f, 1f);
+        [SerializeField, Range(0f, 3f)] private float cameraFillIntensity = 0.65f;
+
         [Header("Controls")]
         [SerializeField, Min(0.01f)] private float orbitSensitivity = 0.20f;
         [SerializeField, Min(0.01f)] private float panSensitivity = 1.25f;
@@ -38,7 +44,39 @@ namespace FloodFill.ThreeD
         {
             cameraPivot = pivot;
             targetCamera = controlledCamera;
+            EnsureCameraFillLight();
             ApplyCameraTransform();
+        }
+
+        public Light EnsureCameraFillLight()
+        {
+            if (targetCamera == null)
+            {
+                return null;
+            }
+
+            if (cameraFillLight == null)
+            {
+                Transform lightTransform = targetCamera.transform.Find("Camera Fill Light");
+                if (lightTransform == null)
+                {
+                    var lightObject = new GameObject("Camera Fill Light");
+                    lightTransform = lightObject.transform;
+                    lightTransform.SetParent(targetCamera.transform, false);
+                }
+
+                cameraFillLight = lightTransform.GetComponent<Light>();
+                if (cameraFillLight == null)
+                {
+                    cameraFillLight = lightTransform.gameObject.AddComponent<Light>();
+                }
+            }
+
+            cameraFillLight.transform.SetParent(targetCamera.transform, false);
+            cameraFillLight.transform.localPosition = Vector3.zero;
+            cameraFillLight.transform.localRotation = Quaternion.identity;
+            ApplyCameraFillLightSettings();
+            return cameraFillLight;
         }
 
         public void FrameBounds(Bounds bounds)
@@ -58,6 +96,7 @@ namespace FloodFill.ThreeD
 
         private void Awake()
         {
+            EnsureCameraFillLight();
             ApplyCameraTransform();
         }
 
@@ -321,6 +360,21 @@ namespace FloodFill.ThreeD
             targetCamera.transform.localRotation = Quaternion.identity;
         }
 
+        private void ApplyCameraFillLightSettings()
+        {
+            if (cameraFillLight == null)
+            {
+                return;
+            }
+
+            cameraFillLight.enabled = useCameraFillLight;
+            cameraFillLight.type = LightType.Directional;
+            cameraFillLight.color = cameraFillColor;
+            cameraFillLight.intensity = Mathf.Max(0f, cameraFillIntensity);
+            cameraFillLight.shadows = LightShadows.None;
+            cameraFillLight.renderMode = LightRenderMode.Auto;
+        }
+
         private static bool IsScreenPositionOverUI(Vector2 screenPosition)
         {
             if (EventSystem.current == null)
@@ -341,10 +395,12 @@ namespace FloodFill.ThreeD
 
         private void OnValidate()
         {
+            cameraFillIntensity = Mathf.Max(0f, cameraFillIntensity);
             minimumDistance = Mathf.Max(0.1f, minimumDistance);
             maximumDistance = Mathf.Max(minimumDistance, maximumDistance);
             maximumPitch = Mathf.Max(minimumPitch, maximumPitch);
             framePadding = Mathf.Max(1f, framePadding);
+            ApplyCameraFillLightSettings();
         }
     }
 }

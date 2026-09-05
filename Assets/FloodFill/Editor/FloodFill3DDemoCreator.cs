@@ -124,6 +124,40 @@ namespace FloodFill.Editor
                 $"Voxel source: {(string.IsNullOrEmpty(cubeAssetPath) ? "Unity cube fallback" : cubeAssetPath)}.");
         }
 
+        [MenuItem("Tools/Flood Fill/Add Camera Fill Light to 3D Demo")]
+        public static void AddCameraFillLightToExistingDemo()
+        {
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+            {
+                Debug.LogWarning(
+                    $"No 3D demo scene was found at {ScenePath}. Use Tools > Flood Fill > Create 3D Demo first.");
+                return;
+            }
+
+            if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                return;
+            }
+
+            Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            OrbitCameraController3D controller = FindSceneComponent<OrbitCameraController3D>(scene);
+            if (controller == null || controller.EnsureCameraFillLight() == null)
+            {
+                Debug.LogError("The 3D demo camera rig could not create its camera fill light.");
+                return;
+            }
+
+            EditorUtility.SetDirty(controller);
+            EditorSceneManager.MarkSceneDirty(scene);
+            if (!EditorSceneManager.SaveScene(scene, ScenePath))
+            {
+                Debug.LogError($"The camera fill light could not be saved at {ScenePath}.");
+                return;
+            }
+
+            Debug.Log("Camera Fill Light added to the existing Flood Fill 3D camera.");
+        }
+
         [MenuItem("Tools/Flood Fill/Upgrade Existing 3D Demo Rendering")]
         public static void UpgradeExisting3DDemoRendering()
         {
@@ -544,6 +578,21 @@ namespace FloodFill.Editor
             OrbitCameraController3D controller = rig.AddComponent<OrbitCameraController3D>();
             controller.Configure(pivot, camera);
             return controller;
+        }
+
+        private static T FindSceneComponent<T>(Scene scene) where T : Component
+        {
+            GameObject[] roots = scene.GetRootGameObjects();
+            for (int i = 0; i < roots.Length; i++)
+            {
+                T component = roots[i].GetComponentInChildren<T>(true);
+                if (component != null)
+                {
+                    return component;
+                }
+            }
+
+            return null;
         }
 
         private static void CreateLighting()
