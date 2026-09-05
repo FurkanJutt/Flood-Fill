@@ -43,6 +43,7 @@ namespace FloodFill.ThreeD
         public int MoveCount { get; private set; }
         public int Score { get; private set; }
         public GameState State { get; private set; }
+        public int SelectedColorIndex { get; private set; } = -1;
         public int CurrentPlayerColor => boardManager != null ? boardManager.CurrentPlayerColor : -1;
 
         private void Start()
@@ -53,18 +54,33 @@ namespace FloodFill.ThreeD
                 return;
             }
 
+            boardManager.VoxelClicked += HandleVoxelClicked;
             RestartGame();
         }
 
         public void SelectColor(int colorIndex)
         {
             if (State != GameState.Playing || boardManager == null ||
-                colorIndex == boardManager.CurrentPlayerColor)
+                colorIndex < 0 || colors == null || colorIndex >= colors.Length ||
+                colorIndex == SelectedColorIndex)
             {
                 return;
             }
 
-            if (!boardManager.ChangePlayerColor(colorIndex))
+            SelectedColorIndex = colorIndex;
+            RefreshUI();
+            Debug.Log($"Selected 3D paint color: {colorIndex}. Click a cube to recolor it.", this);
+        }
+
+        private void HandleVoxelClicked(VoxelCell3D voxel)
+        {
+            if (State != GameState.Playing || boardManager == null ||
+                SelectedColorIndex < 0)
+            {
+                return;
+            }
+
+            if (!boardManager.RecolorConnectedRegion(voxel, SelectedColorIndex))
             {
                 return;
             }
@@ -93,6 +109,7 @@ namespace FloodFill.ThreeD
             MoveCount = 0;
             Score = 0;
             State = GameState.Playing;
+            SelectedColorIndex = -1;
             if (resultPanel != null)
             {
                 resultPanel.SetActive(false);
@@ -207,13 +224,21 @@ namespace FloodFill.ThreeD
         private void RefreshUI()
         {
             movesText.text = $"Moves: {MoveCount} / {maxMoves}";
-            capturedText.text = $"Captured: {Mathf.RoundToInt(boardManager.CapturedPercentage)}%";
+            int displayedPercentage = MoveCount == 0
+                ? 0
+                : Mathf.RoundToInt(boardManager.CapturedPercentage);
+            capturedText.text = $"Captured: {displayedPercentage}%";
             scoreText.text = $"Score: {Score:N0}";
             SetColorInputEnabled(State == GameState.Playing);
         }
 
         private void SetColorInputEnabled(bool enabledInput)
         {
+            if (boardManager != null)
+            {
+                boardManager.SetInputEnabled(enabledInput);
+            }
+
             if (colorButtons == null)
             {
                 return;
@@ -227,7 +252,7 @@ namespace FloodFill.ThreeD
                     continue;
                 }
 
-                bool selected = colorButton.ColorIndex == CurrentPlayerColor;
+                bool selected = colorButton.ColorIndex == SelectedColorIndex;
                 colorButton.SetSelected(selected);
                 colorButton.SetInteractable(enabledInput && !selected);
             }
@@ -252,6 +277,14 @@ namespace FloodFill.ThreeD
         {
             maxMoves = Mathf.Max(1, maxMoves);
             resultRevealDelay = Mathf.Max(0f, resultRevealDelay);
+        }
+
+        private void OnDestroy()
+        {
+            if (boardManager != null)
+            {
+                boardManager.VoxelClicked -= HandleVoxelClicked;
+            }
         }
     }
 }

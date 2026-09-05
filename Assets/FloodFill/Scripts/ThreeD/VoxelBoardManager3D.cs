@@ -1,6 +1,11 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 namespace FloodFill.ThreeD
 {
@@ -22,6 +27,8 @@ namespace FloodFill.ThreeD
             new Vector3Int(0, 0, -1)
         };
 
+        private static readonly List<RaycastResult> UiRaycastResults = new List<RaycastResult>();
+
         [Header("Volume")]
         [SerializeField, Min(1)] private int width = 6;
         [SerializeField, Min(1)] private int height = 6;
@@ -32,6 +39,10 @@ namespace FloodFill.ThreeD
         [SerializeField, Min(0.05f)] private float voxelSize = 1f;
         [SerializeField, Min(0f)] private float voxelGap = 0.05f;
 
+        [Header("Selection")]
+        [SerializeField] private Camera boardCamera;
+        [SerializeField, Min(0f)] private float selectionDragThreshold = 12f;
+
         [Header("References")]
         [SerializeField] private Transform boardRoot;
         [SerializeField] private VoxelCell3D voxelPrefab;
@@ -40,6 +51,23 @@ namespace FloodFill.ThreeD
         private readonly List<VoxelCell3D> capturedVoxels = new List<VoxelCell3D>();
         private VoxelCell3D[,,] cells;
         private Color[] palette = Array.Empty<Color>();
+        private bool inputEnabled = true;
+        private bool pointerGestureActive;
+        private bool gestureBeganOnColorButton;
+        private bool gestureExceededDragThreshold;
+        private int activePointerId = -1;
+        private Vector2 pointerDownPosition;
+
+        private enum PointerPhase
+        {
+            None,
+            Pressed,
+            Held,
+            Released,
+            Canceled
+        }
+
+        public event Action<VoxelCell3D> VoxelClicked;
 
         public int Width => width;
         public int Height => height;
@@ -125,31 +153,26 @@ namespace FloodFill.ThreeD
             return true;
         }
 
-        public bool ChangePlayerColor(int colorIndex)
+        public bool RecolorConnectedRegion(VoxelCell3D voxel, int colorIndex)
         {
-            if (cells == null || colorIndex < 0 || colorIndex >= palette.Length ||
-                colorIndex == CurrentPlayerColor)
+            if (cells == null || voxel == null || colorIndex < 0 ||
+                colorIndex >= palette.Length || GetCell(voxel.X, voxel.Y, voxel.Z) != voxel ||
+                voxel.ColorIndex == colorIndex)
             {
                 LastNewlyCapturedCount = 0;
                 return false;
             }
 
-            CurrentPlayerColor = colorIndex;
-            Color selectedColor = palette[colorIndex];
+            int originalColorIndex = voxel.ColorIndex;
             var queue = new Queue<VoxelCell3D>();
             var visited = new HashSet<VoxelCell3D>();
-            for (int i = 0; i < capturedVoxels.Count; i++)
-            {
-                VoxelCell3D captured = capturedVoxels[i];
-                captured.SetColor(colorIndex, selectedColor);
-                queue.Enqueue(captured);
-                visited.Add(captured);
-            }
+            queue.Enqueue(voxel);
+            visited.Add(voxel);
 
-            LastNewlyCapturedCount = 0;
             while (queue.Count > 0)
             {
                 VoxelCell3D current = queue.Dequeue();
+                current.SetColor(colorIndex, palette[colorIndex]);
                 for (int i = 0; i < Directions.Length; i++)
                 {
                     Vector3Int direction = Directions[i];
@@ -158,26 +181,43 @@ namespace FloodFill.ThreeD
                         current.Y + direction.y,
                         current.Z + direction.z);
                     if (neighbor == null || visited.Contains(neighbor) ||
-                        neighbor.ColorIndex != colorIndex)
+                        neighbor.ColorIndex != originalColorIndex)
                     {
                         continue;
                     }
 
                     visited.Add(neighbor);
                     queue.Enqueue(neighbor);
-                    if (!neighbor.IsCaptured)
-                    {
-                        neighbor.SetCaptured(true, true);
-                        capturedVoxels.Add(neighbor);
-                        LastNewlyCapturedCount++;
-                    }
                 }
             }
 
+            RecalculateCapturedRegion(voxel);
+
             Debug.Log(
-                $"Selected color: {colorIndex}. Captured: " +
-                $"{CapturedVoxelCount} / {TotalVoxelCount}.",
+                $"Recolored {visited.Count} connected voxel(s) from " +
+                $"({voxel.X},{voxel.Y},{voxel.Z}) to color {colorIndex}. " +
+                $"Captured: {CapturedVoxelCount} / {TotalVoxelCount}.",
                 this);
+            return true;
+        }
+
+        public void SetInputEnabled(bool value)
+        {
+            inputEnabled = value;
+            if (!inputEnabled)
+            {
+                CancelPointerGesture();
+            }
+        }
+
+        public bool TrySelectVoxelAtScreenPosition(Vector2 screenPosition)
+        {
+            if (!inputEnabled || !TryGetVoxelAtScreenPosition(screenPosition, out VoxelCell3D voxel))
+            {
+                return false;
+            }
+
+            VoxelClicked?.Invoke(voxel);
             return true;
         }
 
@@ -220,6 +260,7 @@ namespace FloodFill.ThreeD
 
         public void ClearBoard()
         {
+            CancelPointerGesture();
             if (boardRoot != null)
             {
                 for (int i = boardRoot.childCount - 1; i >= 0; i--)
@@ -335,6 +376,304 @@ namespace FloodFill.ThreeD
             LastNewlyCapturedCount = 0;
         }
 
+        private void RecalculateCapturedRegion(VoxelCell3D originVoxel)
+        {
+            var previouslyCaptured = new HashSet<VoxelCell3D>(capturedVoxels);
+            for (int i = 0; i < capturedVoxels.Count; i++)
+            {
+                capturedVoxels[i].SetCaptured(false, false);
+            }
+
+            capturedVoxels.Clear();
+            CurrentPlayerColor = originVoxel.ColorIndex;
+
+            var queue = new Queue<VoxelCell3D>();
+            var visited = new HashSet<VoxelCell3D>();
+            queue.Enqueue(originVoxel);
+            visited.Add(originVoxel);
+            originVoxel.SetCaptured(true, !previouslyCaptured.Contains(originVoxel));
+            capturedVoxels.Add(originVoxel);
+
+            while (queue.Count > 0)
+            {
+                VoxelCell3D current = queue.Dequeue();
+                for (int i = 0; i < Directions.Length; i++)
+                {
+                    Vector3Int direction = Directions[i];
+                    VoxelCell3D neighbor = GetCell(
+                        current.X + direction.x,
+                        current.Y + direction.y,
+                        current.Z + direction.z);
+                    if (neighbor == null || visited.Contains(neighbor) ||
+                        neighbor.ColorIndex != CurrentPlayerColor)
+                    {
+                        continue;
+                    }
+
+                    visited.Add(neighbor);
+                    queue.Enqueue(neighbor);
+                    neighbor.SetCaptured(true, !previouslyCaptured.Contains(neighbor));
+                    capturedVoxels.Add(neighbor);
+                }
+            }
+
+            LastNewlyCapturedCount = 0;
+            for (int i = 0; i < capturedVoxels.Count; i++)
+            {
+                if (!previouslyCaptured.Contains(capturedVoxels[i]))
+                {
+                    LastNewlyCapturedCount++;
+                }
+            }
+        }
+
+        private bool TryGetVoxelAtScreenPosition(
+            Vector2 screenPosition,
+            out VoxelCell3D voxel)
+        {
+            voxel = null;
+            Camera inputCamera = boardCamera != null ? boardCamera : Camera.main;
+            if (cells == null || inputCamera == null)
+            {
+                return false;
+            }
+
+            Ray ray = inputCamera.ScreenPointToRay(screenPosition);
+            if (!Physics.Raycast(ray, out RaycastHit hit) ||
+                !hit.collider.TryGetComponent(out voxel))
+            {
+                voxel = hit.collider != null
+                    ? hit.collider.GetComponentInParent<VoxelCell3D>()
+                    : null;
+            }
+
+            return voxel != null && GetCell(voxel.X, voxel.Y, voxel.Z) == voxel;
+        }
+
+        private void Update()
+        {
+            if (!inputEnabled || !TryGetPointerState(
+                    out Vector2 screenPosition,
+                    out int pointerId,
+                    out PointerPhase pointerPhase))
+            {
+                return;
+            }
+
+            if (pointerPhase == PointerPhase.Pressed)
+            {
+                BeginPointerGesture(screenPosition, pointerId);
+                return;
+            }
+
+            if (!pointerGestureActive || pointerId != activePointerId)
+            {
+                return;
+            }
+
+            if (pointerPhase == PointerPhase.Held)
+            {
+                if (Vector2.Distance(pointerDownPosition, screenPosition) > selectionDragThreshold)
+                {
+                    gestureExceededDragThreshold = true;
+                }
+                return;
+            }
+
+            if (pointerPhase == PointerPhase.Released)
+            {
+                bool canSelect = !IsPointerOverBlockingUI(screenPosition) &&
+                    !IsPointerOverColorButton(screenPosition) &&
+                    (!gestureExceededDragThreshold || gestureBeganOnColorButton);
+                CancelPointerGesture();
+                if (canSelect)
+                {
+                    TrySelectVoxelAtScreenPosition(screenPosition);
+                }
+                return;
+            }
+
+            if (pointerPhase == PointerPhase.Canceled)
+            {
+                CancelPointerGesture();
+            }
+        }
+
+        private void BeginPointerGesture(Vector2 screenPosition, int pointerId)
+        {
+            if (IsPointerOverBlockingUI(screenPosition))
+            {
+                return;
+            }
+
+            pointerGestureActive = true;
+            activePointerId = pointerId;
+            pointerDownPosition = screenPosition;
+            gestureExceededDragThreshold = false;
+            gestureBeganOnColorButton = IsPointerOverColorButton(screenPosition);
+        }
+
+        private void CancelPointerGesture()
+        {
+            pointerGestureActive = false;
+            gestureBeganOnColorButton = false;
+            gestureExceededDragThreshold = false;
+            activePointerId = -1;
+        }
+
+        private static bool IsPointerOverBlockingUI(Vector2 screenPosition)
+        {
+            PopulateUiRaycastResults(screenPosition);
+            for (int i = 0; i < UiRaycastResults.Count; i++)
+            {
+                RaycastResult result = UiRaycastResults[i];
+                if (result.module is GraphicRaycaster &&
+                    result.gameObject.GetComponentInParent<ColorButton3D>() == null)
+                {
+                    UiRaycastResults.Clear();
+                    return true;
+                }
+            }
+
+            UiRaycastResults.Clear();
+            return false;
+        }
+
+        private static bool IsPointerOverColorButton(Vector2 screenPosition)
+        {
+            PopulateUiRaycastResults(screenPosition);
+            for (int i = 0; i < UiRaycastResults.Count; i++)
+            {
+                if (UiRaycastResults[i].gameObject.GetComponentInParent<ColorButton3D>() != null)
+                {
+                    UiRaycastResults.Clear();
+                    return true;
+                }
+            }
+
+            UiRaycastResults.Clear();
+            return false;
+        }
+
+        private static void PopulateUiRaycastResults(Vector2 screenPosition)
+        {
+            UiRaycastResults.Clear();
+            if (EventSystem.current == null)
+            {
+                return;
+            }
+
+            var pointerData = new PointerEventData(EventSystem.current)
+            {
+                position = screenPosition
+            };
+            EventSystem.current.RaycastAll(pointerData, UiRaycastResults);
+        }
+
+        private static bool TryGetPointerState(
+            out Vector2 screenPosition,
+            out int pointerId,
+            out PointerPhase pointerPhase)
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Touchscreen.current != null)
+            {
+                var primaryTouch = Touchscreen.current.primaryTouch;
+                if (primaryTouch.press.wasPressedThisFrame)
+                {
+                    screenPosition = primaryTouch.position.ReadValue();
+                    pointerId = primaryTouch.touchId.ReadValue();
+                    pointerPhase = PointerPhase.Pressed;
+                    return true;
+                }
+
+                if (primaryTouch.press.wasReleasedThisFrame)
+                {
+                    screenPosition = primaryTouch.position.ReadValue();
+                    pointerId = primaryTouch.touchId.ReadValue();
+                    pointerPhase = PointerPhase.Released;
+                    return true;
+                }
+
+                if (primaryTouch.press.isPressed)
+                {
+                    screenPosition = primaryTouch.position.ReadValue();
+                    pointerId = primaryTouch.touchId.ReadValue();
+                    pointerPhase = PointerPhase.Held;
+                    return true;
+                }
+            }
+
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                screenPosition = Mouse.current.position.ReadValue();
+                pointerId = -1;
+                pointerPhase = PointerPhase.Pressed;
+                return true;
+            }
+
+            if (Mouse.current != null && Mouse.current.leftButton.wasReleasedThisFrame)
+            {
+                screenPosition = Mouse.current.position.ReadValue();
+                pointerId = -1;
+                pointerPhase = PointerPhase.Released;
+                return true;
+            }
+
+            if (Mouse.current != null && Mouse.current.leftButton.isPressed)
+            {
+                screenPosition = Mouse.current.position.ReadValue();
+                pointerId = -1;
+                pointerPhase = PointerPhase.Held;
+                return true;
+            }
+#else
+            if (Input.touchCount > 0)
+            {
+                Touch touch = Input.GetTouch(0);
+                screenPosition = touch.position;
+                pointerId = touch.fingerId;
+                pointerPhase = touch.phase switch
+                {
+                    TouchPhase.Began => PointerPhase.Pressed,
+                    TouchPhase.Ended => PointerPhase.Released,
+                    TouchPhase.Canceled => PointerPhase.Canceled,
+                    _ => PointerPhase.Held
+                };
+                return true;
+            }
+
+            if (Input.GetMouseButtonDown(0))
+            {
+                screenPosition = Input.mousePosition;
+                pointerId = -1;
+                pointerPhase = PointerPhase.Pressed;
+                return true;
+            }
+
+            if (Input.GetMouseButtonUp(0))
+            {
+                screenPosition = Input.mousePosition;
+                pointerId = -1;
+                pointerPhase = PointerPhase.Released;
+                return true;
+            }
+
+            if (Input.GetMouseButton(0))
+            {
+                screenPosition = Input.mousePosition;
+                pointerId = -1;
+                pointerPhase = PointerPhase.Held;
+                return true;
+            }
+#endif
+
+            screenPosition = default;
+            pointerId = -1;
+            pointerPhase = PointerPhase.None;
+            return false;
+        }
+
         private void OnValidate()
         {
             width = Mathf.Max(1, width);
@@ -342,6 +681,7 @@ namespace FloodFill.ThreeD
             depth = Mathf.Max(1, depth);
             voxelSize = Mathf.Max(0.05f, voxelSize);
             voxelGap = Mathf.Max(0f, voxelGap);
+            selectionDragThreshold = Mathf.Max(0f, selectionDragThreshold);
         }
     }
 }

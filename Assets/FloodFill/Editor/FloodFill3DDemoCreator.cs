@@ -448,7 +448,7 @@ namespace FloodFill.Editor
             string importedModelPath,
             Material material)
         {
-            var root = new GameObject("VoxelCell3D", typeof(VoxelCell3D));
+            var root = new GameObject("VoxelCell3D", typeof(BoxCollider), typeof(VoxelCell3D));
             var visual = new GameObject("Visual").transform;
             visual.SetParent(root.transform, false);
 
@@ -668,7 +668,7 @@ namespace FloodFill.Editor
             TMP_Text instructions = CreateText(
                 "InstructionsText",
                 canvas,
-                "Drag to orbit  •  Right drag to pan  •  Scroll to zoom",
+                "Select a color, then click a cube  •  Drag to orbit  •  Right drag to pan  •  Scroll to zoom",
                 27f,
                 FontStyles.Normal);
             instructions.color = new Color(0.70f, 0.73f, 0.82f);

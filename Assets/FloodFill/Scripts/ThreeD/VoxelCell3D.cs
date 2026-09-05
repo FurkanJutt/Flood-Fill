@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace FloodFill.ThreeD
 {
+    [RequireComponent(typeof(BoxCollider))]
     public sealed class VoxelCell3D : MonoBehaviour
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -13,6 +14,7 @@ namespace FloodFill.ThreeD
 
         [SerializeField] private Transform visual;
         [SerializeField] private MeshRenderer[] meshRenderers;
+        [SerializeField] private BoxCollider voxelCollider;
         [SerializeField, Min(1f)] private float capturedScale = 1.025f;
         [SerializeField, Range(0.1f, 1f)] private float captureStartScale = 0.82f;
         [SerializeField, Min(0.01f)] private float captureDuration = 0.28f;
@@ -41,6 +43,7 @@ namespace FloodFill.ThreeD
             IsCaptured = false;
             restingScale = transform.localScale;
             EnsureRenderers();
+            EnsureCollider();
             SetColor(colorIndex, color);
         }
 
@@ -151,6 +154,23 @@ namespace FloodFill.ThreeD
                 Transform searchRoot = visual != null ? visual : transform;
                 meshRenderers = searchRoot.GetComponentsInChildren<MeshRenderer>(true);
             }
+        }
+
+        private void EnsureCollider()
+        {
+            if (voxelCollider == null)
+            {
+                voxelCollider = GetComponent<BoxCollider>();
+            }
+
+            if (voxelCollider == null)
+            {
+                voxelCollider = gameObject.AddComponent<BoxCollider>();
+            }
+
+            voxelCollider.center = Vector3.zero;
+            voxelCollider.size = Vector3.one;
+            voxelCollider.enabled = true;
         }
 
         private void OnDestroy()

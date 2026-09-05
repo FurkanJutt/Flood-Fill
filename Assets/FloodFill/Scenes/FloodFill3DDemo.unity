@@ -3279,7 +3279,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "Drag to orbit  \u2022  Right drag to pan  \u2022  Scroll to zoom"
+  m_text: "Select a color, then click a cube  \u2022  Drag to orbit  \u2022  Right drag
+    to pan  \u2022  Scroll to zoom"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
