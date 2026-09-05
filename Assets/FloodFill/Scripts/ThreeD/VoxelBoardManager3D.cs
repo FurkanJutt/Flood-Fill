@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -43,6 +44,16 @@ namespace FloodFill.ThreeD
         [SerializeField] private Camera boardCamera;
         [SerializeField, Min(0f)] private float selectionDragThreshold = 12f;
 
+        [Header("Recolor Wave")]
+        [SerializeField, Min(0f)] private float waveStepDelay = 0.065f;
+
+        [Header("Win Celebration")]
+        [SerializeField, Range(0.1f, 1f)] private float winZoomScale = 0.72f;
+        [SerializeField, Min(0.01f)] private float winZoomDuration = 0.80f;
+        [SerializeField] private float winIntroTilt = 12f;
+        [SerializeField] private float winIntroTurn = 100f;
+        [SerializeField, Min(0.1f)] private float winRotationDuration = 7.5f;
+
         [Header("References")]
         [SerializeField] private Transform boardRoot;
         [SerializeField] private VoxelCell3D voxelPrefab;
@@ -57,6 +68,11 @@ namespace FloodFill.ThreeD
         private bool gestureExceededDragThreshold;
         private int activePointerId = -1;
         private Vector2 pointerDownPosition;
+        private Vector3 boardRestingScale = Vector3.one;
+        private Quaternion boardRestingRotation = Quaternion.identity;
+        private bool hasBoardRestingTransform;
+        private Sequence winIntroSequence;
+        private Tween winRotationTween;
 
         private enum PointerPhase
         {
@@ -77,6 +93,8 @@ namespace FloodFill.ThreeD
         public int CapturedVoxelCount => capturedVoxels.Count;
         public int TotalVoxelCount => allVoxels.Count;
         public int LastNewlyCapturedCount { get; private set; }
+        public float LastRecolorAnimationDuration { get; private set; }
+        public float LastWinCelebrationDuration { get; private set; }
         public float CapturedPercentage => TotalVoxelCount > 0
             ? CapturedVoxelCount * 100f / TotalVoxelCount
             : 0f;
@@ -94,6 +112,8 @@ namespace FloodFill.ThreeD
                 return false;
             }
 
+            CacheBoardRestingTransform();
+
             width = Mathf.Max(1, width);
             height = Mathf.Max(1, height);
             depth = Mathf.Max(1, depth);
@@ -101,6 +121,7 @@ namespace FloodFill.ThreeD
             voxelGap = Mathf.Max(0f, voxelGap);
             palette = (Color[])colors.Clone();
             cells = new VoxelCell3D[width, height, depth];
+            LastRecolorAnimationDuration = 0f;
 
             float spacing = voxelSize + voxelGap;
             Vector3 centerOffset = new Vector3(
@@ -160,19 +181,30 @@ namespace FloodFill.ThreeD
                 voxel.ColorIndex == colorIndex)
             {
                 LastNewlyCapturedCount = 0;
+                LastRecolorAnimationDuration = 0f;
                 return false;
             }
 
             int originalColorIndex = voxel.ColorIndex;
             var queue = new Queue<VoxelCell3D>();
             var visited = new HashSet<VoxelCell3D>();
+            var depthByVoxel = new Dictionary<VoxelCell3D, int>();
             queue.Enqueue(voxel);
             visited.Add(voxel);
+            depthByVoxel.Add(voxel, 0);
+            LastRecolorAnimationDuration = 0f;
 
             while (queue.Count > 0)
             {
                 VoxelCell3D current = queue.Dequeue();
-                current.SetColor(colorIndex, palette[colorIndex]);
+                int currentDepth = depthByVoxel[current];
+                float animationDuration = current.AnimateColor(
+                    colorIndex,
+                    palette[colorIndex],
+                    currentDepth * waveStepDelay);
+                LastRecolorAnimationDuration = Mathf.Max(
+                    LastRecolorAnimationDuration,
+                    animationDuration);
                 for (int i = 0; i < Directions.Length; i++)
                 {
                     Vector3Int direction = Directions[i];
@@ -187,6 +219,7 @@ namespace FloodFill.ThreeD
                     }
 
                     visited.Add(neighbor);
+                    depthByVoxel.Add(neighbor, currentDepth + 1);
                     queue.Enqueue(neighbor);
                 }
             }
@@ -261,6 +294,7 @@ namespace FloodFill.ThreeD
         public void ClearBoard()
         {
             CancelPointerGesture();
+            StopWinCelebration(true);
             if (boardRoot != null)
             {
                 for (int i = boardRoot.childCount - 1; i >= 0; i--)
@@ -284,7 +318,42 @@ namespace FloodFill.ThreeD
             palette = Array.Empty<Color>();
             CurrentPlayerColor = -1;
             LastNewlyCapturedCount = 0;
+            LastRecolorAnimationDuration = 0f;
+            LastWinCelebrationDuration = 0f;
             StartingVoxel = null;
+        }
+
+        public float PlayWinCelebration()
+        {
+            if (!IsFullyCaptured || boardRoot == null)
+            {
+                LastWinCelebrationDuration = Mathf.Max(0f, LastRecolorAnimationDuration);
+                return LastWinCelebrationDuration;
+            }
+
+            CacheBoardRestingTransform();
+            StopWinCelebration(true);
+
+            float waveDelay = Mathf.Max(0f, LastRecolorAnimationDuration);
+            float zoomDuration = Mathf.Max(0.01f, winZoomDuration);
+            Vector3 zoomedScale = boardRestingScale * Mathf.Clamp(winZoomScale, 0.1f, 1f);
+
+            winIntroSequence = DOTween.Sequence()
+                .AppendInterval(waveDelay)
+                .Append(boardRoot.DOScale(zoomedScale, zoomDuration).SetEase(Ease.InOutSine))
+                .Join(boardRoot.DOLocalRotate(
+                        new Vector3(winIntroTilt, winIntroTurn, 0f),
+                        zoomDuration,
+                        RotateMode.LocalAxisAdd)
+                    .SetEase(Ease.InOutCubic))
+                .OnComplete(() =>
+                {
+                    winIntroSequence = null;
+                    StartWinBackgroundRotation();
+                });
+
+            LastWinCelebrationDuration = waveDelay + zoomDuration;
+            return LastWinCelebrationDuration;
         }
 
         public void Configure(
@@ -298,6 +367,7 @@ namespace FloodFill.ThreeD
             VoxelVolumeMode mode)
         {
             boardRoot = root;
+            hasBoardRestingTransform = false;
             voxelPrefab = prefab;
             width = Mathf.Max(1, boardWidth);
             height = Mathf.Max(1, boardHeight);
@@ -305,6 +375,52 @@ namespace FloodFill.ThreeD
             voxelSize = Mathf.Max(0.05f, size);
             voxelGap = Mathf.Max(0f, gap);
             volumeMode = mode;
+        }
+
+        private void CacheBoardRestingTransform()
+        {
+            if (hasBoardRestingTransform || boardRoot == null)
+            {
+                return;
+            }
+
+            boardRestingScale = boardRoot.localScale;
+            boardRestingRotation = boardRoot.localRotation;
+            hasBoardRestingTransform = true;
+        }
+
+        private void StartWinBackgroundRotation()
+        {
+            if (boardRoot == null)
+            {
+                return;
+            }
+
+            winRotationTween?.Kill();
+            winRotationTween = boardRoot.DOLocalRotate(
+                    new Vector3(0f, 360f, 0f),
+                    Mathf.Max(0.1f, winRotationDuration),
+                    RotateMode.LocalAxisAdd)
+                .SetEase(Ease.Linear)
+                .SetLoops(-1, LoopType.Incremental);
+        }
+
+        private void StopWinCelebration(bool restoreTransform)
+        {
+            winIntroSequence?.Kill();
+            winRotationTween?.Kill();
+            if (boardRoot != null)
+            {
+                boardRoot.DOKill();
+            }
+            winIntroSequence = null;
+            winRotationTween = null;
+
+            if (restoreTransform && boardRoot != null && hasBoardRestingTransform)
+            {
+                boardRoot.localScale = boardRestingScale;
+                boardRoot.localRotation = boardRestingRotation;
+            }
         }
 
         private bool ShouldCreateVoxel(int x, int y, int z)
@@ -389,14 +505,19 @@ namespace FloodFill.ThreeD
 
             var queue = new Queue<VoxelCell3D>();
             var visited = new HashSet<VoxelCell3D>();
+            var depthByVoxel = new Dictionary<VoxelCell3D, int>();
             queue.Enqueue(originVoxel);
             visited.Add(originVoxel);
-            originVoxel.SetCaptured(true, !previouslyCaptured.Contains(originVoxel));
+            depthByVoxel.Add(originVoxel, 0);
+            LastRecolorAnimationDuration = Mathf.Max(
+                LastRecolorAnimationDuration,
+                originVoxel.SetCaptured(true, !previouslyCaptured.Contains(originVoxel)));
             capturedVoxels.Add(originVoxel);
 
             while (queue.Count > 0)
             {
                 VoxelCell3D current = queue.Dequeue();
+                int currentDepth = depthByVoxel[current];
                 for (int i = 0; i < Directions.Length; i++)
                 {
                     Vector3Int direction = Directions[i];
@@ -411,8 +532,16 @@ namespace FloodFill.ThreeD
                     }
 
                     visited.Add(neighbor);
+                    int neighborDepth = currentDepth + 1;
+                    depthByVoxel.Add(neighbor, neighborDepth);
                     queue.Enqueue(neighbor);
-                    neighbor.SetCaptured(true, !previouslyCaptured.Contains(neighbor));
+                    float captureAnimationDuration = neighbor.SetCaptured(
+                        true,
+                        !previouslyCaptured.Contains(neighbor),
+                        neighborDepth * waveStepDelay);
+                    LastRecolorAnimationDuration = Mathf.Max(
+                        LastRecolorAnimationDuration,
+                        captureAnimationDuration);
                     capturedVoxels.Add(neighbor);
                 }
             }
@@ -682,6 +811,15 @@ namespace FloodFill.ThreeD
             voxelSize = Mathf.Max(0.05f, voxelSize);
             voxelGap = Mathf.Max(0f, voxelGap);
             selectionDragThreshold = Mathf.Max(0f, selectionDragThreshold);
+            waveStepDelay = Mathf.Max(0f, waveStepDelay);
+            winZoomScale = Mathf.Clamp(winZoomScale, 0.1f, 1f);
+            winZoomDuration = Mathf.Max(0.01f, winZoomDuration);
+            winRotationDuration = Mathf.Max(0.1f, winRotationDuration);
+        }
+
+        private void OnDestroy()
+        {
+            StopWinCelebration(false);
         }
     }
 }

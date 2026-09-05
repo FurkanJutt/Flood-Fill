@@ -85,6 +85,13 @@ MonoBehaviour:
   capturedScale: 1.025
   captureStartScale: 0.82
   captureDuration: 0.28
+  waveAnticipationDarken: 0.24
+  waveFlashBrightness: 0.72
+  waveAnticipationScale: 0.88
+  wavePopScale: 1.18
+  waveAnticipationDuration: 0.07
+  waveFlashDuration: 0.13
+  waveSettleDuration: 0.24
 --- !u!65 &6476463858992919587
 BoxCollider:
   m_ObjectHideFlags: 0

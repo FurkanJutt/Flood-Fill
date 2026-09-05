@@ -191,14 +191,18 @@ namespace FloodFill.ThreeD
                 StopCoroutine(resultCoroutine);
             }
 
-            resultCoroutine = StartCoroutine(RevealResult(state));
+            float animationDuration = state == GameState.Won
+                ? boardManager.PlayWinCelebration()
+                : boardManager.LastRecolorAnimationDuration;
+            float revealDelay = animationDuration + resultRevealDelay;
+            resultCoroutine = StartCoroutine(RevealResult(state, revealDelay));
         }
 
-        private IEnumerator RevealResult(GameState state)
+        private IEnumerator RevealResult(GameState state, float delay)
         {
-            if (resultRevealDelay > 0f)
+            if (delay > 0f)
             {
-                yield return new WaitForSeconds(resultRevealDelay);
+                yield return new WaitForSeconds(delay);
             }
 
             resultCoroutine = null;
