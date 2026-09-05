@@ -2573,9 +2573,38 @@ MonoBehaviour:
   width: 6
   height: 6
   depth: 6
-  volumeMode: 0
+  volumeMode: 2
+  proceduralSettings:
+    minSolidFillPercent: 0.38
+    maxSolidFillPercent: 0.68
+    edgeMargin: 0
+    minimumSpanX: 4
+    minimumSpanY: 4
+    minimumSpanZ: 4
+    brushChance: 0.32
+    branchChance: 0.42
+    directionPersistence: 0.32
+    centerBias: 0.12
+    seedOffsetRadius: 1
+    lobeStrength: 0.78
+    minimumLobes: 2
+    maximumLobes: 5
+    edgeNotchChance: 0.28
+    edgeNotchPasses: 2
+    maxGenerationAttempts: 30
+    useRandomSeed: 1
+    fixedSeed: 12345
+    logGenerationDetails: 0
   voxelSize: 1
   voxelGap: 0.06
+  boardCamera: {fileID: 0}
+  selectionDragThreshold: 12
+  waveStepDelay: 0.065
+  winZoomScale: 0.72
+  winZoomDuration: 0.8
+  winIntroTilt: 12
+  winIntroTurn: 100
+  winRotationDuration: 7.5
   boardRoot: {fileID: 1210662022}
   voxelPrefab: {fileID: 5850776491364219721, guid: a424f5487f9f3425b85560e5b7b75970, type: 3}
 --- !u!4 &1483022966
@@ -3279,8 +3308,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "Select a color, then click a cube  \u2022  Drag to orbit  \u2022  Right drag
-    to pan  \u2022  Scroll to zoom"
+  m_text: "Select a color, then click a cube  \u2022  Drag to orbit  \u2022  Right
+    drag to pan  \u2022  Scroll to zoom"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

@@ -14,8 +14,9 @@ namespace FloodFill.ThreeD
     {
         public enum VoxelVolumeMode
         {
-            HollowCube,
-            SolidCube
+            HollowCube = 0,
+            SolidCube = 1,
+            Procedural = 2
         }
 
         private static readonly Vector3Int[] Directions =
@@ -34,7 +35,11 @@ namespace FloodFill.ThreeD
         [SerializeField, Min(1)] private int width = 6;
         [SerializeField, Min(1)] private int height = 6;
         [SerializeField, Min(1)] private int depth = 6;
-        [SerializeField] private VoxelVolumeMode volumeMode = VoxelVolumeMode.HollowCube;
+        [SerializeField] private VoxelVolumeMode volumeMode = VoxelVolumeMode.Procedural;
+
+        [Header("Procedural Shape")]
+        [SerializeField] private ProceduralVoxelShapeSettings proceduralSettings =
+            new ProceduralVoxelShapeSettings();
 
         [Header("Voxel Layout")]
         [SerializeField, Min(0.05f)] private float voxelSize = 1f;
@@ -61,6 +66,8 @@ namespace FloodFill.ThreeD
         private readonly List<VoxelCell3D> allVoxels = new List<VoxelCell3D>();
         private readonly List<VoxelCell3D> capturedVoxels = new List<VoxelCell3D>();
         private VoxelCell3D[,,] cells;
+        private bool[,,] activeMask;
+        private VoxelShapeBounds activeBounds = VoxelShapeBounds.Invalid;
         private Color[] palette = Array.Empty<Color>();
         private bool inputEnabled = true;
         private bool pointerGestureActive;
@@ -89,6 +96,10 @@ namespace FloodFill.ThreeD
         public int Height => height;
         public int Depth => depth;
         public VoxelVolumeMode VolumeMode => volumeMode;
+        public ProceduralVoxelShapeSettings ProceduralSettings => proceduralSettings;
+        public VoxelShapeBounds ActiveBounds => activeBounds;
+        public int LastGenerationSeed { get; private set; }
+        public int LastGenerationAttempt { get; private set; }
         public int CurrentPlayerColor { get; private set; } = -1;
         public int CapturedVoxelCount => capturedVoxels.Count;
         public int TotalVoxelCount => allVoxels.Count;
@@ -119,15 +130,17 @@ namespace FloodFill.ThreeD
             depth = Mathf.Max(1, depth);
             voxelSize = Mathf.Max(0.05f, voxelSize);
             voxelGap = Mathf.Max(0f, voxelGap);
+            if (!TryCreateActiveMask())
+            {
+                return false;
+            }
+
             palette = (Color[])colors.Clone();
             cells = new VoxelCell3D[width, height, depth];
             LastRecolorAnimationDuration = 0f;
 
             float spacing = voxelSize + voxelGap;
-            Vector3 centerOffset = new Vector3(
-                (width - 1) * spacing * 0.5f,
-                (height - 1) * spacing * 0.5f,
-                (depth - 1) * spacing * 0.5f);
+            Vector3 centerOffset = activeBounds.Center * spacing;
 
             for (int x = 0; x < width; x++)
             {
@@ -169,7 +182,8 @@ namespace FloodFill.ThreeD
             Debug.Log(
                 $"3D board generated: {width}x{height}x{depth}. Mode: {volumeMode}. " +
                 $"Voxels generated: {TotalVoxelCount}. Starting voxel: " +
-                $"({StartingVoxel.X},{StartingVoxel.Y},{StartingVoxel.Z}).",
+                $"({StartingVoxel.X},{StartingVoxel.Y},{StartingVoxel.Z}). " +
+                $"Seed: {LastGenerationSeed}. Attempt: {LastGenerationAttempt}.",
                 this);
             return true;
         }
@@ -313,6 +327,8 @@ namespace FloodFill.ThreeD
             }
 
             cells = null;
+            activeMask = null;
+            activeBounds = VoxelShapeBounds.Invalid;
             allVoxels.Clear();
             capturedVoxels.Clear();
             palette = Array.Empty<Color>();
@@ -320,6 +336,8 @@ namespace FloodFill.ThreeD
             LastNewlyCapturedCount = 0;
             LastRecolorAnimationDuration = 0f;
             LastWinCelebrationDuration = 0f;
+            LastGenerationSeed = 0;
+            LastGenerationAttempt = 0;
             StartingVoxel = null;
         }
 
@@ -423,12 +441,109 @@ namespace FloodFill.ThreeD
             }
         }
 
+        public void SetVolumeMode(VoxelVolumeMode mode)
+        {
+            volumeMode = mode;
+        }
+
+        public bool IsActiveCoordinate(int x, int y, int z)
+        {
+            return activeMask != null && x >= 0 && x < width &&
+                y >= 0 && y < height && z >= 0 && z < depth && activeMask[x, y, z];
+        }
+
         private bool ShouldCreateVoxel(int x, int y, int z)
         {
-            return volumeMode == VoxelVolumeMode.SolidCube ||
-                x == 0 || x == width - 1 ||
-                y == 0 || y == height - 1 ||
-                z == 0 || z == depth - 1;
+            return IsActiveCoordinate(x, y, z);
+        }
+
+        private bool TryCreateActiveMask()
+        {
+            if (volumeMode == VoxelVolumeMode.SolidCube ||
+                volumeMode == VoxelVolumeMode.HollowCube)
+            {
+                bool solid = volumeMode == VoxelVolumeMode.SolidCube;
+                activeMask = CreateCubeMask(solid);
+                activeBounds = new VoxelShapeBounds(
+                    0,
+                    width - 1,
+                    0,
+                    height - 1,
+                    0,
+                    depth - 1);
+                LastGenerationSeed = 0;
+                LastGenerationAttempt = 1;
+                return true;
+            }
+
+            if (proceduralSettings == null)
+            {
+                proceduralSettings = new ProceduralVoxelShapeSettings();
+            }
+
+            int seed = proceduralSettings.useRandomSeed
+                ? Guid.NewGuid().GetHashCode()
+                : proceduralSettings.fixedSeed;
+            if (!ProceduralVoxelShapeGenerator.TryGenerate(
+                    width,
+                    height,
+                    depth,
+                    proceduralSettings,
+                    seed,
+                    out ProceduralVoxelShapeResult result))
+            {
+                Debug.LogError(
+                    $"Procedural 3D shape generation failed after " +
+                    $"{proceduralSettings.maxGenerationAttempts} attempts. " +
+                    "Falling back to a hollow cube.",
+                    this);
+                activeMask = CreateCubeMask(false);
+                activeBounds = new VoxelShapeBounds(
+                    0,
+                    width - 1,
+                    0,
+                    height - 1,
+                    0,
+                    depth - 1);
+                LastGenerationSeed = seed;
+                LastGenerationAttempt = proceduralSettings.maxGenerationAttempts;
+                return true;
+            }
+
+            activeMask = result.Mask;
+            activeBounds = result.Bounds;
+            LastGenerationSeed = result.Seed;
+            LastGenerationAttempt = result.GenerationAttempt;
+            if (proceduralSettings.logGenerationDetails)
+            {
+                float fill = result.ActiveVoxelCount * 100f / (width * height * depth);
+                Debug.Log(
+                    $"Procedural 3D shell generated with {result.ActiveVoxelCount} voxels " +
+                    $"({fill:0.#}% of logical volume). Bounds: " +
+                    $"{activeBounds.Width}x{activeBounds.Height}x{activeBounds.Depth}. " +
+                    $"Seed: {result.Seed}. Attempt: {result.GenerationAttempt}.",
+                    this);
+            }
+
+            return true;
+        }
+
+        private bool[,,] CreateCubeMask(bool solid)
+        {
+            var mask = new bool[width, height, depth];
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    for (int z = 0; z < depth; z++)
+                    {
+                        mask[x, y, z] = solid || x == 0 || x == width - 1 ||
+                            y == 0 || y == height - 1 || z == 0 || z == depth - 1;
+                    }
+                }
+            }
+
+            return mask;
         }
 
         private VoxelCell3D FindStartingVoxel()
@@ -815,6 +930,10 @@ namespace FloodFill.ThreeD
             winZoomScale = Mathf.Clamp(winZoomScale, 0.1f, 1f);
             winZoomDuration = Mathf.Max(0.01f, winZoomDuration);
             winRotationDuration = Mathf.Max(0.1f, winRotationDuration);
+            if (proceduralSettings == null)
+            {
+                proceduralSettings = new ProceduralVoxelShapeSettings();
+            }
         }
 
         private void OnDestroy()

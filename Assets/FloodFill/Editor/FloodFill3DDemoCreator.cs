@@ -553,7 +553,7 @@ namespace FloodFill.Editor
                 6,
                 1f,
                 0.06f,
-                VoxelBoardManager3D.VoxelVolumeMode.HollowCube);
+                VoxelBoardManager3D.VoxelVolumeMode.Procedural);
             return manager;
         }
 
