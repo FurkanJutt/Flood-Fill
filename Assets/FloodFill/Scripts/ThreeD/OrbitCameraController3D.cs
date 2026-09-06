@@ -31,12 +31,28 @@ namespace FloodFill.ThreeD
         [SerializeField, Min(0.1f)] private float maximumDistance = 30f;
         [SerializeField, Min(1f)] private float framePadding = 1.22f;
 
+        [Header("Double Tap Zoom Reset")]
+        [SerializeField, Range(0.1f, 0.6f)] private float doubleTapMaximumDelay = 0.32f;
+        [SerializeField, Min(0f)] private float tapMaximumMovement = 36f;
+        [SerializeField, Min(0f)] private float doubleTapMaximumSeparation = 80f;
+        [SerializeField, Min(0f)] private float zoomResetDuration = 0.45f;
+
         private Vector3 targetPosition;
         private float yaw = -40f;
         private float pitch = 28f;
         private float distance = 12f;
+        private float defaultDistance = 12f;
+        private float zoomResetStartDistance;
+        private float zoomResetElapsed;
+        private bool zoomResetAnimating;
         private bool orbitDragging;
         private bool panDragging;
+        private bool mouseTapCandidate;
+        private Vector2 mouseTapStartPosition;
+        private bool touchTapCandidate;
+        private Vector2 touchTapStartPosition;
+        private float lastTapTime = -10f;
+        private Vector2 lastTapPosition;
         private int activeTouchCount;
         private bool touchGestureBlocked;
 
@@ -91,7 +107,26 @@ namespace FloodFill.ThreeD
                 radius / Mathf.Sin(halfFovRadians) * framePadding,
                 minimumDistance,
                 maximumDistance);
+            defaultDistance = distance;
+            zoomResetAnimating = false;
             ApplyCameraTransform();
+        }
+
+        public void ResetZoom()
+        {
+            float targetDistance = Mathf.Clamp(
+                defaultDistance, minimumDistance, maximumDistance);
+            if (zoomResetDuration <= 0f || Mathf.Approximately(distance, targetDistance))
+            {
+                distance = targetDistance;
+                zoomResetAnimating = false;
+                ApplyCameraTransform();
+                return;
+            }
+
+            zoomResetStartDistance = distance;
+            zoomResetElapsed = 0f;
+            zoomResetAnimating = true;
         }
 
         private void Awake()
@@ -107,6 +142,7 @@ namespace FloodFill.ThreeD
 #elif ENABLE_LEGACY_INPUT_MANAGER
             HandleLegacyInput();
 #endif
+            UpdateZoomReset(Time.unscaledDeltaTime);
             ApplyCameraTransform();
         }
 
@@ -129,12 +165,22 @@ namespace FloodFill.ThreeD
             Vector2 pointerPosition = mouse.position.ReadValue();
             if (mouse.leftButton.wasPressedThisFrame)
             {
-                orbitDragging = !IsScreenPositionOverUI(pointerPosition);
+                bool overUiOnPress = IsScreenPositionOverUI(pointerPosition);
+                orbitDragging = !overUiOnPress;
+                BeginMouseTapCandidate(pointerPosition, overUiOnPress);
+            }
+
+
+            if (mouseTapCandidate && mouse.leftButton.isPressed &&
+                Vector2.Distance(mouseTapStartPosition, pointerPosition) > tapMaximumMovement)
+            {
+                mouseTapCandidate = false;
             }
 
             if (mouse.leftButton.wasReleasedThisFrame)
             {
                 orbitDragging = false;
+                CompleteMouseTapCandidate(pointerPosition);
             }
 
             bool panPressed = mouse.rightButton.wasPressedThisFrame ||
@@ -171,11 +217,19 @@ namespace FloodFill.ThreeD
         {
             var first = touchscreen.touches[0];
             var second = touchscreen.touches[1];
+            Vector2 firstPosition = first.position.ReadValue();
             int touchCount = first.press.isPressed ? 1 : 0;
             if (second.press.isPressed)
             {
                 touchCount++;
             }
+
+            UpdateTouchTapCandidate(
+                first.press.wasPressedThisFrame,
+                first.press.wasReleasedThisFrame,
+                first.press.isPressed,
+                touchCount,
+                firstPosition);
 
             if (touchCount == 0)
             {
@@ -186,7 +240,7 @@ namespace FloodFill.ThreeD
 
             if (touchCount != activeTouchCount)
             {
-                touchGestureBlocked = IsScreenPositionOverUI(first.position.ReadValue()) ||
+                touchGestureBlocked = IsScreenPositionOverUI(firstPosition) ||
                     touchCount > 1 && IsScreenPositionOverUI(second.position.ReadValue());
                 activeTouchCount = touchCount;
             }
@@ -196,7 +250,7 @@ namespace FloodFill.ThreeD
                 return true;
             }
 
-            if (IsScreenPositionOverUI(first.position.ReadValue()) ||
+            if (IsScreenPositionOverUI(firstPosition) ||
                 touchCount > 1 && IsScreenPositionOverUI(second.position.ReadValue()))
             {
                 return true;
@@ -212,7 +266,6 @@ namespace FloodFill.ThreeD
                 Vector2 secondDelta = second.delta.ReadValue();
                 Pan((firstDelta + secondDelta) * 0.5f);
 
-                Vector2 firstPosition = first.position.ReadValue();
                 Vector2 secondPosition = second.position.ReadValue();
                 float currentSeparation = Vector2.Distance(firstPosition, secondPosition);
                 float previousSeparation = Vector2.Distance(
@@ -241,12 +294,21 @@ namespace FloodFill.ThreeD
             Vector2 pointerPosition = Input.mousePosition;
             if (Input.GetMouseButtonDown(0))
             {
-                orbitDragging = !IsScreenPositionOverUI(pointerPosition);
+                bool overUiOnPress = IsScreenPositionOverUI(pointerPosition);
+                orbitDragging = !overUiOnPress;
+                BeginMouseTapCandidate(pointerPosition, overUiOnPress);
+            }
+
+            if (mouseTapCandidate && Input.GetMouseButton(0) &&
+                Vector2.Distance(mouseTapStartPosition, pointerPosition) > tapMaximumMovement)
+            {
+                mouseTapCandidate = false;
             }
 
             if (Input.GetMouseButtonUp(0))
             {
                 orbitDragging = false;
+                CompleteMouseTapCandidate(pointerPosition);
             }
 
             if (Input.GetMouseButtonDown(1) || Input.GetMouseButtonDown(2))
@@ -299,6 +361,12 @@ namespace FloodFill.ThreeD
             }
 
             Touch first = Input.GetTouch(0);
+            UpdateTouchTapCandidate(
+                first.phase == TouchPhase.Began,
+                first.phase == TouchPhase.Ended,
+                first.phase != TouchPhase.Ended && first.phase != TouchPhase.Canceled,
+                touchCount,
+                first.position);
             if (touchCount == 1)
             {
                 Orbit(first.deltaPosition);
@@ -339,10 +407,96 @@ namespace FloodFill.ThreeD
 
         private void Zoom(float amount)
         {
+            zoomResetAnimating = false;
             distance = Mathf.Clamp(
                 distance - amount * zoomSensitivity,
                 minimumDistance,
                 maximumDistance);
+        }
+
+        private void UpdateZoomReset(float deltaTime)
+        {
+            if (!zoomResetAnimating)
+            {
+                return;
+            }
+
+            zoomResetElapsed += Mathf.Max(0f, deltaTime);
+            float progress = zoomResetDuration > 0f
+                ? Mathf.Clamp01(zoomResetElapsed / zoomResetDuration)
+                : 1f;
+            float easedProgress = progress * progress * (3f - 2f * progress);
+            distance = Mathf.LerpUnclamped(
+                zoomResetStartDistance,
+                Mathf.Clamp(defaultDistance, minimumDistance, maximumDistance),
+                easedProgress);
+            if (progress >= 1f)
+            {
+                distance = Mathf.Clamp(defaultDistance, minimumDistance, maximumDistance);
+                zoomResetAnimating = false;
+            }
+        }
+
+        private void BeginMouseTapCandidate(Vector2 position, bool pointerOverUi)
+        {
+            mouseTapCandidate = !pointerOverUi;
+            mouseTapStartPosition = position;
+        }
+
+        private void CompleteMouseTapCandidate(Vector2 position)
+        {
+            if (mouseTapCandidate && !IsScreenPositionOverUI(position) &&
+                Vector2.Distance(mouseTapStartPosition, position) <= tapMaximumMovement)
+            {
+                RegisterTap(position);
+            }
+            mouseTapCandidate = false;
+        }
+
+        private void UpdateTouchTapCandidate(
+            bool pressedThisFrame,
+            bool releasedThisFrame,
+            bool isPressed,
+            int touchCount,
+            Vector2 position)
+        {
+            if (pressedThisFrame)
+            {
+                touchTapCandidate = touchCount == 1 && !IsScreenPositionOverUI(position);
+                touchTapStartPosition = position;
+            }
+            if (touchCount > 1 || isPressed && touchTapCandidate &&
+                Vector2.Distance(touchTapStartPosition, position) > tapMaximumMovement)
+            {
+                touchTapCandidate = false;
+            }
+            if (!releasedThisFrame)
+            {
+                return;
+            }
+
+            if (touchTapCandidate && !IsScreenPositionOverUI(position) &&
+                Vector2.Distance(touchTapStartPosition, position) <= tapMaximumMovement)
+            {
+                RegisterTap(position);
+            }
+            touchTapCandidate = false;
+        }
+
+        private void RegisterTap(Vector2 position)
+        {
+            float now = Time.unscaledTime;
+            bool isDoubleTap = now - lastTapTime <= doubleTapMaximumDelay &&
+                Vector2.Distance(lastTapPosition, position) <= doubleTapMaximumSeparation;
+            if (isDoubleTap)
+            {
+                ResetZoom();
+                lastTapTime = -10f;
+                return;
+            }
+
+            lastTapTime = now;
+            lastTapPosition = position;
         }
 
         private void ApplyCameraTransform()
@@ -400,6 +554,11 @@ namespace FloodFill.ThreeD
             maximumDistance = Mathf.Max(minimumDistance, maximumDistance);
             maximumPitch = Mathf.Max(minimumPitch, maximumPitch);
             framePadding = Mathf.Max(1f, framePadding);
+            doubleTapMaximumDelay = Mathf.Clamp(doubleTapMaximumDelay, 0.1f, 0.6f);
+            tapMaximumMovement = Mathf.Max(0f, tapMaximumMovement);
+            doubleTapMaximumSeparation = Mathf.Max(0f, doubleTapMaximumSeparation);
+            zoomResetDuration = Mathf.Max(0f, zoomResetDuration);
+            defaultDistance = Mathf.Clamp(defaultDistance, minimumDistance, maximumDistance);
             ApplyCameraFillLightSettings();
         }
     }
