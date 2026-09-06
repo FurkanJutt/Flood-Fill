@@ -82,7 +82,8 @@ namespace FloodFill.Editor
                 gameManager,
                 out TMP_Text movesText,
                 out TMP_Text capturedText,
-                out TMP_Text scoreText);
+                out TMP_Text scoreText,
+                out TMP_Dropdown boardModeDropdown);
             ColorButton3D[] colorButtons = CreateColorControls(canvas.transform, gameManager);
             CreateResultPanel(
                 canvas.transform,
@@ -97,6 +98,7 @@ namespace FloodFill.Editor
                 movesText,
                 capturedText,
                 scoreText,
+                boardModeDropdown,
                 resultPanel,
                 resultText,
                 colorButtons,
@@ -647,7 +649,8 @@ namespace FloodFill.Editor
             FloodFillGameManager3D gameManager,
             out TMP_Text movesText,
             out TMP_Text capturedText,
-            out TMP_Text scoreText)
+            out TMP_Text scoreText,
+            out TMP_Dropdown boardModeDropdown)
         {
             TMP_Text title = CreateText("Title", canvas, "FLOOD FILL 3D", 66f, FontStyles.Bold);
             SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
@@ -685,6 +688,108 @@ namespace FloodFill.Editor
             SetRect(restart.GetComponent<RectTransform>(), Vector2.one, Vector2.one,
                 new Vector2(-120f, -62f), new Vector2(190f, 76f));
             UnityEventTools.AddPersistentListener(restart.onClick, gameManager.RestartGame);
+
+            boardModeDropdown = CreateBoardModeDropdown(canvas);
+        }
+
+        private static TMP_Dropdown CreateBoardModeDropdown(Transform canvas)
+        {
+            GameObject dropdownObject = TMP_DefaultControls.CreateDropdown(
+                new TMP_DefaultControls.Resources());
+            dropdownObject.name = "BoardModeDropdown";
+            dropdownObject.transform.SetParent(canvas, false);
+            SetRect(
+                dropdownObject.GetComponent<RectTransform>(),
+                new Vector2(0f, 1f),
+                new Vector2(0f, 1f),
+                new Vector2(120f, -62f),
+                new Vector2(190f, 76f));
+
+            TMP_Dropdown dropdown = dropdownObject.GetComponent<TMP_Dropdown>();
+            dropdown.navigation = new Navigation { mode = Navigation.Mode.None };
+            dropdown.colors = CreateButtonColors();
+            dropdown.ClearOptions();
+            dropdown.AddOptions(new System.Collections.Generic.List<string>
+            {
+                "Random Shape",
+                "Full Grid"
+            });
+            dropdown.SetValueWithoutNotify(0);
+
+            Image background = dropdownObject.GetComponent<Image>();
+            background.color = new Color(0.18f, 0.20f, 0.28f);
+            TMP_FontAsset uiFont = FindAvailableFontAsset(canvas);
+            if (dropdown.captionText != null)
+            {
+                if (uiFont != null)
+                {
+                    dropdown.captionText.font = uiFont;
+                }
+                dropdown.captionText.fontSize = 24f;
+                dropdown.captionText.fontStyle = FontStyles.Bold;
+                dropdown.captionText.color = new Color(0.95f, 0.96f, 1f);
+                dropdown.captionText.alignment = TextAlignmentOptions.Center;
+                dropdown.captionText.rectTransform.offsetMin = new Vector2(8f, 0f);
+                dropdown.captionText.rectTransform.offsetMax = new Vector2(-38f, 0f);
+            }
+
+            if (dropdown.itemText != null)
+            {
+                if (uiFont != null)
+                {
+                    dropdown.itemText.font = uiFont;
+                }
+                dropdown.itemText.fontSize = 24f;
+                dropdown.itemText.color = new Color(0.95f, 0.96f, 1f);
+                RectTransform itemRect = dropdown.itemText.transform.parent as RectTransform;
+                if (itemRect != null)
+                {
+                    itemRect.sizeDelta = new Vector2(itemRect.sizeDelta.x, 50f);
+                }
+            }
+
+            if (dropdown.template != null)
+            {
+                dropdown.template.sizeDelta = new Vector2(0f, 120f);
+                Image templateBackground = dropdown.template.GetComponent<Image>();
+                if (templateBackground != null)
+                {
+                    templateBackground.color = new Color(0.12f, 0.14f, 0.21f, 1f);
+                }
+
+                Toggle itemToggle = dropdown.template.GetComponentInChildren<Toggle>(true);
+                if (itemToggle != null)
+                {
+                    itemToggle.colors = CreateButtonColors();
+                    Image itemBackground = itemToggle.targetGraphic as Image;
+                    if (itemBackground != null)
+                    {
+                        itemBackground.color = new Color(0.18f, 0.20f, 0.28f, 1f);
+                    }
+                }
+            }
+
+            Transform existingArrow = dropdownObject.transform.Find("Arrow");
+            if (existingArrow != null)
+            {
+                existingArrow.gameObject.SetActive(false);
+            }
+
+            TMP_Text arrow = CreateText(
+                "ArrowLabel",
+                dropdownObject.transform,
+                "▼",
+                22f,
+                FontStyles.Bold);
+            SetRect(
+                arrow.rectTransform,
+                new Vector2(1f, 0.5f),
+                new Vector2(1f, 0.5f),
+                new Vector2(-21f, 0f),
+                new Vector2(34f, 50f));
+
+            dropdown.RefreshShownValue();
+            return dropdown;
         }
 
         private static ColorButton3D[] CreateColorControls(
@@ -766,7 +871,11 @@ namespace FloodFill.Editor
             GameObject textObject = CreateUIObject(name, parent);
             TextMeshProUGUI text = textObject.AddComponent<TextMeshProUGUI>();
             text.text = content;
-            text.font = TMP_Settings.defaultFontAsset;
+            TMP_FontAsset uiFont = FindAvailableFontAsset(parent);
+            if (uiFont != null)
+            {
+                text.font = uiFont;
+            }
             text.fontSize = fontSize;
             text.fontStyle = style;
             text.color = new Color(0.95f, 0.96f, 1f);
@@ -774,6 +883,34 @@ namespace FloodFill.Editor
             text.textWrappingMode = TextWrappingModes.NoWrap;
             text.raycastTarget = false;
             return text;
+        }
+
+        private static TMP_FontAsset FindAvailableFontAsset(Transform context)
+        {
+            if (context != null)
+            {
+                TMP_Text[] existingTexts = context.root.GetComponentsInChildren<TMP_Text>(true);
+                for (int i = 0; i < existingTexts.Length; i++)
+                {
+                    if (existingTexts[i] != null && existingTexts[i].font != null)
+                    {
+                        return existingTexts[i].font;
+                    }
+                }
+            }
+
+            string[] fontGuids = AssetDatabase.FindAssets("t:TMP_FontAsset");
+            for (int i = 0; i < fontGuids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(fontGuids[i]);
+                TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
+                if (font != null)
+                {
+                    return font;
+                }
+            }
+
+            return null;
         }
 
         private static Button CreateTextButton(

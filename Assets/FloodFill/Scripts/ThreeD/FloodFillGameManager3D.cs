@@ -1,6 +1,8 @@
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace FloodFill.ThreeD
 {
@@ -12,6 +14,12 @@ namespace FloodFill.ThreeD
             Won,
             Lost
         }
+
+        private static readonly VoxelBoardManager3D.VoxelVolumeMode[] BoardModeOptions =
+        {
+            VoxelBoardManager3D.VoxelVolumeMode.Procedural,
+            VoxelBoardManager3D.VoxelVolumeMode.HollowCube
+        };
 
         [Header("Game")]
         [SerializeField, Min(1)] private int maxMoves = 25;
@@ -34,6 +42,7 @@ namespace FloodFill.ThreeD
         [SerializeField] private TMP_Text movesText;
         [SerializeField] private TMP_Text capturedText;
         [SerializeField] private TMP_Text scoreText;
+        [SerializeField] private TMP_Dropdown boardModeDropdown;
         [SerializeField] private GameObject resultPanel;
         [SerializeField] private TMP_Text resultText;
         [SerializeField] private ColorButton3D[] colorButtons;
@@ -44,6 +53,8 @@ namespace FloodFill.ThreeD
         public int Score { get; private set; }
         public GameState State { get; private set; }
         public int SelectedColorIndex { get; private set; } = -1;
+        public VoxelBoardManager3D.VoxelVolumeMode SelectedBoardMode { get; private set; } =
+            VoxelBoardManager3D.VoxelVolumeMode.Procedural;
         public int CurrentPlayerColor => boardManager != null ? boardManager.CurrentPlayerColor : -1;
 
         private void Start()
@@ -55,6 +66,8 @@ namespace FloodFill.ThreeD
             }
 
             boardManager.VoxelClicked += HandleVoxelClicked;
+            EnsureBoardModeDropdown();
+            InitializeBoardModeDropdown();
             RestartGame();
         }
 
@@ -110,6 +123,8 @@ namespace FloodFill.ThreeD
             Score = 0;
             State = GameState.Playing;
             SelectedColorIndex = -1;
+            SyncBoardModeFromDropdown();
+            boardManager.SetVolumeMode(SelectedBoardMode);
             if (resultPanel != null)
             {
                 resultPanel.SetActive(false);
@@ -140,6 +155,7 @@ namespace FloodFill.ThreeD
             TMP_Text movesLabel,
             TMP_Text capturedLabel,
             TMP_Text scoreLabel,
+            TMP_Dropdown modeDropdown,
             GameObject endPanel,
             TMP_Text endLabel,
             ColorButton3D[] buttons,
@@ -151,10 +167,226 @@ namespace FloodFill.ThreeD
             movesText = movesLabel;
             capturedText = capturedLabel;
             scoreText = scoreLabel;
+            boardModeDropdown = modeDropdown;
             resultPanel = endPanel;
             resultText = endLabel;
             colorButtons = buttons;
             colors = palette;
+        }
+
+        private void InitializeBoardModeDropdown()
+        {
+            SelectedBoardMode = boardManager != null
+                ? boardManager.VolumeMode
+                : VoxelBoardManager3D.VoxelVolumeMode.Procedural;
+            if (boardModeDropdown == null)
+            {
+                return;
+            }
+
+            boardModeDropdown.ClearOptions();
+            boardModeDropdown.AddOptions(new List<string>
+            {
+                "Random Shape",
+                "Full Grid"
+            });
+            int selectedIndex = System.Array.IndexOf(BoardModeOptions, SelectedBoardMode);
+            boardModeDropdown.SetValueWithoutNotify(Mathf.Max(0, selectedIndex));
+            boardModeDropdown.RefreshShownValue();
+            boardModeDropdown.onValueChanged.RemoveListener(HandleBoardModeDropdownChanged);
+            boardModeDropdown.onValueChanged.AddListener(HandleBoardModeDropdownChanged);
+        }
+
+        private void EnsureBoardModeDropdown()
+        {
+            if (boardModeDropdown != null)
+            {
+                return;
+            }
+
+            Canvas canvas = movesText != null
+                ? movesText.GetComponentInParent<Canvas>()
+                : FindAnyObjectByType<Canvas>();
+            if (canvas == null)
+            {
+                Debug.LogWarning("The 3D board-mode dropdown could not find a Canvas.", this);
+                return;
+            }
+
+            Transform existingDropdown = canvas.transform.Find("BoardModeDropdown");
+            if (existingDropdown != null)
+            {
+                boardModeDropdown = existingDropdown.GetComponent<TMP_Dropdown>();
+                if (boardModeDropdown != null)
+                {
+                    return;
+                }
+            }
+
+            GameObject dropdownObject = TMP_DefaultControls.CreateDropdown(
+                new TMP_DefaultControls.Resources());
+            dropdownObject.name = "BoardModeDropdown";
+            dropdownObject.transform.SetParent(canvas.transform, false);
+            SetLayerRecursively(dropdownObject, canvas.gameObject.layer);
+
+            RectTransform dropdownRect = dropdownObject.GetComponent<RectTransform>();
+            dropdownRect.anchorMin = new Vector2(0f, 1f);
+            dropdownRect.anchorMax = new Vector2(0f, 1f);
+            dropdownRect.pivot = new Vector2(0.5f, 0.5f);
+            dropdownRect.anchoredPosition = new Vector2(120f, -62f);
+            dropdownRect.sizeDelta = new Vector2(190f, 76f);
+
+            Transform restartButton = canvas.transform.Find("RestartButton");
+            if (restartButton != null)
+            {
+                dropdownObject.transform.SetSiblingIndex(restartButton.GetSiblingIndex() + 1);
+            }
+
+            boardModeDropdown = dropdownObject.GetComponent<TMP_Dropdown>();
+            boardModeDropdown.navigation = new Navigation { mode = Navigation.Mode.None };
+            boardModeDropdown.colors = CreateDropdownColors();
+
+            Image background = dropdownObject.GetComponent<Image>();
+            if (background != null)
+            {
+                background.color = new Color(0.18f, 0.20f, 0.28f, 1f);
+            }
+
+            TMP_FontAsset uiFont = FindSceneFont(canvas.transform);
+            if (boardModeDropdown.captionText != null)
+            {
+                if (uiFont != null)
+                {
+                    boardModeDropdown.captionText.font = uiFont;
+                }
+
+                boardModeDropdown.captionText.fontSize = 24f;
+                boardModeDropdown.captionText.fontStyle = FontStyles.Bold;
+                boardModeDropdown.captionText.color = new Color(0.95f, 0.96f, 1f);
+                boardModeDropdown.captionText.alignment = TextAlignmentOptions.Center;
+                boardModeDropdown.captionText.rectTransform.offsetMin = new Vector2(8f, 0f);
+                boardModeDropdown.captionText.rectTransform.offsetMax = new Vector2(-38f, 0f);
+            }
+
+            if (boardModeDropdown.itemText != null)
+            {
+                if (uiFont != null)
+                {
+                    boardModeDropdown.itemText.font = uiFont;
+                }
+
+                boardModeDropdown.itemText.fontSize = 24f;
+                boardModeDropdown.itemText.color = new Color(0.95f, 0.96f, 1f);
+                if (boardModeDropdown.itemText.transform.parent is RectTransform itemRect)
+                {
+                    itemRect.sizeDelta = new Vector2(itemRect.sizeDelta.x, 50f);
+                }
+            }
+
+            if (boardModeDropdown.template != null)
+            {
+                boardModeDropdown.template.sizeDelta = new Vector2(0f, 120f);
+                Image templateBackground = boardModeDropdown.template.GetComponent<Image>();
+                if (templateBackground != null)
+                {
+                    templateBackground.color = new Color(0.12f, 0.14f, 0.21f, 1f);
+                }
+
+                Toggle itemToggle = boardModeDropdown.template.GetComponentInChildren<Toggle>(true);
+                if (itemToggle != null)
+                {
+                    itemToggle.colors = CreateDropdownColors();
+                    if (itemToggle.targetGraphic is Image itemBackground)
+                    {
+                        itemBackground.color = new Color(0.18f, 0.20f, 0.28f, 1f);
+                    }
+                }
+            }
+
+            Transform existingArrow = dropdownObject.transform.Find("Arrow");
+            if (existingArrow != null)
+            {
+                existingArrow.gameObject.SetActive(false);
+            }
+
+            var arrowObject = new GameObject(
+                "ArrowLabel",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TextMeshProUGUI));
+            arrowObject.transform.SetParent(dropdownObject.transform, false);
+            arrowObject.layer = dropdownObject.layer;
+            TextMeshProUGUI arrowText = arrowObject.GetComponent<TextMeshProUGUI>();
+            arrowText.text = "▼";
+            if (uiFont != null)
+            {
+                arrowText.font = uiFont;
+            }
+
+            arrowText.fontSize = 22f;
+            arrowText.fontStyle = FontStyles.Bold;
+            arrowText.color = new Color(0.95f, 0.96f, 1f);
+            arrowText.alignment = TextAlignmentOptions.Center;
+            arrowText.raycastTarget = false;
+            RectTransform arrowRect = arrowText.rectTransform;
+            arrowRect.anchorMin = new Vector2(1f, 0.5f);
+            arrowRect.anchorMax = new Vector2(1f, 0.5f);
+            arrowRect.pivot = new Vector2(0.5f, 0.5f);
+            arrowRect.anchoredPosition = new Vector2(-21f, 0f);
+            arrowRect.sizeDelta = new Vector2(34f, 50f);
+        }
+
+        private static ColorBlock CreateDropdownColors()
+        {
+            return new ColorBlock
+            {
+                normalColor = Color.white,
+                highlightedColor = new Color(1.08f, 1.08f, 1.08f),
+                pressedColor = new Color(0.88f, 0.90f, 0.96f),
+                selectedColor = Color.white,
+                disabledColor = new Color(0.55f, 0.57f, 0.64f, 0.65f),
+                colorMultiplier = 1f,
+                fadeDuration = 0.08f
+            };
+        }
+
+        private static TMP_FontAsset FindSceneFont(Transform canvas)
+        {
+            TMP_Text[] texts = canvas.GetComponentsInChildren<TMP_Text>(true);
+            for (int i = 0; i < texts.Length; i++)
+            {
+                if (texts[i] != null && texts[i].font != null)
+                {
+                    return texts[i].font;
+                }
+            }
+
+            return null;
+        }
+
+        private static void SetLayerRecursively(GameObject target, int layer)
+        {
+            target.layer = layer;
+            for (int i = 0; i < target.transform.childCount; i++)
+            {
+                SetLayerRecursively(target.transform.GetChild(i).gameObject, layer);
+            }
+        }
+
+        private void HandleBoardModeDropdownChanged(int optionIndex)
+        {
+            if (optionIndex >= 0 && optionIndex < BoardModeOptions.Length)
+            {
+                SelectedBoardMode = BoardModeOptions[optionIndex];
+            }
+        }
+
+        private void SyncBoardModeFromDropdown()
+        {
+            if (boardModeDropdown != null)
+            {
+                HandleBoardModeDropdownChanged(boardModeDropdown.value);
+            }
         }
 
         private void AwardScore(int newlyCapturedCount)
@@ -285,6 +517,11 @@ namespace FloodFill.ThreeD
 
         private void OnDestroy()
         {
+            if (boardModeDropdown != null)
+            {
+                boardModeDropdown.onValueChanged.RemoveListener(HandleBoardModeDropdownChanged);
+            }
+
             if (boardManager != null)
             {
                 boardManager.VoxelClicked -= HandleVoxelClicked;

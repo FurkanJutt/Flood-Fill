@@ -15,7 +15,6 @@ namespace FloodFill.ThreeD
         public enum VoxelVolumeMode
         {
             HollowCube = 0,
-            SolidCube = 1,
             Procedural = 2
         }
 
@@ -459,11 +458,9 @@ namespace FloodFill.ThreeD
 
         private bool TryCreateActiveMask()
         {
-            if (volumeMode == VoxelVolumeMode.SolidCube ||
-                volumeMode == VoxelVolumeMode.HollowCube)
+            if (volumeMode == VoxelVolumeMode.HollowCube)
             {
-                bool solid = volumeMode == VoxelVolumeMode.SolidCube;
-                activeMask = CreateCubeMask(solid);
+                activeMask = CreateHollowCubeMask();
                 activeBounds = new VoxelShapeBounds(
                     0,
                     width - 1,
@@ -497,7 +494,7 @@ namespace FloodFill.ThreeD
                     $"{proceduralSettings.maxGenerationAttempts} attempts. " +
                     "Falling back to a hollow cube.",
                     this);
-                activeMask = CreateCubeMask(false);
+                activeMask = CreateHollowCubeMask();
                 activeBounds = new VoxelShapeBounds(
                     0,
                     width - 1,
@@ -528,7 +525,7 @@ namespace FloodFill.ThreeD
             return true;
         }
 
-        private bool[,,] CreateCubeMask(bool solid)
+        private bool[,,] CreateHollowCubeMask()
         {
             var mask = new bool[width, height, depth];
             for (int x = 0; x < width; x++)
@@ -537,7 +534,7 @@ namespace FloodFill.ThreeD
                 {
                     for (int z = 0; z < depth; z++)
                     {
-                        mask[x, y, z] = solid || x == 0 || x == width - 1 ||
+                        mask[x, y, z] = x == 0 || x == width - 1 ||
                             y == 0 || y == height - 1 || z == 0 || z == depth - 1;
                     }
                 }

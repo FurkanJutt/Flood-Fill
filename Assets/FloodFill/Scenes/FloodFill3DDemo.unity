@@ -747,6 +747,7 @@ MonoBehaviour:
   movesText: {fileID: 1362202067}
   capturedText: {fileID: 1787104306}
   scoreText: {fileID: 508615507}
+  boardModeDropdown: {fileID: 0}
   resultPanel: {fileID: 1807306631}
   resultText: {fileID: 379240122}
   colorButtons:
@@ -883,12 +884,12 @@ MonoBehaviour:
   cameraFillLight: {fileID: 951624111}
   cameraFillColor: {r: 1, g: 1, b: 1, a: 1}
   cameraFillIntensity: 1.25
-  orbitSensitivity: 0.2
+  orbitSensitivity: 0.4
   panSensitivity: 1.25
   zoomSensitivity: 5
   minimumPitch: -75
   maximumPitch: 75
-  minimumDistance: 4
+  minimumDistance: 15
   maximumDistance: 30
   framePadding: 1.22
 --- !u!4 &369442847
