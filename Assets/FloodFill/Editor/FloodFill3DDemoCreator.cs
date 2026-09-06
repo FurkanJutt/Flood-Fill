@@ -83,7 +83,8 @@ namespace FloodFill.Editor
                 out TMP_Text movesText,
                 out TMP_Text capturedText,
                 out TMP_Text scoreText,
-                out TMP_Dropdown boardModeDropdown);
+                out TMP_Dropdown boardModeDropdown,
+                out TMP_Dropdown boardSizeDropdown);
             ColorButton3D[] colorButtons = CreateColorControls(canvas.transform, gameManager);
             CreateResultPanel(
                 canvas.transform,
@@ -99,6 +100,7 @@ namespace FloodFill.Editor
                 capturedText,
                 scoreText,
                 boardModeDropdown,
+                boardSizeDropdown,
                 resultPanel,
                 resultText,
                 colorButtons,
@@ -650,7 +652,8 @@ namespace FloodFill.Editor
             out TMP_Text movesText,
             out TMP_Text capturedText,
             out TMP_Text scoreText,
-            out TMP_Dropdown boardModeDropdown)
+            out TMP_Dropdown boardModeDropdown,
+            out TMP_Dropdown boardSizeDropdown)
         {
             TMP_Text title = CreateText("Title", canvas, "FLOOD FILL 3D", 66f, FontStyles.Bold);
             SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
@@ -689,31 +692,43 @@ namespace FloodFill.Editor
                 new Vector2(-120f, -62f), new Vector2(190f, 76f));
             UnityEventTools.AddPersistentListener(restart.onClick, gameManager.RestartGame);
 
-            boardModeDropdown = CreateBoardModeDropdown(canvas);
+            boardModeDropdown = CreateStyledDropdown(
+                canvas,
+                "BoardModeDropdown",
+                new Vector2(120f, -62f),
+                new[] { "Random Shape", "Full Grid" },
+                120f);
+            boardSizeDropdown = CreateStyledDropdown(
+                canvas,
+                "BoardSizeDropdown",
+                new Vector2(120f, -148f),
+                new[] { "6x6", "8x8", "10x10", "12x12", "15x15", "18x18", "20x20" },
+                360f);
         }
 
-        private static TMP_Dropdown CreateBoardModeDropdown(Transform canvas)
+        private static TMP_Dropdown CreateStyledDropdown(
+            Transform canvas,
+            string objectName,
+            Vector2 position,
+            string[] options,
+            float templateHeight)
         {
             GameObject dropdownObject = TMP_DefaultControls.CreateDropdown(
                 new TMP_DefaultControls.Resources());
-            dropdownObject.name = "BoardModeDropdown";
+            dropdownObject.name = objectName;
             dropdownObject.transform.SetParent(canvas, false);
             SetRect(
                 dropdownObject.GetComponent<RectTransform>(),
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(120f, -62f),
+                position,
                 new Vector2(190f, 76f));
 
             TMP_Dropdown dropdown = dropdownObject.GetComponent<TMP_Dropdown>();
             dropdown.navigation = new Navigation { mode = Navigation.Mode.None };
             dropdown.colors = CreateButtonColors();
             dropdown.ClearOptions();
-            dropdown.AddOptions(new System.Collections.Generic.List<string>
-            {
-                "Random Shape",
-                "Full Grid"
-            });
+            dropdown.AddOptions(new System.Collections.Generic.List<string>(options));
             dropdown.SetValueWithoutNotify(0);
 
             Image background = dropdownObject.GetComponent<Image>();
@@ -750,7 +765,7 @@ namespace FloodFill.Editor
 
             if (dropdown.template != null)
             {
-                dropdown.template.sizeDelta = new Vector2(0f, 120f);
+                dropdown.template.sizeDelta = new Vector2(0f, templateHeight);
                 Image templateBackground = dropdown.template.GetComponent<Image>();
                 if (templateBackground != null)
                 {

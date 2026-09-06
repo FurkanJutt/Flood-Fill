@@ -21,6 +21,11 @@ namespace FloodFill.ThreeD
             VoxelBoardManager3D.VoxelVolumeMode.HollowCube
         };
 
+        private static readonly int[] BoardSizeOptions =
+        {
+            6, 8, 10, 12, 15, 18, 20
+        };
+
         [Header("Game")]
         [SerializeField, Min(1)] private int maxMoves = 25;
         [SerializeField, Min(0f)] private float resultRevealDelay = 0.45f;
@@ -43,6 +48,7 @@ namespace FloodFill.ThreeD
         [SerializeField] private TMP_Text capturedText;
         [SerializeField] private TMP_Text scoreText;
         [SerializeField] private TMP_Dropdown boardModeDropdown;
+        [SerializeField] private TMP_Dropdown boardSizeDropdown;
         [SerializeField] private GameObject resultPanel;
         [SerializeField] private TMP_Text resultText;
         [SerializeField] private ColorButton3D[] colorButtons;
@@ -55,6 +61,7 @@ namespace FloodFill.ThreeD
         public int SelectedColorIndex { get; private set; } = -1;
         public VoxelBoardManager3D.VoxelVolumeMode SelectedBoardMode { get; private set; } =
             VoxelBoardManager3D.VoxelVolumeMode.Procedural;
+        public int SelectedBoardSize { get; private set; } = 6;
         public int CurrentPlayerColor => boardManager != null ? boardManager.CurrentPlayerColor : -1;
 
         private void Start()
@@ -67,7 +74,9 @@ namespace FloodFill.ThreeD
 
             boardManager.VoxelClicked += HandleVoxelClicked;
             EnsureBoardModeDropdown();
+            EnsureBoardSizeDropdown();
             InitializeBoardModeDropdown();
+            InitializeBoardSizeDropdown();
             RestartGame();
         }
 
@@ -124,7 +133,9 @@ namespace FloodFill.ThreeD
             State = GameState.Playing;
             SelectedColorIndex = -1;
             SyncBoardModeFromDropdown();
+            SyncBoardSizeFromDropdown();
             boardManager.SetVolumeMode(SelectedBoardMode);
+            boardManager.SetDimensions(SelectedBoardSize);
             if (resultPanel != null)
             {
                 resultPanel.SetActive(false);
@@ -156,6 +167,7 @@ namespace FloodFill.ThreeD
             TMP_Text capturedLabel,
             TMP_Text scoreLabel,
             TMP_Dropdown modeDropdown,
+            TMP_Dropdown sizeDropdown,
             GameObject endPanel,
             TMP_Text endLabel,
             ColorButton3D[] buttons,
@@ -168,6 +180,7 @@ namespace FloodFill.ThreeD
             capturedText = capturedLabel;
             scoreText = scoreLabel;
             boardModeDropdown = modeDropdown;
+            boardSizeDropdown = sizeDropdown;
             resultPanel = endPanel;
             resultText = endLabel;
             colorButtons = buttons;
@@ -197,11 +210,62 @@ namespace FloodFill.ThreeD
             boardModeDropdown.onValueChanged.AddListener(HandleBoardModeDropdownChanged);
         }
 
-        private void EnsureBoardModeDropdown()
+        private void InitializeBoardSizeDropdown()
         {
-            if (boardModeDropdown != null)
+            SelectedBoardSize = boardManager != null ? boardManager.Width : BoardSizeOptions[0];
+            if (boardSizeDropdown == null)
             {
                 return;
+            }
+
+            var labels = new List<string>(BoardSizeOptions.Length);
+            for (int i = 0; i < BoardSizeOptions.Length; i++)
+            {
+                labels.Add($"{BoardSizeOptions[i]}x{BoardSizeOptions[i]}");
+            }
+
+            boardSizeDropdown.ClearOptions();
+            boardSizeDropdown.AddOptions(labels);
+            int selectedIndex = System.Array.IndexOf(BoardSizeOptions, SelectedBoardSize);
+            if (selectedIndex < 0)
+            {
+                selectedIndex = 0;
+                SelectedBoardSize = BoardSizeOptions[selectedIndex];
+            }
+
+            boardSizeDropdown.SetValueWithoutNotify(selectedIndex);
+            boardSizeDropdown.RefreshShownValue();
+            boardSizeDropdown.onValueChanged.RemoveListener(HandleBoardSizeDropdownChanged);
+            boardSizeDropdown.onValueChanged.AddListener(HandleBoardSizeDropdownChanged);
+        }
+
+        private void EnsureBoardModeDropdown()
+        {
+            boardModeDropdown = EnsureRuntimeDropdown(
+                boardModeDropdown,
+                "BoardModeDropdown",
+                new Vector2(120f, -62f),
+                120f);
+        }
+
+        private void EnsureBoardSizeDropdown()
+        {
+            boardSizeDropdown = EnsureRuntimeDropdown(
+                boardSizeDropdown,
+                "BoardSizeDropdown",
+                new Vector2(120f, -148f),
+                360f);
+        }
+
+        private TMP_Dropdown EnsureRuntimeDropdown(
+            TMP_Dropdown dropdown,
+            string objectName,
+            Vector2 position,
+            float templateHeight)
+        {
+            if (dropdown != null)
+            {
+                return dropdown;
             }
 
             Canvas canvas = movesText != null
@@ -209,23 +273,20 @@ namespace FloodFill.ThreeD
                 : FindAnyObjectByType<Canvas>();
             if (canvas == null)
             {
-                Debug.LogWarning("The 3D board-mode dropdown could not find a Canvas.", this);
-                return;
+                Debug.LogWarning($"The 3D {objectName} could not find a Canvas.", this);
+                return null;
             }
 
-            Transform existingDropdown = canvas.transform.Find("BoardModeDropdown");
-            if (existingDropdown != null)
+            Transform existingDropdown = canvas.transform.Find(objectName);
+            if (existingDropdown != null &&
+                existingDropdown.TryGetComponent(out TMP_Dropdown existingComponent))
             {
-                boardModeDropdown = existingDropdown.GetComponent<TMP_Dropdown>();
-                if (boardModeDropdown != null)
-                {
-                    return;
-                }
+                return existingComponent;
             }
 
             GameObject dropdownObject = TMP_DefaultControls.CreateDropdown(
                 new TMP_DefaultControls.Resources());
-            dropdownObject.name = "BoardModeDropdown";
+            dropdownObject.name = objectName;
             dropdownObject.transform.SetParent(canvas.transform, false);
             SetLayerRecursively(dropdownObject, canvas.gameObject.layer);
 
@@ -233,7 +294,7 @@ namespace FloodFill.ThreeD
             dropdownRect.anchorMin = new Vector2(0f, 1f);
             dropdownRect.anchorMax = new Vector2(0f, 1f);
             dropdownRect.pivot = new Vector2(0.5f, 0.5f);
-            dropdownRect.anchoredPosition = new Vector2(120f, -62f);
+            dropdownRect.anchoredPosition = position;
             dropdownRect.sizeDelta = new Vector2(190f, 76f);
 
             Transform restartButton = canvas.transform.Find("RestartButton");
@@ -242,9 +303,9 @@ namespace FloodFill.ThreeD
                 dropdownObject.transform.SetSiblingIndex(restartButton.GetSiblingIndex() + 1);
             }
 
-            boardModeDropdown = dropdownObject.GetComponent<TMP_Dropdown>();
-            boardModeDropdown.navigation = new Navigation { mode = Navigation.Mode.None };
-            boardModeDropdown.colors = CreateDropdownColors();
+            dropdown = dropdownObject.GetComponent<TMP_Dropdown>();
+            dropdown.navigation = new Navigation { mode = Navigation.Mode.None };
+            dropdown.colors = CreateDropdownColors();
 
             Image background = dropdownObject.GetComponent<Image>();
             if (background != null)
@@ -253,46 +314,24 @@ namespace FloodFill.ThreeD
             }
 
             TMP_FontAsset uiFont = FindSceneFont(canvas.transform);
-            if (boardModeDropdown.captionText != null)
+            StyleDropdownText(dropdown.captionText, uiFont, true);
+            StyleDropdownText(dropdown.itemText, uiFont, false);
+            if (dropdown.itemText != null &&
+                dropdown.itemText.transform.parent is RectTransform itemRect)
             {
-                if (uiFont != null)
-                {
-                    boardModeDropdown.captionText.font = uiFont;
-                }
-
-                boardModeDropdown.captionText.fontSize = 24f;
-                boardModeDropdown.captionText.fontStyle = FontStyles.Bold;
-                boardModeDropdown.captionText.color = new Color(0.95f, 0.96f, 1f);
-                boardModeDropdown.captionText.alignment = TextAlignmentOptions.Center;
-                boardModeDropdown.captionText.rectTransform.offsetMin = new Vector2(8f, 0f);
-                boardModeDropdown.captionText.rectTransform.offsetMax = new Vector2(-38f, 0f);
+                itemRect.sizeDelta = new Vector2(itemRect.sizeDelta.x, 50f);
             }
 
-            if (boardModeDropdown.itemText != null)
+            if (dropdown.template != null)
             {
-                if (uiFont != null)
-                {
-                    boardModeDropdown.itemText.font = uiFont;
-                }
-
-                boardModeDropdown.itemText.fontSize = 24f;
-                boardModeDropdown.itemText.color = new Color(0.95f, 0.96f, 1f);
-                if (boardModeDropdown.itemText.transform.parent is RectTransform itemRect)
-                {
-                    itemRect.sizeDelta = new Vector2(itemRect.sizeDelta.x, 50f);
-                }
-            }
-
-            if (boardModeDropdown.template != null)
-            {
-                boardModeDropdown.template.sizeDelta = new Vector2(0f, 120f);
-                Image templateBackground = boardModeDropdown.template.GetComponent<Image>();
+                dropdown.template.sizeDelta = new Vector2(0f, templateHeight);
+                Image templateBackground = dropdown.template.GetComponent<Image>();
                 if (templateBackground != null)
                 {
                     templateBackground.color = new Color(0.12f, 0.14f, 0.21f, 1f);
                 }
 
-                Toggle itemToggle = boardModeDropdown.template.GetComponentInChildren<Toggle>(true);
+                Toggle itemToggle = dropdown.template.GetComponentInChildren<Toggle>(true);
                 if (itemToggle != null)
                 {
                     itemToggle.colors = CreateDropdownColors();
@@ -303,6 +342,38 @@ namespace FloodFill.ThreeD
                 }
             }
 
+            AddDropdownArrow(dropdownObject, uiFont);
+            return dropdown;
+        }
+
+        private static void StyleDropdownText(
+            TMP_Text text,
+            TMP_FontAsset font,
+            bool caption)
+        {
+            if (text == null)
+            {
+                return;
+            }
+
+            if (font != null)
+            {
+                text.font = font;
+            }
+
+            text.fontSize = 24f;
+            text.fontStyle = caption ? FontStyles.Bold : FontStyles.Normal;
+            text.color = new Color(0.95f, 0.96f, 1f);
+            if (caption)
+            {
+                text.alignment = TextAlignmentOptions.Center;
+                text.rectTransform.offsetMin = new Vector2(8f, 0f);
+                text.rectTransform.offsetMax = new Vector2(-38f, 0f);
+            }
+        }
+
+        private static void AddDropdownArrow(GameObject dropdownObject, TMP_FontAsset font)
+        {
             Transform existingArrow = dropdownObject.transform.Find("Arrow");
             if (existingArrow != null)
             {
@@ -318,9 +389,9 @@ namespace FloodFill.ThreeD
             arrowObject.layer = dropdownObject.layer;
             TextMeshProUGUI arrowText = arrowObject.GetComponent<TextMeshProUGUI>();
             arrowText.text = "▼";
-            if (uiFont != null)
+            if (font != null)
             {
-                arrowText.font = uiFont;
+                arrowText.font = font;
             }
 
             arrowText.fontSize = 22f;
@@ -381,11 +452,27 @@ namespace FloodFill.ThreeD
             }
         }
 
+        private void HandleBoardSizeDropdownChanged(int optionIndex)
+        {
+            if (optionIndex >= 0 && optionIndex < BoardSizeOptions.Length)
+            {
+                SelectedBoardSize = BoardSizeOptions[optionIndex];
+            }
+        }
+
         private void SyncBoardModeFromDropdown()
         {
             if (boardModeDropdown != null)
             {
                 HandleBoardModeDropdownChanged(boardModeDropdown.value);
+            }
+        }
+
+        private void SyncBoardSizeFromDropdown()
+        {
+            if (boardSizeDropdown != null)
+            {
+                HandleBoardSizeDropdownChanged(boardSizeDropdown.value);
             }
         }
 
@@ -520,6 +607,11 @@ namespace FloodFill.ThreeD
             if (boardModeDropdown != null)
             {
                 boardModeDropdown.onValueChanged.RemoveListener(HandleBoardModeDropdownChanged);
+            }
+
+            if (boardSizeDropdown != null)
+            {
+                boardSizeDropdown.onValueChanged.RemoveListener(HandleBoardSizeDropdownChanged);
             }
 
             if (boardManager != null)

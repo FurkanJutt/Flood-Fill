@@ -445,6 +445,14 @@ namespace FloodFill.ThreeD
             volumeMode = mode;
         }
 
+        public void SetDimensions(int size)
+        {
+            int clampedSize = Mathf.Max(1, size);
+            width = clampedSize;
+            height = clampedSize;
+            depth = clampedSize;
+        }
+
         public bool IsActiveCoordinate(int x, int y, int z)
         {
             return activeMask != null && x >= 0 && x < width &&
