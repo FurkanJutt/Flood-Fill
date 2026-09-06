@@ -236,6 +236,180 @@ namespace FloodFill.ThreeD
             return true;
         }
 
+        public bool TryCapturePersistentState(out VoxelBoardSaveData3D state)
+        {
+            state = null;
+            if (cells == null || allVoxels.Count == 0 || StartingVoxel == null ||
+                palette == null || palette.Length < 2)
+            {
+                return false;
+            }
+
+            var savedVoxels = new VoxelSaveData3D[allVoxels.Count];
+            for (int i = 0; i < allVoxels.Count; i++)
+            {
+                VoxelCell3D voxel = allVoxels[i];
+                if (voxel == null)
+                {
+                    return false;
+                }
+
+                savedVoxels[i] = new VoxelSaveData3D
+                {
+                    x = voxel.X,
+                    y = voxel.Y,
+                    z = voxel.Z,
+                    colorIndex = voxel.ColorIndex,
+                    captured = voxel.IsCaptured,
+                    starting = voxel == StartingVoxel
+                };
+            }
+
+            state = new VoxelBoardSaveData3D
+            {
+                width = width,
+                height = height,
+                depth = depth,
+                volumeMode = (int)volumeMode,
+                currentPlayerColor = CurrentPlayerColor,
+                generationSeed = LastGenerationSeed,
+                voxels = savedVoxels
+            };
+            return true;
+        }
+
+        public bool RestorePersistentState(VoxelBoardSaveData3D state, Color[] colors)
+        {
+            if (boardRoot == null || voxelPrefab == null || !TryValidatePersistentState(
+                    state,
+                    colors,
+                    out bool[,,] restoredMask,
+                    out VoxelShapeBounds restoredBounds))
+            {
+                return false;
+            }
+
+            ReleaseActiveVoxels();
+            ResetLogicalBoardState();
+            CacheBoardRestingTransform();
+
+            width = state.width;
+            height = state.height;
+            depth = state.depth;
+            volumeMode = (VoxelVolumeMode)state.volumeMode;
+            activeMask = restoredMask;
+            activeBounds = restoredBounds;
+            palette = (Color[])colors.Clone();
+            cells = new VoxelCell3D[width, height, depth];
+            LastGenerationSeed = state.generationSeed;
+            LastGenerationAttempt = 1;
+            LastTargetSolidVoxelCount = state.voxels.Length;
+            LastSolidVoxelCount = state.voxels.Length;
+            LastRecolorAnimationDuration = 0f;
+
+            float spacing = voxelSize + voxelGap;
+            Vector3 centerOffset = activeBounds.Center * spacing;
+            for (int i = 0; i < state.voxels.Length; i++)
+            {
+                VoxelSaveData3D savedVoxel = state.voxels[i];
+                VoxelCell3D voxel = AcquireVoxel(allVoxels.Count);
+                voxel.name = $"Voxel_{savedVoxel.x}_{savedVoxel.y}_{savedVoxel.z}";
+                voxel.transform.localPosition = new Vector3(
+                    savedVoxel.x * spacing,
+                    savedVoxel.y * spacing,
+                    savedVoxel.z * spacing) - centerOffset;
+                voxel.transform.localRotation = Quaternion.identity;
+                voxel.transform.localScale = Vector3.one * voxelSize;
+                voxel.PrepareForReuse(savedVoxel.x, savedVoxel.y, savedVoxel.z);
+                voxel.SetShadowCasting(castVoxelShadows);
+                voxel.SetColor(savedVoxel.colorIndex, palette[savedVoxel.colorIndex]);
+                cells[savedVoxel.x, savedVoxel.y, savedVoxel.z] = voxel;
+                allVoxels.Add(voxel);
+                if (savedVoxel.starting)
+                {
+                    StartingVoxel = voxel;
+                }
+
+                if (savedVoxel.captured)
+                {
+                    voxel.SetCaptured(true, false);
+                    capturedVoxels.Add(voxel);
+                }
+            }
+
+            CurrentPlayerColor = state.currentPlayerColor;
+            LastNewlyCapturedCount = 0;
+            Debug.Log(
+                $"Restored 3D board: {width}x{height}x{depth}, " +
+                $"{TotalVoxelCount} voxels, {CapturedVoxelCount} captured.",
+                this);
+            return true;
+        }
+
+        private static bool TryValidatePersistentState(
+            VoxelBoardSaveData3D state,
+            Color[] colors,
+            out bool[,,] restoredMask,
+            out VoxelShapeBounds restoredBounds)
+        {
+            restoredMask = null;
+            restoredBounds = VoxelShapeBounds.Invalid;
+            if (state == null || colors == null || colors.Length < 2 ||
+                state.width < 1 || state.height < 1 || state.depth < 1 ||
+                state.width > 64 || state.height > 64 || state.depth > 64 ||
+                !Enum.IsDefined(typeof(VoxelVolumeMode), state.volumeMode) ||
+                state.currentPlayerColor < 0 || state.currentPlayerColor >= colors.Length ||
+                state.voxels == null || state.voxels.Length == 0 ||
+                state.voxels.Length > state.width * state.height * state.depth)
+            {
+                return false;
+            }
+
+            restoredMask = new bool[state.width, state.height, state.depth];
+            int minX = state.width;
+            int minY = state.height;
+            int minZ = state.depth;
+            int maxX = -1;
+            int maxY = -1;
+            int maxZ = -1;
+            int startingCount = 0;
+            int capturedCount = 0;
+            for (int i = 0; i < state.voxels.Length; i++)
+            {
+                VoxelSaveData3D voxel = state.voxels[i];
+                if (voxel == null || voxel.x < 0 || voxel.x >= state.width ||
+                    voxel.y < 0 || voxel.y >= state.height ||
+                    voxel.z < 0 || voxel.z >= state.depth ||
+                    voxel.colorIndex < 0 || voxel.colorIndex >= colors.Length ||
+                    restoredMask[voxel.x, voxel.y, voxel.z] ||
+                    voxel.captured && voxel.colorIndex != state.currentPlayerColor)
+                {
+                    restoredMask = null;
+                    return false;
+                }
+
+                restoredMask[voxel.x, voxel.y, voxel.z] = true;
+                minX = Mathf.Min(minX, voxel.x);
+                minY = Mathf.Min(minY, voxel.y);
+                minZ = Mathf.Min(minZ, voxel.z);
+                maxX = Mathf.Max(maxX, voxel.x);
+                maxY = Mathf.Max(maxY, voxel.y);
+                maxZ = Mathf.Max(maxZ, voxel.z);
+                startingCount += voxel.starting ? 1 : 0;
+                capturedCount += voxel.captured ? 1 : 0;
+            }
+
+            if (startingCount != 1 || capturedCount == 0)
+            {
+                restoredMask = null;
+                return false;
+            }
+
+            restoredBounds = new VoxelShapeBounds(
+                minX, maxX, minY, maxY, minZ, maxZ);
+            return true;
+        }
+
         private VoxelCell3D AcquireVoxel(int poolIndex)
         {
             VoxelCell3D voxel;

@@ -112,6 +112,41 @@ namespace FloodFill.ThreeD
             ApplyCameraTransform();
         }
 
+        public OrbitCameraSaveData3D CapturePersistentState()
+        {
+            return new OrbitCameraSaveData3D
+            {
+                targetPosition = targetPosition,
+                yaw = yaw,
+                pitch = pitch,
+                distance = distance,
+                defaultDistance = defaultDistance
+            };
+        }
+
+        public bool RestorePersistentState(OrbitCameraSaveData3D state)
+        {
+            if (state == null || !IsFinite(state.targetPosition.x) ||
+                !IsFinite(state.targetPosition.y) || !IsFinite(state.targetPosition.z) ||
+                !IsFinite(state.yaw) || !IsFinite(state.pitch) ||
+                !IsFinite(state.distance) || !IsFinite(state.defaultDistance))
+            {
+                return false;
+            }
+
+            targetPosition = state.targetPosition;
+            yaw = state.yaw;
+            pitch = Mathf.Clamp(state.pitch, minimumPitch, maximumPitch);
+            distance = Mathf.Clamp(state.distance, minimumDistance, maximumDistance);
+            defaultDistance = Mathf.Clamp(
+                state.defaultDistance,
+                minimumDistance,
+                maximumDistance);
+            zoomResetAnimating = false;
+            ApplyCameraTransform();
+            return true;
+        }
+
         public void ResetZoom()
         {
             float targetDistance = Mathf.Clamp(
@@ -412,6 +447,11 @@ namespace FloodFill.ThreeD
                 distance - amount * zoomSensitivity,
                 minimumDistance,
                 maximumDistance);
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
         private void UpdateZoomReset(float deltaTime)

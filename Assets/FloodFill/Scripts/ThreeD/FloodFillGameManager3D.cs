@@ -96,7 +96,10 @@ namespace FloodFill.ThreeD
             InitializeBoardModeDropdown();
             InitializeBoardSizeDropdown();
             InitializeDifficultyDropdown();
-            RestartGame();
+            if (!TryRestoreSavedSession())
+            {
+                RestartGame();
+            }
         }
 
         public void SelectColor(int colorIndex)
@@ -110,6 +113,7 @@ namespace FloodFill.ThreeD
 
             SelectedColorIndex = colorIndex;
             RefreshUI();
+            SaveSession();
             Debug.Log($"Selected 3D paint color: {colorIndex}. Click a cube to recolor it.", this);
         }
 
@@ -137,11 +141,16 @@ namespace FloodFill.ThreeD
             {
                 ScheduleResult(GameState.Lost);
             }
+            else
+            {
+                SaveSession();
+            }
         }
 
         public void RestartGame()
         {
             Stopwatch restartWatch = Stopwatch.StartNew();
+            FloodFillSessionPersistence3D.Delete();
             CancelPendingSolver();
             solverGenerationId++;
             if (resultCoroutine != null)
@@ -519,6 +528,7 @@ namespace FloodFill.ThreeD
             if (optionIndex >= 0 && optionIndex < BoardModeOptions.Length)
             {
                 SelectedBoardMode = BoardModeOptions[optionIndex];
+                SaveSession();
             }
         }
 
@@ -527,6 +537,7 @@ namespace FloodFill.ThreeD
             if (optionIndex >= 0 && optionIndex < BoardSizeOptions.Length)
             {
                 SelectedBoardSize = BoardSizeOptions[optionIndex];
+                SaveSession();
             }
         }
 
@@ -538,32 +549,37 @@ namespace FloodFill.ThreeD
             }
 
             difficulty = (FloodFillDifficulty)optionIndex;
-            if (LastSolverResult != null && MoveCount == 0)
+            if (MoveCount == 0 && CurrentMoveBudgetProfile.bestSolutionMoves > 0)
             {
                 currentMoveBudget = CurrentMoveBudgetProfile.GetMoves(difficulty);
                 RefreshUI();
             }
+
+            SaveSession();
         }
 
         private void SyncBoardModeFromDropdown()
         {
-            if (boardModeDropdown != null)
+            if (boardModeDropdown != null && boardModeDropdown.value >= 0 &&
+                boardModeDropdown.value < BoardModeOptions.Length)
             {
-                HandleBoardModeDropdownChanged(boardModeDropdown.value);
+                SelectedBoardMode = BoardModeOptions[boardModeDropdown.value];
             }
         }
 
         private void SyncBoardSizeFromDropdown()
         {
-            if (boardSizeDropdown != null)
+            if (boardSizeDropdown != null && boardSizeDropdown.value >= 0 &&
+                boardSizeDropdown.value < BoardSizeOptions.Length)
             {
-                HandleBoardSizeDropdownChanged(boardSizeDropdown.value);
+                SelectedBoardSize = BoardSizeOptions[boardSizeDropdown.value];
             }
         }
 
         private void BeginMoveBudgetCalculation(int generationId)
         {
             SetColorInputEnabled(false);
+            SaveSession();
             if (!boardManager.TryCreateSolverSnapshot(out FloodFillBoardSnapshot3D snapshot) ||
                 !FloodFillRegionGraph3D.TryBuild(snapshot, out FloodFillRegionGraph3D graph))
             {
@@ -665,6 +681,7 @@ namespace FloodFill.ThreeD
             currentMoveBudget = CurrentMoveBudgetProfile.GetMoves(difficulty);
             State = GameState.Playing;
             RefreshUI();
+            SaveSession();
             if (solverSettings.logSolverPerformance)
             {
                 LogSolverPerformance(result, solvedAsynchronously);
@@ -682,6 +699,7 @@ namespace FloodFill.ThreeD
             currentMoveBudget = CurrentMoveBudgetProfile.GetMoves(difficulty);
             State = GameState.Playing;
             RefreshUI();
+            SaveSession();
         }
 
         private void LogSolverPerformance(FloodFillSolverResult result, bool asynchronous)
@@ -777,6 +795,7 @@ namespace FloodFill.ThreeD
         {
             State = state;
             SetColorInputEnabled(false);
+            SaveSession();
             if (resultCoroutine != null)
             {
                 StopCoroutine(resultCoroutine);
@@ -797,17 +816,8 @@ namespace FloodFill.ThreeD
             }
 
             resultCoroutine = null;
-            if (resultText != null)
-            {
-                resultText.text = state == GameState.Won
-                    ? $"YOU WIN!\n\nMoves used: {MoveCount}\nScore: {Score:N0}"
-                    : $"OUT OF MOVES\n\nMoves used: {MoveCount} / {currentMoveBudget}\nScore: {Score:N0}";
-            }
-
-            if (resultPanel != null)
-            {
-                resultPanel.SetActive(true);
-            }
+            ShowResultPanel(state);
+            SaveSession();
 
             Debug.Log(
                 state == GameState.Won
@@ -830,7 +840,156 @@ namespace FloodFill.ThreeD
             if (difficultyDropdown != null)
             {
                 difficultyDropdown.interactable = State == GameState.Playing &&
-                    MoveCount == 0 && LastSolverResult != null;
+                    MoveCount == 0 && CurrentMoveBudgetProfile.bestSolutionMoves > 0;
+            }
+        }
+
+        private bool TryRestoreSavedSession()
+        {
+            if (!FloodFillSessionPersistence3D.TryLoad(out FloodFillSessionSaveData3D saved) ||
+                !TryApplySavedSelections(saved) ||
+                !boardManager.RestorePersistentState(saved.board, colors))
+            {
+                return false;
+            }
+
+            CancelPendingSolver();
+            solverGenerationId++;
+            MoveCount = Mathf.Max(0, saved.moveCount);
+            Score = Mathf.Max(0, saved.score);
+            currentMoveBudget = Mathf.Max(1, saved.currentMoveBudget);
+            CurrentMoveBudgetProfile = saved.moveBudgetProfile;
+            LastSolverResult = null;
+            SelectedColorIndex = saved.selectedColorIndex >= 0 &&
+                saved.selectedColorIndex < colors.Length
+                    ? saved.selectedColorIndex
+                    : -1;
+            State = System.Enum.IsDefined(typeof(GameState), saved.gameState)
+                ? (GameState)saved.gameState
+                : GameState.Calculating;
+
+            if (resultPanel != null)
+            {
+                resultPanel.SetActive(false);
+            }
+
+            if (boardManager.TryGetWorldBounds(out Bounds bounds))
+            {
+                orbitCamera.FrameBounds(bounds);
+                orbitCamera.RestorePersistentState(saved.camera);
+            }
+
+            if (boardManager.IsFullyCaptured)
+            {
+                State = GameState.Won;
+            }
+            else if (State == GameState.Won)
+            {
+                State = GameState.Playing;
+            }
+
+            if (State == GameState.Playing && MoveCount >= currentMoveBudget)
+            {
+                State = GameState.Lost;
+            }
+
+            RefreshUI();
+            if (State == GameState.Calculating ||
+                CurrentMoveBudgetProfile.bestSolutionMoves <= 0)
+            {
+                State = GameState.Calculating;
+                RefreshUI();
+                BeginMoveBudgetCalculation(solverGenerationId);
+            }
+            else if (State == GameState.Won || State == GameState.Lost)
+            {
+                SetColorInputEnabled(false);
+                ShowResultPanel(State);
+                if (State == GameState.Won)
+                {
+                    boardManager.PlayWinCelebration();
+                }
+            }
+
+            Debug.Log($"Resumed saved 3D Flood Fill session at move {MoveCount}.", this);
+            return true;
+        }
+
+        private bool TryApplySavedSelections(FloodFillSessionSaveData3D saved)
+        {
+            if (saved == null ||
+                !System.Enum.IsDefined(typeof(FloodFillDifficulty), saved.difficulty) ||
+                !System.Enum.IsDefined(
+                    typeof(VoxelBoardManager3D.VoxelVolumeMode),
+                    saved.selectedBoardMode) ||
+                System.Array.IndexOf(BoardSizeOptions, saved.selectedBoardSize) < 0)
+            {
+                return false;
+            }
+
+            difficulty = (FloodFillDifficulty)saved.difficulty;
+            SelectedBoardMode = (VoxelBoardManager3D.VoxelVolumeMode)saved.selectedBoardMode;
+            SelectedBoardSize = saved.selectedBoardSize;
+            if (boardModeDropdown != null)
+            {
+                int modeIndex = System.Array.IndexOf(BoardModeOptions, SelectedBoardMode);
+                boardModeDropdown.SetValueWithoutNotify(Mathf.Max(0, modeIndex));
+                boardModeDropdown.RefreshShownValue();
+            }
+
+            if (boardSizeDropdown != null)
+            {
+                int sizeIndex = System.Array.IndexOf(BoardSizeOptions, SelectedBoardSize);
+                boardSizeDropdown.SetValueWithoutNotify(Mathf.Max(0, sizeIndex));
+                boardSizeDropdown.RefreshShownValue();
+            }
+
+            if (difficultyDropdown != null)
+            {
+                difficultyDropdown.SetValueWithoutNotify((int)difficulty);
+                difficultyDropdown.RefreshShownValue();
+            }
+
+            return true;
+        }
+
+        private void SaveSession()
+        {
+            if (boardManager == null || orbitCamera == null || colors == null ||
+                !boardManager.TryCapturePersistentState(out VoxelBoardSaveData3D boardState))
+            {
+                return;
+            }
+
+            var saved = new FloodFillSessionSaveData3D
+            {
+                selectedBoardMode = (int)SelectedBoardMode,
+                selectedBoardSize = SelectedBoardSize,
+                difficulty = (int)difficulty,
+                moveCount = MoveCount,
+                score = Score,
+                currentMoveBudget = currentMoveBudget,
+                selectedColorIndex = SelectedColorIndex,
+                gameState = (int)State,
+                moveBudgetProfile = CurrentMoveBudgetProfile,
+                board = boardState,
+                camera = orbitCamera.CapturePersistentState()
+            };
+            FloodFillSessionPersistence3D.Save(saved);
+        }
+
+        private void ShowResultPanel(GameState state)
+        {
+            if (resultText != null)
+            {
+                resultText.text = state == GameState.Won
+                    ? $"YOU WIN!\n\nMoves used: {MoveCount}\nScore: {Score:N0}"
+                    : $"OUT OF MOVES\n\nMoves used: {MoveCount} / {currentMoveBudget}\nScore: {Score:N0}";
+            }
+
+            if (resultPanel != null)
+            {
+                resultPanel.SetActive(true);
             }
         }
 
@@ -886,6 +1045,7 @@ namespace FloodFill.ThreeD
 
         private void OnDestroy()
         {
+            SaveSession();
             if (boardModeDropdown != null)
             {
                 boardModeDropdown.onValueChanged.RemoveListener(HandleBoardModeDropdownChanged);
@@ -907,6 +1067,27 @@ namespace FloodFill.ThreeD
             {
                 boardManager.VoxelClicked -= HandleVoxelClicked;
             }
+        }
+
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused)
+            {
+                SaveSession();
+            }
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (!hasFocus)
+            {
+                SaveSession();
+            }
+        }
+
+        private void OnApplicationQuit()
+        {
+            SaveSession();
         }
     }
 }
