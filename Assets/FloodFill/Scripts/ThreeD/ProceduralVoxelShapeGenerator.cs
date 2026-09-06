@@ -150,6 +150,47 @@ namespace FloodFill.ThreeD
             public double Validation;
         }
 
+        private readonly struct EffectiveShapeProfile
+        {
+            public EffectiveShapeProfile(
+                float minFill,
+                float maxFill,
+                float brushChance,
+                float branchChance,
+                float directionPersistence,
+                float centerBias,
+                float lobeStrength,
+                int minimumLobes,
+                int maximumLobes,
+                int weightedCandidateSamples,
+                float simplification)
+            {
+                MinFill = minFill;
+                MaxFill = maxFill;
+                BrushChance = brushChance;
+                BranchChance = branchChance;
+                DirectionPersistence = directionPersistence;
+                CenterBias = centerBias;
+                LobeStrength = lobeStrength;
+                MinimumLobes = minimumLobes;
+                MaximumLobes = maximumLobes;
+                WeightedCandidateSamples = weightedCandidateSamples;
+                Simplification = simplification;
+            }
+
+            public float MinFill { get; }
+            public float MaxFill { get; }
+            public float BrushChance { get; }
+            public float BranchChance { get; }
+            public float DirectionPersistence { get; }
+            public float CenterBias { get; }
+            public float LobeStrength { get; }
+            public int MinimumLobes { get; }
+            public int MaximumLobes { get; }
+            public int WeightedCandidateSamples { get; }
+            public float Simplification { get; }
+        }
+
         public static bool TryGenerate(
             int width,
             int height,
@@ -194,8 +235,10 @@ namespace FloodFill.ThreeD
             int allowedHeight = maxY - minY + 1;
             int allowedDepth = maxZ - minZ + 1;
             int capacity = allowedWidth * allowedHeight * allowedDepth;
-            float minFill = Mathf.Clamp(settings.minSolidFillPercent, 0.05f, 1f);
-            float maxFill = Mathf.Clamp(settings.maxSolidFillPercent, minFill, 1f);
+            EffectiveShapeProfile profile = CreateEffectiveProfile(
+                width, height, depth, settings);
+            float minFill = profile.MinFill;
+            float maxFill = profile.MaxFill;
             int minimumSolid = Mathf.Clamp(Mathf.CeilToInt(capacity * minFill), 1, capacity);
             int maximumSolid = Mathf.Clamp(
                 Mathf.FloorToInt(capacity * maxFill), minimumSolid, capacity);
@@ -215,7 +258,7 @@ namespace FloodFill.ThreeD
                 var random = new System.Random(unchecked(seed + attempt * 104729));
                 int targetSolid = random.Next(minimumSolid, maximumSolid + 1);
                 int attractorCount = CreateAttractors(
-                    minX, maxX, minY, maxY, minZ, maxZ, settings, random);
+                    minX, maxX, minY, maxY, minZ, maxZ, profile, random);
                 bool useBrush = attempt < 3;
                 bool useNotches = attempt == 1 && settings.enableNotches &&
                     settings.edgeNotchPasses > 0 && settings.edgeNotchChance > 0f;
@@ -223,7 +266,8 @@ namespace FloodFill.ThreeD
                 Stopwatch phaseWatch = Stopwatch.StartNew();
                 int seedIndex = GrowConnectedSolid(
                     width, height, minX, maxX, minY, maxY, minZ, maxZ,
-                    targetSolid, attractorCount, settings, useBrush, random, out int solidCount);
+                    targetSolid, attractorCount, settings, profile,
+                    useBrush, random, out int solidCount);
                 phaseWatch.Stop();
                 timings.Growth += phaseWatch.Elapsed.TotalMilliseconds;
                 if (solidCount < minimumSolid)
@@ -414,11 +458,67 @@ namespace FloodFill.ThreeD
                 : VoxelShapeBounds.Invalid;
         }
 
+        private static EffectiveShapeProfile CreateEffectiveProfile(
+            int width,
+            int height,
+            int depth,
+            ProceduralVoxelShapeSettings settings)
+        {
+            int largestDimension = Mathf.Max(width, Mathf.Max(height, depth));
+            int startSize = Mathf.Max(1, settings.simplificationStartSize);
+            int fullSize = Mathf.Max(startSize + 1, settings.fullSimplificationSize);
+            float sizeProgress = Mathf.InverseLerp(startSize, fullSize, largestDimension);
+            float simplification = sizeProgress *
+                Mathf.Clamp01(settings.largeBoardSimplification);
+
+            float minFill = Mathf.Clamp(
+                settings.minSolidFillPercent + simplification * 0.08f, 0.05f, 1f);
+            float maxFill = Mathf.Clamp(
+                settings.maxSolidFillPercent + simplification * 0.05f, minFill, 1f);
+            float brushChance = Mathf.Lerp(
+                settings.brushChance, 0.60f, simplification);
+            float branchChance = Mathf.Clamp01(settings.branchChance) *
+                Mathf.Lerp(1f, 0.35f, simplification);
+            float directionPersistence = Mathf.Clamp01(settings.directionPersistence) *
+                Mathf.Lerp(1f, 0.50f, simplification);
+            float centerBias = Mathf.Lerp(
+                settings.centerBias, 0.78f, simplification);
+            float lobeStrength = Mathf.Clamp01(settings.lobeStrength) *
+                Mathf.Lerp(1f, 0.30f, simplification);
+            int minimumLobes = Mathf.Clamp(settings.minimumLobes, 1, 8);
+            int configuredMaximumLobes = Mathf.Clamp(
+                settings.maximumLobes, minimumLobes, 8);
+            int maximumLobes = Mathf.Clamp(
+                Mathf.RoundToInt(Mathf.Lerp(
+                    configuredMaximumLobes, minimumLobes, simplification)),
+                minimumLobes,
+                configuredMaximumLobes);
+            int weightedCandidateSamples = Mathf.Clamp(
+                Mathf.RoundToInt(Mathf.Lerp(
+                    settings.weightedCandidateSamples, 12f, simplification)),
+                1,
+                16);
+
+            return new EffectiveShapeProfile(
+                minFill,
+                maxFill,
+                brushChance,
+                branchChance,
+                directionPersistence,
+                centerBias,
+                lobeStrength,
+                minimumLobes,
+                maximumLobes,
+                weightedCandidateSamples,
+                simplification);
+        }
+
         private static int GrowConnectedSolid(
             int width, int height,
             int minX, int maxX, int minY, int maxY, int minZ, int maxZ,
             int targetCount, int attractorCount, ProceduralVoxelShapeSettings settings,
-            bool useBrush, System.Random random, out int solidCount)
+            EffectiveShapeProfile profile, bool useBrush,
+            System.Random random, out int solidCount)
         {
             int centerX = (minX + maxX) / 2;
             int centerY = (minY + maxY) / 2;
@@ -434,17 +534,17 @@ namespace FloodFill.ThreeD
             int previousDirection = -1;
             while (solidCount < targetCount && Workspace.Frontier.Count > 0)
             {
-                int frontierSlot = random.NextDouble() < settings.branchChance
+                int frontierSlot = random.NextDouble() < profile.BranchChance
                     ? random.Next(Workspace.Frontier.Count)
                     : SelectTournamentCandidate(
                         width, height, minX, maxX, minY, maxY, minZ, maxZ,
-                        attractorCount, previousDirection, settings, random);
+                        attractorCount, previousDirection, profile, random);
                 int selected = RemoveFrontierAt(frontierSlot);
                 previousDirection = Workspace.FrontierDirections[selected];
                 Activate(selected, width, height, minX, maxX, minY, maxY, minZ, maxZ, ref solidCount);
 
                 if (!useBrush || solidCount >= targetCount ||
-                    random.NextDouble() >= settings.brushChance)
+                    random.NextDouble() >= profile.BrushChance)
                 {
                     continue;
                 }
@@ -485,20 +585,20 @@ namespace FloodFill.ThreeD
         private static int SelectTournamentCandidate(
             int width, int height,
             int minX, int maxX, int minY, int maxY, int minZ, int maxZ,
-            int attractorCount, int previousDirection, ProceduralVoxelShapeSettings settings,
+            int attractorCount, int previousDirection, EffectiveShapeProfile profile,
             System.Random random)
         {
-            int samples = Mathf.Clamp(settings.weightedCandidateSamples, 1, 16);
+            int samples = profile.WeightedCandidateSamples;
             int bestSlot = random.Next(Workspace.Frontier.Count);
             float bestScore = ScoreCandidate(
                 Workspace.Frontier[bestSlot], width, height, minX, maxX, minY, maxY,
-                minZ, maxZ, attractorCount, previousDirection, settings, random);
+                minZ, maxZ, attractorCount, previousDirection, profile, random);
             for (int sample = 1; sample < samples; sample++)
             {
                 int slot = random.Next(Workspace.Frontier.Count);
                 float score = ScoreCandidate(
                     Workspace.Frontier[slot], width, height, minX, maxX, minY, maxY,
-                    minZ, maxZ, attractorCount, previousDirection, settings, random);
+                    minZ, maxZ, attractorCount, previousDirection, profile, random);
                 if (score > bestScore)
                 {
                     bestScore = score;
@@ -512,7 +612,7 @@ namespace FloodFill.ThreeD
         private static float ScoreCandidate(
             int index, int width, int height,
             int minX, int maxX, int minY, int maxY, int minZ, int maxZ,
-            int attractorCount, int previousDirection, ProceduralVoxelShapeSettings settings,
+            int attractorCount, int previousDirection, EffectiveShapeProfile profile,
             System.Random random)
         {
             FromIndex(index, width, height, out int x, out int y, out int z);
@@ -527,8 +627,17 @@ namespace FloodFill.ThreeD
             float dx = x - centerX;
             float dy = y - centerY;
             float dz = z - centerZ;
-            float centerProximity = 1f - Mathf.Clamp01(
+            float legacyCenterProximity = 1f - Mathf.Clamp01(
                 (dx * dx + dy * dy + dz * dz) / maximumDistanceSquared);
+            float halfX = (maxX - minX) * 0.5f;
+            float halfY = (maxY - minY) * 0.5f;
+            float halfZ = (maxZ - minZ) * 0.5f;
+            float centerRadiusSquared = Mathf.Max(
+                1f, halfX * halfX + halfY * halfY + halfZ * halfZ);
+            float compactCenterProximity = 1f - Mathf.Clamp01(
+                (dx * dx + dy * dy + dz * dz) / centerRadiusSquared);
+            float centerProximity = Mathf.Lerp(
+                legacyCenterProximity, compactCenterProximity, profile.Simplification);
             float nearestAttractorSquared = maximumDistanceSquared;
             for (int i = 0; i < attractorCount; i++)
             {
@@ -544,22 +653,24 @@ namespace FloodFill.ThreeD
 
             float lobeProximity = 1f - Mathf.Clamp01(
                 nearestAttractorSquared / maximumDistanceSquared);
-            float score = 0.12f + centerProximity * settings.centerBias +
-                lobeProximity * settings.lobeStrength * 2.4f;
+            float score = 0.12f + centerProximity * profile.CenterBias +
+                lobeProximity * profile.LobeStrength * 2.4f;
             if (Workspace.FrontierDirections[index] == previousDirection)
             {
-                score += settings.directionPersistence * 2.2f;
+                score += profile.DirectionPersistence * 2.2f;
             }
 
-            return score * (0.82f + (float)random.NextDouble() * 0.36f);
+            float scoreJitter = Mathf.Lerp(0.18f, 0.06f, profile.Simplification);
+            return score * (1f - scoreJitter +
+                (float)random.NextDouble() * scoreJitter * 2f);
         }
 
         private static int CreateAttractors(
             int minX, int maxX, int minY, int maxY, int minZ, int maxZ,
-            ProceduralVoxelShapeSettings settings, System.Random random)
+            EffectiveShapeProfile profile, System.Random random)
         {
-            int minimum = Mathf.Clamp(settings.minimumLobes, 1, 8);
-            int maximum = Mathf.Clamp(settings.maximumLobes, minimum, 8);
+            int minimum = Mathf.Clamp(profile.MinimumLobes, 1, 8);
+            int maximum = Mathf.Clamp(profile.MaximumLobes, minimum, 8);
             int count = random.Next(minimum, maximum + 1);
             for (int i = 0; i < count; i++)
             {

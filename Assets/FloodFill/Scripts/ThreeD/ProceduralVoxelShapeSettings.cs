@@ -7,7 +7,7 @@ namespace FloodFill.ThreeD
     public sealed class ProceduralVoxelShapeSettings
     {
         [Header("Shape Size")]
-        [Range(0.1f, 0.95f)] public float minSolidFillPercent = 0.42f;
+        [Range(0.1f, 0.95f)] public float minSolidFillPercent = 0.44f;
         [Range(0.1f, 0.95f)] public float maxSolidFillPercent = 0.62f;
         [Min(0)] public int edgeMargin;
         [Min(1)] public int minimumSpanX = 4;
@@ -15,20 +15,28 @@ namespace FloodFill.ThreeD
         [Min(1)] public int minimumSpanZ = 4;
 
         [Header("Growth")]
-        [Range(0f, 1f)] public float brushChance = 0.32f;
+        [Range(0f, 1f)] public float brushChance = 0.35f;
         [Tooltip("Chance to choose any frontier voxel instead of tournament weighting.")]
-        [Range(0f, 1f)] public float branchChance = 0.22f;
+        [Range(0f, 1f)] public float branchChance = 0.18f;
         [Tooltip("Number of random frontier candidates scored per weighted selection.")]
         [Range(1, 16)] public int weightedCandidateSamples = 6;
-        [Range(0f, 1f)] public float directionPersistence = 0.22f;
-        [Range(0f, 1f)] public float centerBias = 0.34f;
+        [Range(0f, 1f)] public float directionPersistence = 0.19f;
+        [Range(0f, 1f)] public float centerBias = 0.41f;
         [Min(0)] public int seedOffsetRadius = 1;
 
         [Header("Shape Variety")]
         [Tooltip("Pulls growth toward several random locations, producing lobes and asymmetry.")]
-        [Range(0f, 1f)] public float lobeStrength = 0.50f;
+        [Range(0f, 1f)] public float lobeStrength = 0.44f;
         [Range(2, 7)] public int minimumLobes = 2;
         [Range(2, 7)] public int maximumLobes = 3;
+
+        [Header("Large Board Simplification")]
+        [Tooltip("Progressively simplifies boards above Start Size. Zero disables size scaling.")]
+        [Range(0f, 1f)] public float largeBoardSimplification = 0.65f;
+        [Min(1)] public int simplificationStartSize = 8;
+        [Min(2)] public int fullSimplificationSize = 20;
+
+        [Header("Optional Notches")]
         [Tooltip("Uses one conservative batch notch pass with one connectivity check.")]
         public bool enableNotches;
         [Range(0f, 1f)] public float edgeNotchChance = 0.12f;

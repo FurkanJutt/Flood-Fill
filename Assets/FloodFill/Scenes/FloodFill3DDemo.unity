@@ -2577,21 +2577,24 @@ MonoBehaviour:
   depth: 6
   volumeMode: 2
   proceduralSettings:
-    minSolidFillPercent: 0.42
+    minSolidFillPercent: 0.44
     maxSolidFillPercent: 0.62
     edgeMargin: 0
     minimumSpanX: 4
     minimumSpanY: 4
     minimumSpanZ: 4
-    brushChance: 0.32
-    branchChance: 0.22
+    brushChance: 0.35
+    branchChance: 0.18
     weightedCandidateSamples: 6
-    directionPersistence: 0.22
-    centerBias: 0.34
+    directionPersistence: 0.19
+    centerBias: 0.41
     seedOffsetRadius: 1
-    lobeStrength: 0.5
+    lobeStrength: 0.44
     minimumLobes: 2
     maximumLobes: 3
+    largeBoardSimplification: 0.65
+    simplificationStartSize: 8
+    fullSimplificationSize: 20
     enableNotches: 0
     edgeNotchChance: 0.12
     edgeNotchPasses: 1
