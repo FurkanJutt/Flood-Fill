@@ -15,7 +15,7 @@ MonoBehaviour:
   k_AssetVersion: 13
   k_AssetPreviousVersion: 13
   m_RendererType: 1
-  m_RendererData: {fileID: 11400000, guid: 618d298269e66c542b306de85db1faea, type: 2}
+  m_RendererData: {fileID: 0}
   m_RendererDataList:
   - {fileID: 11400000, guid: 4cbdadf2d11484d7aab34b901b5d9c52, type: 2}
   m_DefaultRendererIndex: 0
@@ -74,7 +74,6 @@ MonoBehaviour:
   m_MixedLightingSupported: 1
   m_SupportsLightCookies: 1
   m_SupportsLightLayers: 0
-  m_DebugLevel: 0
   m_StoreActionsOptimization: 0
   m_UseAdaptivePerformance: 1
   m_ColorGradingMode: 0
@@ -132,10 +131,11 @@ MonoBehaviour:
   m_PrefilterNativeRenderPass: 1
   m_PrefilterUseLegacyLightmaps: 0
   m_PrefilterBicubicLightmapSampling: 1
-  m_PrefilterReflectionProbeRotation: 0
+  m_PrefilterReflectionProbeRotation: 1
   m_PrefilterReflectionProbeBlending: 1
   m_PrefilterReflectionProbeBoxProjection: 1
   m_PrefilterReflectionProbeAtlas: 1
+  m_PrefilterPointSamplingUpsampling: 1
   m_ShaderVariantLogLevel: 0
   m_ShadowCascades: 2
   m_Textures:
