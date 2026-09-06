@@ -733,10 +733,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0bde945baf2494d5a8a93c7e088e1aec, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.FloodFillGameManager3D
-  maxMoves: 25
+  difficulty: 1
   resultRevealDelay: 0.45
   boardManager: {fileID: 1483022965}
   orbitCamera: {fileID: 369442846}
+  solverSettings:
+    exactSolverRegionThreshold: 64
+    beamWidth: 128
+    greedyRuns: 6
+    runtimeExactSearchTimeBudgetMs: 40
+    developmentExactSearchTimeBudgetMs: 200
+    exactMaxExpandedStates: 100000
+    beamSearchTimeBudgetMs: 80
+    allowAsyncForLargeBoards: 1
+    asyncRegionThreshold: 64
+    logSolverPerformance: 0
+    complexityThreshold1: 80
+    complexityThreshold2: 150
+    complexityThreshold3: 250
+    complexityThreshold4: 400
+    complexityMultiplier1: 1.1
+    complexityMultiplier2: 1.25
+    complexityMultiplier3: 1.4
+    complexityMultiplier4: 1.6
+    maximumMoveBudget: 1000000
   colors:
   - {r: 0.25, g: 0.78, b: 0.38, a: 1}
   - {r: 0.62, g: 0.32, b: 0.86, a: 1}
@@ -749,6 +769,7 @@ MonoBehaviour:
   scoreText: {fileID: 508615507}
   boardModeDropdown: {fileID: 0}
   boardSizeDropdown: {fileID: 0}
+  difficultyDropdown: {fileID: 0}
   resultPanel: {fileID: 1807306631}
   resultText: {fileID: 379240122}
   colorButtons:
@@ -891,7 +912,7 @@ MonoBehaviour:
   minimumPitch: -75
   maximumPitch: 75
   minimumDistance: 15
-  maximumDistance: 30
+  maximumDistance: 50
   framePadding: 1.22
 --- !u!4 &369442847
 Transform:
@@ -2311,7 +2332,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Moves: 0 / 25'
+  m_text: 'Moves: Calculating...'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

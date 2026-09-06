@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DG.Tweening;
+using FloodFill.ThreeD.Solver;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -170,6 +171,10 @@ namespace FloodFill.ThreeD
             }
 
             Stopwatch setupWatch = Stopwatch.StartNew();
+            System.Random fixedColorRandom = volumeMode == VoxelVolumeMode.Procedural &&
+                proceduralSettings != null && !proceduralSettings.useRandomSeed
+                    ? new System.Random(unchecked(LastGenerationSeed ^ 0x5F3759DF))
+                    : null;
             for (int x = 0; x < width; x++)
             {
                 for (int y = 0; y < height; y++)
@@ -181,7 +186,9 @@ namespace FloodFill.ThreeD
                             continue;
                         }
 
-                        int colorIndex = UnityEngine.Random.Range(0, palette.Length);
+                        int colorIndex = fixedColorRandom != null
+                            ? fixedColorRandom.Next(0, palette.Length)
+                            : UnityEngine.Random.Range(0, palette.Length);
                         VoxelCell3D voxel = AcquireVoxel(allVoxels.Count);
                         voxel.name = $"Voxel_{x}_{y}_{z}";
                         voxel.transform.localPosition = new Vector3(
@@ -356,6 +363,51 @@ namespace FloodFill.ThreeD
             }
 
             return cells[x, y, z];
+        }
+
+        public bool TryCreateSolverSnapshot(out FloodFillBoardSnapshot3D snapshot)
+        {
+            snapshot = null;
+            if (cells == null || allVoxels.Count == 0 || StartingVoxel == null ||
+                palette == null || palette.Length < 2 || palette.Length > byte.MaxValue)
+            {
+                return false;
+            }
+
+            int count = allVoxels.Count;
+            var logicalIndices = new int[count];
+            var colorIndices = new byte[count];
+            int startingVoxel = -1;
+            for (int i = 0; i < count; i++)
+            {
+                VoxelCell3D voxel = allVoxels[i];
+                if (voxel == null || voxel.ColorIndex < 0 || voxel.ColorIndex >= palette.Length)
+                {
+                    return false;
+                }
+
+                logicalIndices[i] = voxel.X + width * (voxel.Y + height * voxel.Z);
+                colorIndices[i] = (byte)voxel.ColorIndex;
+                if (voxel == StartingVoxel)
+                {
+                    startingVoxel = i;
+                }
+            }
+
+            if (startingVoxel < 0)
+            {
+                return false;
+            }
+
+            snapshot = new FloodFillBoardSnapshot3D(
+                width,
+                height,
+                depth,
+                palette.Length,
+                logicalIndices,
+                colorIndices,
+                startingVoxel);
+            return true;
         }
 
         public bool TryGetWorldBounds(out Bounds bounds)

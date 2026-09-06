@@ -1,5 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using FloodFill.ThreeD.Solver;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -11,6 +14,7 @@ namespace FloodFill.ThreeD
     {
         public enum GameState
         {
+            Calculating,
             Playing,
             Won,
             Lost
@@ -28,10 +32,13 @@ namespace FloodFill.ThreeD
         };
 
         [Header("Game")]
-        [SerializeField, Min(1)] private int maxMoves = 25;
+        [SerializeField] private FloodFillDifficulty difficulty = FloodFillDifficulty.Normal;
         [SerializeField, Min(0f)] private float resultRevealDelay = 0.45f;
         [SerializeField] private VoxelBoardManager3D boardManager;
         [SerializeField] private OrbitCameraController3D orbitCamera;
+
+        [Header("Dynamic Move Solver")]
+        [SerializeField] private MoveSolverSettings solverSettings = new MoveSolverSettings();
 
         [Header("Palette")]
         [SerializeField] private Color[] colors =
@@ -50,11 +57,16 @@ namespace FloodFill.ThreeD
         [SerializeField] private TMP_Text scoreText;
         [SerializeField] private TMP_Dropdown boardModeDropdown;
         [SerializeField] private TMP_Dropdown boardSizeDropdown;
+        [SerializeField] private TMP_Dropdown difficultyDropdown;
         [SerializeField] private GameObject resultPanel;
         [SerializeField] private TMP_Text resultText;
         [SerializeField] private ColorButton3D[] colorButtons;
 
         private Coroutine resultCoroutine;
+        private Coroutine solverCoroutine;
+        private CancellationTokenSource solverCancellation;
+        private int solverGenerationId;
+        private int currentMoveBudget = 1;
 
         public int MoveCount { get; private set; }
         public int Score { get; private set; }
@@ -63,6 +75,10 @@ namespace FloodFill.ThreeD
         public VoxelBoardManager3D.VoxelVolumeMode SelectedBoardMode { get; private set; } =
             VoxelBoardManager3D.VoxelVolumeMode.Procedural;
         public int SelectedBoardSize { get; private set; } = 6;
+        public FloodFillDifficulty SelectedDifficulty => difficulty;
+        public int CurrentMoveBudget => currentMoveBudget;
+        public FloodFillSolverResult LastSolverResult { get; private set; }
+        public MoveBudgetProfile CurrentMoveBudgetProfile { get; private set; }
         public int CurrentPlayerColor => boardManager != null ? boardManager.CurrentPlayerColor : -1;
 
         private void Start()
@@ -76,8 +92,10 @@ namespace FloodFill.ThreeD
             boardManager.VoxelClicked += HandleVoxelClicked;
             EnsureBoardModeDropdown();
             EnsureBoardSizeDropdown();
+            EnsureDifficultyDropdown();
             InitializeBoardModeDropdown();
             InitializeBoardSizeDropdown();
+            InitializeDifficultyDropdown();
             RestartGame();
         }
 
@@ -115,7 +133,7 @@ namespace FloodFill.ThreeD
             {
                 ScheduleResult(GameState.Won);
             }
-            else if (MoveCount >= maxMoves)
+            else if (MoveCount >= currentMoveBudget)
             {
                 ScheduleResult(GameState.Lost);
             }
@@ -124,6 +142,8 @@ namespace FloodFill.ThreeD
         public void RestartGame()
         {
             Stopwatch restartWatch = Stopwatch.StartNew();
+            CancelPendingSolver();
+            solverGenerationId++;
             if (resultCoroutine != null)
             {
                 StopCoroutine(resultCoroutine);
@@ -132,8 +152,11 @@ namespace FloodFill.ThreeD
 
             MoveCount = 0;
             Score = 0;
-            State = GameState.Playing;
+            State = GameState.Calculating;
             SelectedColorIndex = -1;
+            LastSolverResult = null;
+            CurrentMoveBudgetProfile = default;
+            currentMoveBudget = 1;
             SyncBoardModeFromDropdown();
             SyncBoardSizeFromDropdown();
             boardManager.SetVolumeMode(SelectedBoardMode);
@@ -165,6 +188,10 @@ namespace FloodFill.ThreeD
             {
                 ScheduleResult(GameState.Won);
             }
+            else
+            {
+                BeginMoveBudgetCalculation(solverGenerationId);
+            }
 
             restartWatch.Stop();
             boardManager.LogLastGenerationPerformance(
@@ -175,7 +202,6 @@ namespace FloodFill.ThreeD
         public void Configure(
             VoxelBoardManager3D board,
             OrbitCameraController3D cameraController,
-            int moveLimit,
             TMP_Text movesLabel,
             TMP_Text capturedLabel,
             TMP_Text scoreLabel,
@@ -184,16 +210,17 @@ namespace FloodFill.ThreeD
             GameObject endPanel,
             TMP_Text endLabel,
             ColorButton3D[] buttons,
-            Color[] palette)
+            Color[] palette,
+            TMP_Dropdown difficultySelector = null)
         {
             boardManager = board;
             orbitCamera = cameraController;
-            maxMoves = Mathf.Max(1, moveLimit);
             movesText = movesLabel;
             capturedText = capturedLabel;
             scoreText = scoreLabel;
             boardModeDropdown = modeDropdown;
             boardSizeDropdown = sizeDropdown;
+            difficultyDropdown = difficultySelector;
             resultPanel = endPanel;
             resultText = endLabel;
             colorButtons = buttons;
@@ -252,6 +279,27 @@ namespace FloodFill.ThreeD
             boardSizeDropdown.onValueChanged.AddListener(HandleBoardSizeDropdownChanged);
         }
 
+        private void InitializeDifficultyDropdown()
+        {
+            if (difficultyDropdown == null)
+            {
+                return;
+            }
+
+            difficultyDropdown.ClearOptions();
+            difficultyDropdown.AddOptions(new List<string>
+            {
+                "Easy",
+                "Normal",
+                "Hard",
+                "Perfect"
+            });
+            difficultyDropdown.SetValueWithoutNotify((int)difficulty);
+            difficultyDropdown.RefreshShownValue();
+            difficultyDropdown.onValueChanged.RemoveListener(HandleDifficultyDropdownChanged);
+            difficultyDropdown.onValueChanged.AddListener(HandleDifficultyDropdownChanged);
+        }
+
         private void EnsureBoardModeDropdown()
         {
             boardModeDropdown = EnsureRuntimeDropdown(
@@ -268,6 +316,15 @@ namespace FloodFill.ThreeD
                 "BoardSizeDropdown",
                 new Vector2(120f, -148f),
                 360f);
+        }
+
+        private void EnsureDifficultyDropdown()
+        {
+            difficultyDropdown = EnsureRuntimeDropdown(
+                difficultyDropdown,
+                "DifficultyDropdown",
+                new Vector2(120f, -234f),
+                220f);
         }
 
         private TMP_Dropdown EnsureRuntimeDropdown(
@@ -473,6 +530,21 @@ namespace FloodFill.ThreeD
             }
         }
 
+        private void HandleDifficultyDropdownChanged(int optionIndex)
+        {
+            if (optionIndex < 0 || optionIndex > (int)FloodFillDifficulty.Perfect)
+            {
+                return;
+            }
+
+            difficulty = (FloodFillDifficulty)optionIndex;
+            if (LastSolverResult != null && MoveCount == 0)
+            {
+                currentMoveBudget = CurrentMoveBudgetProfile.GetMoves(difficulty);
+                RefreshUI();
+            }
+        }
+
         private void SyncBoardModeFromDropdown()
         {
             if (boardModeDropdown != null)
@@ -486,6 +558,193 @@ namespace FloodFill.ThreeD
             if (boardSizeDropdown != null)
             {
                 HandleBoardSizeDropdownChanged(boardSizeDropdown.value);
+            }
+        }
+
+        private void BeginMoveBudgetCalculation(int generationId)
+        {
+            SetColorInputEnabled(false);
+            if (!boardManager.TryCreateSolverSnapshot(out FloodFillBoardSnapshot3D snapshot) ||
+                !FloodFillRegionGraph3D.TryBuild(snapshot, out FloodFillRegionGraph3D graph))
+            {
+                Debug.LogError("Could not build the logical move-solver graph.", this);
+                ApplyEmergencyMoveBudget(snapshot?.VoxelCount ?? boardManager.TotalVoxelCount);
+                return;
+            }
+
+            bool developmentBudget = Application.isEditor || Debug.isDebugBuild;
+            bool solveAsynchronously = solverSettings.allowAsyncForLargeBoards &&
+                graph.RegionCount >= Mathf.Max(1, solverSettings.asyncRegionThreshold);
+            if (!solveAsynchronously)
+            {
+                try
+                {
+                    FloodFillSolverResult result = FloodFillMoveSolver3D.Solve(
+                        graph, solverSettings, developmentBudget);
+                    ApplySolverResult(result, generationId, false);
+                }
+                catch (System.Exception exception)
+                {
+                    Debug.LogException(exception, this);
+                    ApplyGuaranteedFallback(graph, generationId, false);
+                }
+                return;
+            }
+
+            solverCancellation = new CancellationTokenSource();
+            CancellationToken token = solverCancellation.Token;
+            MoveSolverSettings settingsCopy = CopySolverSettings(solverSettings);
+            Task<FloodFillSolverResult> task = Task.Run(
+                () => FloodFillMoveSolver3D.Solve(
+                    graph, settingsCopy, developmentBudget, token),
+                token);
+            solverCoroutine = StartCoroutine(WaitForSolver(
+                task, graph, generationId, token));
+        }
+
+        private IEnumerator WaitForSolver(
+            Task<FloodFillSolverResult> task,
+            FloodFillRegionGraph3D graph,
+            int generationId,
+            CancellationToken token)
+        {
+            while (!task.IsCompleted)
+            {
+                yield return null;
+            }
+
+            solverCoroutine = null;
+            if (token.IsCancellationRequested || generationId != solverGenerationId)
+            {
+                yield break;
+            }
+            if (task.IsCanceled)
+            {
+                yield break;
+            }
+            if (task.IsFaulted)
+            {
+                Debug.LogException(task.Exception?.GetBaseException() ?? task.Exception, this);
+                ApplyGuaranteedFallback(graph, generationId, true);
+                yield break;
+            }
+            ApplySolverResult(task.Result, generationId, true);
+        }
+
+        private void ApplyGuaranteedFallback(
+            FloodFillRegionGraph3D graph,
+            int generationId,
+            bool asynchronous)
+        {
+            try
+            {
+                FloodFillSolverResult fallback =
+                    FloodFillMoveSolver3D.SolveGuaranteedFallback(graph, solverSettings);
+                ApplySolverResult(fallback, generationId, asynchronous);
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogException(exception, this);
+                ApplyEmergencyMoveBudget(graph.RegionCount);
+            }
+        }
+
+        private void ApplySolverResult(
+            FloodFillSolverResult result,
+            int generationId,
+            bool solvedAsynchronously)
+        {
+            if (result == null || generationId != solverGenerationId ||
+                !result.SolutionValidated)
+            {
+                return;
+            }
+
+            LastSolverResult = result;
+            CurrentMoveBudgetProfile = result.BudgetProfile;
+            currentMoveBudget = CurrentMoveBudgetProfile.GetMoves(difficulty);
+            State = GameState.Playing;
+            RefreshUI();
+            if (solverSettings.logSolverPerformance)
+            {
+                LogSolverPerformance(result, solvedAsynchronously);
+            }
+        }
+
+        private void ApplyEmergencyMoveBudget(int logicalCount)
+        {
+            int guaranteedMoves = Mathf.Max(1, logicalCount - 1);
+            CurrentMoveBudgetProfile = MoveBudgetCalculator3D.Calculate(
+                guaranteedMoves,
+                logicalCount,
+                false,
+                solverSettings);
+            currentMoveBudget = CurrentMoveBudgetProfile.GetMoves(difficulty);
+            State = GameState.Playing;
+            RefreshUI();
+        }
+
+        private void LogSolverPerformance(FloodFillSolverResult result, bool asynchronous)
+        {
+            MoveBudgetProfile profile = result.BudgetProfile;
+            string exactLabel = result.IsProvenOptimal
+                ? result.ExactMoveCount.ToString()
+                : "Not proven within budget";
+            Debug.Log(
+                "[Move Solver]\n" +
+                $"Grid: {boardManager.Width}x{boardManager.Height}x{boardManager.Depth}\n" +
+                $"Playable voxels: {result.PlayableVoxelCount}\n" +
+                $"Compressed regions: {result.RegionCount}\n" +
+                $"Graph build: {result.GraphBuildMilliseconds:0.###} ms\n" +
+                $"Greedy: {result.GreedyMoveCount} moves / {result.GreedyMilliseconds:0.###} ms\n" +
+                $"Beam: {result.BeamMoveCount} moves / {result.BeamMilliseconds:0.###} ms\n" +
+                $"Exact: {exactLabel} / {result.ExactMilliseconds:0.###} ms\n" +
+                $"Best solution: {result.BestMoveCount}\n" +
+                $"Proven optimal: {result.IsProvenOptimal}\n" +
+                $"Expanded states: {result.ExploredStates}\n" +
+                $"Difficulty: Perfect {profile.perfectMoves}, Hard {profile.hardMoves}, " +
+                $"Normal {profile.normalMoves}, Easy {profile.easyMoves}\n" +
+                $"Complexity multiplier: {profile.complexityMultiplier:0.##}\n" +
+                $"Mode: {(asynchronous ? "Asynchronous" : "Synchronous")}\n" +
+                $"Total solver: {result.ElapsedMilliseconds:0.###} ms",
+                this);
+        }
+
+        private static MoveSolverSettings CopySolverSettings(MoveSolverSettings source)
+        {
+            return new MoveSolverSettings
+            {
+                exactSolverRegionThreshold = source.exactSolverRegionThreshold,
+                beamWidth = source.beamWidth,
+                greedyRuns = source.greedyRuns,
+                runtimeExactSearchTimeBudgetMs = source.runtimeExactSearchTimeBudgetMs,
+                developmentExactSearchTimeBudgetMs = source.developmentExactSearchTimeBudgetMs,
+                exactMaxExpandedStates = source.exactMaxExpandedStates,
+                beamSearchTimeBudgetMs = source.beamSearchTimeBudgetMs,
+                allowAsyncForLargeBoards = source.allowAsyncForLargeBoards,
+                asyncRegionThreshold = source.asyncRegionThreshold,
+                logSolverPerformance = source.logSolverPerformance,
+                complexityThreshold1 = source.complexityThreshold1,
+                complexityThreshold2 = source.complexityThreshold2,
+                complexityThreshold3 = source.complexityThreshold3,
+                complexityThreshold4 = source.complexityThreshold4,
+                complexityMultiplier1 = source.complexityMultiplier1,
+                complexityMultiplier2 = source.complexityMultiplier2,
+                complexityMultiplier3 = source.complexityMultiplier3,
+                complexityMultiplier4 = source.complexityMultiplier4,
+                maximumMoveBudget = source.maximumMoveBudget
+            };
+        }
+
+        private void CancelPendingSolver()
+        {
+            solverCancellation?.Cancel();
+            solverCancellation?.Dispose();
+            solverCancellation = null;
+            if (solverCoroutine != null)
+            {
+                StopCoroutine(solverCoroutine);
+                solverCoroutine = null;
             }
         }
 
@@ -542,7 +801,7 @@ namespace FloodFill.ThreeD
             {
                 resultText.text = state == GameState.Won
                     ? $"YOU WIN!\n\nMoves used: {MoveCount}\nScore: {Score:N0}"
-                    : $"OUT OF MOVES\n\nMoves used: {MoveCount} / {maxMoves}\nScore: {Score:N0}";
+                    : $"OUT OF MOVES\n\nMoves used: {MoveCount} / {currentMoveBudget}\nScore: {Score:N0}";
             }
 
             if (resultPanel != null)
@@ -559,13 +818,20 @@ namespace FloodFill.ThreeD
 
         private void RefreshUI()
         {
-            movesText.text = $"Moves: {MoveCount} / {maxMoves}";
+            movesText.text = State == GameState.Calculating
+                ? "Moves: Calculating..."
+                : $"Moves: {MoveCount} / {currentMoveBudget}";
             int displayedPercentage = MoveCount == 0
                 ? 0
                 : Mathf.RoundToInt(boardManager.CapturedPercentage);
             capturedText.text = $"Captured: {displayedPercentage}%";
             scoreText.text = $"Score: {Score:N0}";
             SetColorInputEnabled(State == GameState.Playing);
+            if (difficultyDropdown != null)
+            {
+                difficultyDropdown.interactable = State == GameState.Playing &&
+                    MoveCount == 0 && LastSolverResult != null;
+            }
         }
 
         private void SetColorInputEnabled(bool enabledInput)
@@ -611,8 +877,11 @@ namespace FloodFill.ThreeD
 
         private void OnValidate()
         {
-            maxMoves = Mathf.Max(1, maxMoves);
             resultRevealDelay = Mathf.Max(0f, resultRevealDelay);
+            if (solverSettings == null)
+            {
+                solverSettings = new MoveSolverSettings();
+            }
         }
 
         private void OnDestroy()
@@ -626,6 +895,13 @@ namespace FloodFill.ThreeD
             {
                 boardSizeDropdown.onValueChanged.RemoveListener(HandleBoardSizeDropdownChanged);
             }
+
+            if (difficultyDropdown != null)
+            {
+                difficultyDropdown.onValueChanged.RemoveListener(HandleDifficultyDropdownChanged);
+            }
+
+            CancelPendingSolver();
 
             if (boardManager != null)
             {

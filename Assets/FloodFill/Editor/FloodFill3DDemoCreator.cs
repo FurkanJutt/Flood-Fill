@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using FloodFill.ThreeD;
+using FloodFill.ThreeD.Solver;
 using TMPro;
 using UnityEditor;
 using UnityEditor.Events;
@@ -84,7 +85,8 @@ namespace FloodFill.Editor
                 out TMP_Text capturedText,
                 out TMP_Text scoreText,
                 out TMP_Dropdown boardModeDropdown,
-                out TMP_Dropdown boardSizeDropdown);
+                out TMP_Dropdown boardSizeDropdown,
+                out TMP_Dropdown difficultyDropdown);
             ColorButton3D[] colorButtons = CreateColorControls(canvas.transform, gameManager);
             CreateResultPanel(
                 canvas.transform,
@@ -95,7 +97,6 @@ namespace FloodFill.Editor
             gameManager.Configure(
                 boardManager,
                 orbitCamera,
-                25,
                 movesText,
                 capturedText,
                 scoreText,
@@ -104,7 +105,8 @@ namespace FloodFill.Editor
                 resultPanel,
                 resultText,
                 colorButtons,
-                (Color[])Palette.Clone());
+                (Color[])Palette.Clone(),
+                difficultyDropdown);
 
             EditorUtility.SetDirty(boardManager);
             EditorUtility.SetDirty(orbitCamera);
@@ -653,13 +655,15 @@ namespace FloodFill.Editor
             out TMP_Text capturedText,
             out TMP_Text scoreText,
             out TMP_Dropdown boardModeDropdown,
-            out TMP_Dropdown boardSizeDropdown)
+            out TMP_Dropdown boardSizeDropdown,
+            out TMP_Dropdown difficultyDropdown)
         {
             TMP_Text title = CreateText("Title", canvas, "FLOOD FILL 3D", 66f, FontStyles.Bold);
             SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -72f), new Vector2(720f, 90f));
 
-            movesText = CreateText("MovesText", canvas, "Moves: 0 / 25", 40f, FontStyles.Normal);
+            movesText = CreateText(
+                "MovesText", canvas, "Moves: Calculating...", 40f, FontStyles.Normal);
             SetRect(movesText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -156f), new Vector2(620f, 58f));
 
@@ -704,6 +708,14 @@ namespace FloodFill.Editor
                 new Vector2(120f, -148f),
                 new[] { "6x6", "8x8", "10x10", "12x12", "15x15", "18x18", "20x20" },
                 360f);
+            difficultyDropdown = CreateStyledDropdown(
+                canvas,
+                "DifficultyDropdown",
+                new Vector2(120f, -234f),
+                new[] { "Easy", "Normal", "Hard", "Perfect" },
+                220f);
+            difficultyDropdown.SetValueWithoutNotify((int)FloodFillDifficulty.Normal);
+            difficultyDropdown.RefreshShownValue();
         }
 
         private static TMP_Dropdown CreateStyledDropdown(
