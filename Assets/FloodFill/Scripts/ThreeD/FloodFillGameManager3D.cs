@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace FloodFill.ThreeD
 {
@@ -122,6 +123,7 @@ namespace FloodFill.ThreeD
 
         public void RestartGame()
         {
+            Stopwatch restartWatch = Stopwatch.StartNew();
             if (resultCoroutine != null)
             {
                 StopCoroutine(resultCoroutine);
@@ -144,12 +146,18 @@ namespace FloodFill.ThreeD
             if (!boardManager.GenerateBoard(colors))
             {
                 SetColorInputEnabled(false);
+                restartWatch.Stop();
+                boardManager.LogLastGenerationPerformance(0d, restartWatch.Elapsed.TotalMilliseconds);
                 return;
             }
 
+            double cameraFramingMilliseconds = 0d;
             if (boardManager.TryGetWorldBounds(out Bounds bounds))
             {
+                Stopwatch cameraWatch = Stopwatch.StartNew();
                 orbitCamera.FrameBounds(bounds);
+                cameraWatch.Stop();
+                cameraFramingMilliseconds = cameraWatch.Elapsed.TotalMilliseconds;
             }
 
             RefreshUI();
@@ -157,6 +165,11 @@ namespace FloodFill.ThreeD
             {
                 ScheduleResult(GameState.Won);
             }
+
+            restartWatch.Stop();
+            boardManager.LogLastGenerationPerformance(
+                cameraFramingMilliseconds,
+                restartWatch.Elapsed.TotalMilliseconds);
         }
 
         public void Configure(

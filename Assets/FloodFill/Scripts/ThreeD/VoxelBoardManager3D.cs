@@ -4,6 +4,7 @@ using DG.Tweening;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Stopwatch = System.Diagnostics.Stopwatch;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -43,6 +44,10 @@ namespace FloodFill.ThreeD
         [Header("Voxel Layout")]
         [SerializeField, Min(0.05f)] private float voxelSize = 1f;
         [SerializeField, Min(0f)] private float voxelGap = 0.05f;
+        [SerializeField] private bool castVoxelShadows;
+
+        [Header("Performance")]
+        [SerializeField] private bool logGenerationPerformance;
 
         [Header("Selection")]
         [SerializeField] private Camera boardCamera;
@@ -64,6 +69,8 @@ namespace FloodFill.ThreeD
 
         private readonly List<VoxelCell3D> allVoxels = new List<VoxelCell3D>();
         private readonly List<VoxelCell3D> capturedVoxels = new List<VoxelCell3D>();
+        private readonly List<VoxelCell3D> voxelPool = new List<VoxelCell3D>();
+        private int[] initialColorIndices = Array.Empty<int>();
         private VoxelCell3D[,,] cells;
         private bool[,,] activeMask;
         private VoxelShapeBounds activeBounds = VoxelShapeBounds.Invalid;
@@ -99,6 +106,20 @@ namespace FloodFill.ThreeD
         public VoxelShapeBounds ActiveBounds => activeBounds;
         public int LastGenerationSeed { get; private set; }
         public int LastGenerationAttempt { get; private set; }
+        public int LastTargetSolidVoxelCount { get; private set; }
+        public int LastSolidVoxelCount { get; private set; }
+        public int LastCreatedVoxelCount { get; private set; }
+        public double LastLogicalGenerationMilliseconds { get; private set; }
+        public double LastGrowthMilliseconds { get; private set; }
+        public double LastNotchMilliseconds { get; private set; }
+        public double LastExteriorFloodMilliseconds { get; private set; }
+        public double LastSurfaceExtractionMilliseconds { get; private set; }
+        public double LastValidationMilliseconds { get; private set; }
+        public double LastVoxelSetupMilliseconds { get; private set; }
+        public double LastVoxelColorMilliseconds { get; private set; }
+        public int PooledVoxelCount => voxelPool.Count;
+        public bool LogGenerationPerformance => logGenerationPerformance ||
+            proceduralSettings != null && proceduralSettings.logGenerationPerformance;
         public int CurrentPlayerColor { get; private set; } = -1;
         public int CapturedVoxelCount => capturedVoxels.Count;
         public int TotalVoxelCount => allVoxels.Count;
@@ -113,7 +134,8 @@ namespace FloodFill.ThreeD
 
         public bool GenerateBoard(Color[] colors)
         {
-            ClearBoard();
+            ReleaseActiveVoxels();
+            ResetLogicalBoardState();
             if (boardRoot == null || voxelPrefab == null || colors == null || colors.Length < 2)
             {
                 Debug.LogError(
@@ -137,10 +159,17 @@ namespace FloodFill.ThreeD
             palette = (Color[])colors.Clone();
             cells = new VoxelCell3D[width, height, depth];
             LastRecolorAnimationDuration = 0f;
+            LastCreatedVoxelCount = 0;
 
             float spacing = voxelSize + voxelGap;
             Vector3 centerOffset = activeBounds.Center * spacing;
+            int requiredVoxels = CountActiveMaskVoxels();
+            if (initialColorIndices.Length < requiredVoxels)
+            {
+                initialColorIndices = new int[requiredVoxels];
+            }
 
+            Stopwatch setupWatch = Stopwatch.StartNew();
             for (int x = 0; x < width; x++)
             {
                 for (int y = 0; y < height; y++)
@@ -153,7 +182,7 @@ namespace FloodFill.ThreeD
                         }
 
                         int colorIndex = UnityEngine.Random.Range(0, palette.Length);
-                        VoxelCell3D voxel = Instantiate(voxelPrefab, boardRoot);
+                        VoxelCell3D voxel = AcquireVoxel(allVoxels.Count);
                         voxel.name = $"Voxel_{x}_{y}_{z}";
                         voxel.transform.localPosition = new Vector3(
                             x * spacing,
@@ -161,12 +190,25 @@ namespace FloodFill.ThreeD
                             z * spacing) - centerOffset;
                         voxel.transform.localRotation = Quaternion.identity;
                         voxel.transform.localScale = Vector3.one * voxelSize;
-                        voxel.Initialize(x, y, z, colorIndex, palette[colorIndex]);
+                        voxel.PrepareForReuse(x, y, z);
+                        voxel.SetShadowCasting(castVoxelShadows);
                         cells[x, y, z] = voxel;
+                        initialColorIndices[allVoxels.Count] = colorIndex;
                         allVoxels.Add(voxel);
                     }
                 }
             }
+            setupWatch.Stop();
+            LastVoxelSetupMilliseconds = setupWatch.Elapsed.TotalMilliseconds;
+
+            Stopwatch colorWatch = Stopwatch.StartNew();
+            for (int i = 0; i < allVoxels.Count; i++)
+            {
+                int colorIndex = initialColorIndices[i];
+                allVoxels[i].SetColor(colorIndex, palette[colorIndex]);
+            }
+            colorWatch.Stop();
+            LastVoxelColorMilliseconds = colorWatch.Elapsed.TotalMilliseconds;
 
             StartingVoxel = FindStartingVoxel();
             if (StartingVoxel == null)
@@ -185,6 +227,44 @@ namespace FloodFill.ThreeD
                 $"Seed: {LastGenerationSeed}. Attempt: {LastGenerationAttempt}.",
                 this);
             return true;
+        }
+
+        private VoxelCell3D AcquireVoxel(int poolIndex)
+        {
+            VoxelCell3D voxel;
+            if (poolIndex < voxelPool.Count)
+            {
+                voxel = voxelPool[poolIndex];
+            }
+            else
+            {
+                voxel = Instantiate(voxelPrefab, boardRoot);
+                voxelPool.Add(voxel);
+                LastCreatedVoxelCount++;
+            }
+
+            if (!voxel.gameObject.activeSelf)
+            {
+                voxel.gameObject.SetActive(true);
+            }
+
+            return voxel;
+        }
+
+        private int CountActiveMaskVoxels()
+        {
+            int count = 0;
+            for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+            for (int z = 0; z < depth; z++)
+            {
+                if (activeMask[x, y, z])
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         public bool RecolorConnectedRegion(VoxelCell3D voxel, int colorIndex)
@@ -281,55 +361,94 @@ namespace FloodFill.ThreeD
         public bool TryGetWorldBounds(out Bounds bounds)
         {
             bounds = default;
-            bool foundBounds = false;
-            for (int i = 0; i < allVoxels.Count; i++)
+            if (boardRoot == null || !activeBounds.IsValid || allVoxels.Count == 0)
             {
-                VoxelCell3D voxel = allVoxels[i];
-                if (voxel == null || !voxel.TryGetWorldBounds(out Bounds voxelBounds))
-                {
-                    continue;
-                }
+                return false;
+            }
 
-                if (!foundBounds)
+            float spacing = voxelSize + voxelGap;
+            Vector3 localSize = new Vector3(
+                (activeBounds.Width - 1) * spacing + voxelSize,
+                (activeBounds.Height - 1) * spacing + voxelSize,
+                (activeBounds.Depth - 1) * spacing + voxelSize);
+            Vector3 halfSize = localSize * 0.5f;
+            bool initialized = false;
+            for (int x = -1; x <= 1; x += 2)
+            for (int y = -1; y <= 1; y += 2)
+            for (int z = -1; z <= 1; z += 2)
+            {
+                Vector3 worldPoint = boardRoot.TransformPoint(new Vector3(
+                    halfSize.x * x,
+                    halfSize.y * y,
+                    halfSize.z * z));
+                if (!initialized)
                 {
-                    bounds = voxelBounds;
-                    foundBounds = true;
+                    bounds = new Bounds(worldPoint, Vector3.zero);
+                    initialized = true;
                 }
                 else
                 {
-                    bounds.Encapsulate(voxelBounds);
+                    bounds.Encapsulate(worldPoint);
                 }
             }
 
-            return foundBounds;
+            return initialized;
         }
 
         public void ClearBoard()
         {
-            CancelPointerGesture();
-            StopWinCelebration(true);
-            if (boardRoot != null)
+            ReleaseActiveVoxels();
+            ResetLogicalBoardState();
+        }
+
+        [ContextMenu("Clear Voxel Pool")]
+        public void ClearPool()
+        {
+            ClearBoard();
+            for (int i = voxelPool.Count - 1; i >= 0; i--)
             {
-                for (int i = boardRoot.childCount - 1; i >= 0; i--)
+                VoxelCell3D voxel = voxelPool[i];
+                if (voxel == null)
                 {
-                    GameObject child = boardRoot.GetChild(i).gameObject;
-                    child.SetActive(false);
-                    if (Application.isPlaying)
-                    {
-                        Destroy(child);
-                    }
-                    else
-                    {
-                        DestroyImmediate(child);
-                    }
+                    continue;
+                }
+
+                if (Application.isPlaying)
+                {
+                    Destroy(voxel.gameObject);
+                }
+                else
+                {
+                    DestroyImmediate(voxel.gameObject);
                 }
             }
 
+            voxelPool.Clear();
+        }
+
+        private void ReleaseActiveVoxels()
+        {
+            CancelPointerGesture();
+            StopWinCelebration(true);
+            for (int i = 0; i < allVoxels.Count; i++)
+            {
+                VoxelCell3D voxel = allVoxels[i];
+                if (voxel != null)
+                {
+                    voxel.ResetForPool();
+                    voxel.gameObject.SetActive(false);
+                }
+            }
+
+            allVoxels.Clear();
+            capturedVoxels.Clear();
+        }
+
+        private void ResetLogicalBoardState()
+        {
             cells = null;
             activeMask = null;
             activeBounds = VoxelShapeBounds.Invalid;
-            allVoxels.Clear();
-            capturedVoxels.Clear();
             palette = Array.Empty<Color>();
             CurrentPlayerColor = -1;
             LastNewlyCapturedCount = 0;
@@ -337,6 +456,17 @@ namespace FloodFill.ThreeD
             LastWinCelebrationDuration = 0f;
             LastGenerationSeed = 0;
             LastGenerationAttempt = 0;
+            LastTargetSolidVoxelCount = 0;
+            LastSolidVoxelCount = 0;
+            LastCreatedVoxelCount = 0;
+            LastLogicalGenerationMilliseconds = 0d;
+            LastGrowthMilliseconds = 0d;
+            LastNotchMilliseconds = 0d;
+            LastExteriorFloodMilliseconds = 0d;
+            LastSurfaceExtractionMilliseconds = 0d;
+            LastValidationMilliseconds = 0d;
+            LastVoxelSetupMilliseconds = 0d;
+            LastVoxelColorMilliseconds = 0d;
             StartingVoxel = null;
         }
 
@@ -468,7 +598,9 @@ namespace FloodFill.ThreeD
         {
             if (volumeMode == VoxelVolumeMode.HollowCube)
             {
+                Stopwatch logicalWatch = Stopwatch.StartNew();
                 activeMask = CreateHollowCubeMask();
+                logicalWatch.Stop();
                 activeBounds = new VoxelShapeBounds(
                     0,
                     width - 1,
@@ -478,6 +610,9 @@ namespace FloodFill.ThreeD
                     depth - 1);
                 LastGenerationSeed = 0;
                 LastGenerationAttempt = 1;
+                LastTargetSolidVoxelCount = CountActiveMaskVoxels();
+                LastSolidVoxelCount = LastTargetSolidVoxelCount;
+                LastLogicalGenerationMilliseconds = logicalWatch.Elapsed.TotalMilliseconds;
                 return true;
             }
 
@@ -489,6 +624,7 @@ namespace FloodFill.ThreeD
             int seed = proceduralSettings.useRandomSeed
                 ? Guid.NewGuid().GetHashCode()
                 : proceduralSettings.fixedSeed;
+            Stopwatch logicalGenerationWatch = Stopwatch.StartNew();
             if (!ProceduralVoxelShapeGenerator.TryGenerate(
                     width,
                     height,
@@ -497,6 +633,7 @@ namespace FloodFill.ThreeD
                     seed,
                     out ProceduralVoxelShapeResult result))
             {
+                logicalGenerationWatch.Stop();
                 Debug.LogError(
                     $"Procedural 3D shape generation failed after " +
                     $"{proceduralSettings.maxGenerationAttempts} attempts. " +
@@ -512,13 +649,26 @@ namespace FloodFill.ThreeD
                     depth - 1);
                 LastGenerationSeed = seed;
                 LastGenerationAttempt = proceduralSettings.maxGenerationAttempts;
+                LastTargetSolidVoxelCount = CountActiveMaskVoxels();
+                LastSolidVoxelCount = LastTargetSolidVoxelCount;
+                LastLogicalGenerationMilliseconds =
+                    logicalGenerationWatch.Elapsed.TotalMilliseconds;
                 return true;
             }
+            logicalGenerationWatch.Stop();
 
             activeMask = result.Mask;
             activeBounds = result.Bounds;
             LastGenerationSeed = result.Seed;
             LastGenerationAttempt = result.GenerationAttempt;
+            LastTargetSolidVoxelCount = result.TargetSolidVoxelCount;
+            LastSolidVoxelCount = result.SolidVoxelCount;
+            LastLogicalGenerationMilliseconds = result.Timings.TotalMilliseconds;
+            LastGrowthMilliseconds = result.Timings.GrowthMilliseconds;
+            LastNotchMilliseconds = result.Timings.NotchMilliseconds;
+            LastExteriorFloodMilliseconds = result.Timings.ExteriorFloodMilliseconds;
+            LastSurfaceExtractionMilliseconds = result.Timings.SurfaceExtractionMilliseconds;
+            LastValidationMilliseconds = result.Timings.ValidationMilliseconds;
             if (proceduralSettings.logGenerationDetails)
             {
                 float fill = result.ActiveVoxelCount * 100f / (width * height * depth);
@@ -531,6 +681,85 @@ namespace FloodFill.ThreeD
             }
 
             return true;
+        }
+
+        public void LogLastGenerationPerformance(
+            double cameraFramingMilliseconds,
+            double totalRestartMilliseconds)
+        {
+            if (!LogGenerationPerformance)
+            {
+                return;
+            }
+
+            Debug.Log(
+                $"[3D Generation]\n" +
+                $"Volume: {width}x{height}x{depth}\n" +
+                $"Logical volume: {width * height * depth}\n" +
+                $"Target solid voxels: {LastTargetSolidVoxelCount}\n" +
+                $"Actual solid voxels: {LastSolidVoxelCount}\n" +
+                $"Surface/playable voxels: {TotalVoxelCount}\n" +
+                $"Generation attempt: {LastGenerationAttempt}\n" +
+                $"Growth: {LastGrowthMilliseconds:0.###} ms\n" +
+                $"Notch batch: {LastNotchMilliseconds:0.###} ms\n" +
+                $"Exterior flood: {LastExteriorFloodMilliseconds:0.###} ms\n" +
+                $"Surface extraction: {LastSurfaceExtractionMilliseconds:0.###} ms\n" +
+                $"Validation: {LastValidationMilliseconds:0.###} ms\n" +
+                $"Logical generation: {LastLogicalGenerationMilliseconds:0.###} ms\n" +
+                $"Voxel pool/setup: {LastVoxelSetupMilliseconds:0.###} ms " +
+                $"({LastCreatedVoxelCount} created, {TotalVoxelCount - LastCreatedVoxelCount} reused)\n" +
+                $"Voxel color setup: {LastVoxelColorMilliseconds:0.###} ms\n" +
+                $"Camera framing: {cameraFramingMilliseconds:0.###} ms\n" +
+                $"Pool size: {PooledVoxelCount}\n" +
+                $"Total restart: {totalRestartMilliseconds:0.###} ms",
+                this);
+        }
+
+        [ContextMenu("Benchmark Procedural Generator")]
+        private void BenchmarkProceduralGenerator()
+        {
+            if (proceduralSettings == null)
+            {
+                proceduralSettings = new ProceduralVoxelShapeSettings();
+            }
+
+            BenchmarkLogicalSize(8, 100);
+            BenchmarkLogicalSize(12, 100);
+            BenchmarkLogicalSize(16, 100);
+        }
+
+        private void BenchmarkLogicalSize(int size, int iterations)
+        {
+            double minimum = double.MaxValue;
+            double maximum = 0d;
+            double total = 0d;
+            int successes = 0;
+            for (int i = 0; i < iterations; i++)
+            {
+                Stopwatch watch = Stopwatch.StartNew();
+                bool success = ProceduralVoxelShapeGenerator.TryGenerate(
+                    size,
+                    size,
+                    size,
+                    proceduralSettings,
+                    700001 + i,
+                    out _);
+                watch.Stop();
+                double elapsed = watch.Elapsed.TotalMilliseconds;
+                minimum = Math.Min(minimum, elapsed);
+                maximum = Math.Max(maximum, elapsed);
+                total += elapsed;
+                if (success)
+                {
+                    successes++;
+                }
+            }
+
+            Debug.Log(
+                $"[3D Logical Benchmark] {size}x{size}x{size}, " +
+                $"runs={iterations}, success={successes}, min={minimum:0.###} ms, " +
+                $"average={total / iterations:0.###} ms, max={maximum:0.###} ms",
+                this);
         }
 
         private bool[,,] CreateHollowCubeMask()

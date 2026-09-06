@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace FloodFill.ThreeD
 {
@@ -30,6 +31,7 @@ namespace FloodFill.ThreeD
 
         private Vector3 restingScale = Vector3.one;
         private Vector3 visualRestingScale = Vector3.one;
+        private bool hasVisualRestingScale;
         private Color displayedColor = Color.white;
         private Tween captureTween;
         private Sequence colorWaveSequence;
@@ -49,6 +51,13 @@ namespace FloodFill.ThreeD
 
         public void Initialize(int x, int y, int z, int colorIndex, Color color)
         {
+            PrepareForReuse(x, y, z);
+            SetColor(colorIndex, color);
+        }
+
+        public void PrepareForReuse(int x, int y, int z)
+        {
+            StopAnimations();
             X = x;
             Y = y;
             Z = z;
@@ -58,9 +67,46 @@ namespace FloodFill.ThreeD
             EnsureCollider();
             if (visual != null)
             {
-                visualRestingScale = visual.localScale;
+                if (!hasVisualRestingScale)
+                {
+                    visualRestingScale = visual.localScale;
+                    hasVisualRestingScale = true;
+                }
+                else
+                {
+                    visual.localScale = visualRestingScale;
+                }
             }
-            SetColor(colorIndex, color);
+        }
+
+        public void ResetForPool()
+        {
+            StopAnimations();
+            IsCaptured = false;
+            if (visual != null && hasVisualRestingScale)
+            {
+                visual.localScale = visualRestingScale;
+            }
+
+            if (voxelCollider != null)
+            {
+                voxelCollider.enabled = false;
+            }
+        }
+
+        public void SetShadowCasting(bool castShadows)
+        {
+            EnsureRenderers();
+            ShadowCastingMode mode = castShadows
+                ? ShadowCastingMode.On
+                : ShadowCastingMode.Off;
+            for (int i = 0; i < meshRenderers.Length; i++)
+            {
+                if (meshRenderers[i] != null)
+                {
+                    meshRenderers[i].shadowCastingMode = mode;
+                }
+            }
         }
 
         public void SetColor(int colorIndex, Color color)
@@ -278,15 +324,22 @@ namespace FloodFill.ThreeD
             voxelCollider.enabled = true;
         }
 
-        private void OnDestroy()
+        private void StopAnimations()
         {
             captureTween?.Kill();
+            captureTween = null;
             colorWaveSequence?.Kill();
+            colorWaveSequence = null;
             if (visual != null)
             {
                 visual.DOKill();
             }
             transform.DOKill();
+        }
+
+        private void OnDestroy()
+        {
+            StopAnimations();
         }
     }
 }

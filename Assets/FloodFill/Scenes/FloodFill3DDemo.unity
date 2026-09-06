@@ -748,6 +748,7 @@ MonoBehaviour:
   capturedText: {fileID: 1787104306}
   scoreText: {fileID: 508615507}
   boardModeDropdown: {fileID: 0}
+  boardSizeDropdown: {fileID: 0}
   resultPanel: {fileID: 1807306631}
   resultText: {fileID: 379240122}
   colorButtons:
@@ -2577,27 +2578,33 @@ MonoBehaviour:
   volumeMode: 2
   proceduralSettings:
     minSolidFillPercent: 0.38
-    maxSolidFillPercent: 0.68
+    maxSolidFillPercent: 0.62
     edgeMargin: 0
     minimumSpanX: 4
     minimumSpanY: 4
     minimumSpanZ: 4
-    brushChance: 0.32
-    branchChance: 0.42
+    brushChance: 0.25
+    branchChance: 0.35
+    weightedCandidateSamples: 6
     directionPersistence: 0.32
     centerBias: 0.12
     seedOffsetRadius: 1
     lobeStrength: 0.78
     minimumLobes: 2
     maximumLobes: 5
-    edgeNotchChance: 0.28
-    edgeNotchPasses: 2
-    maxGenerationAttempts: 30
+    enableNotches: 1
+    edgeNotchChance: 0.12
+    edgeNotchPasses: 1
+    minimumNotchSolidNeighbors: 4
+    maxGenerationAttempts: 3
     useRandomSeed: 1
     fixedSeed: 12345
     logGenerationDetails: 0
+    logGenerationPerformance: 1
   voxelSize: 1
-  voxelGap: 0.06
+  voxelGap: 0.01
+  castVoxelShadows: 0
+  logGenerationPerformance: 0
   boardCamera: {fileID: 0}
   selectionDragThreshold: 12
   waveStepDelay: 0.065
