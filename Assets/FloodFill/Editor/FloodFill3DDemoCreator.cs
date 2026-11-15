@@ -130,66 +130,6 @@ namespace FloodFill.Editor
                 $"Voxel source: {(string.IsNullOrEmpty(cubeAssetPath) ? "Unity cube fallback" : cubeAssetPath)}.");
         }
 
-        [MenuItem("Tools/Flood Fill/Add Camera Fill Light to 3D Demo")]
-        public static void AddCameraFillLightToExistingDemo()
-        {
-            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
-            {
-                Debug.LogWarning(
-                    $"No 3D demo scene was found at {ScenePath}. Use Tools > Flood Fill > Create 3D Demo first.");
-                return;
-            }
-
-            if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-            {
-                return;
-            }
-
-            Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
-            OrbitCameraController3D controller = FindSceneComponent<OrbitCameraController3D>(scene);
-            if (controller == null || controller.EnsureCameraFillLight() == null)
-            {
-                Debug.LogError("The 3D demo camera rig could not create its camera fill light.");
-                return;
-            }
-
-            EditorUtility.SetDirty(controller);
-            EditorSceneManager.MarkSceneDirty(scene);
-            if (!EditorSceneManager.SaveScene(scene, ScenePath))
-            {
-                Debug.LogError($"The camera fill light could not be saved at {ScenePath}.");
-                return;
-            }
-
-            Debug.Log("Camera Fill Light added to the existing Flood Fill 3D camera.");
-        }
-
-        [MenuItem("Tools/Flood Fill/Upgrade Existing 3D Demo Rendering")]
-        public static void UpgradeExisting3DDemoRendering()
-        {
-            EnsureFolder(RootFolder);
-            EnsureFolder(PrefabFolder);
-            EnsureFolder(MaterialFolder);
-
-            Material voxelMaterial = CreateOrUpdateVoxelMaterial();
-            if (voxelMaterial == null)
-            {
-                Debug.LogError("The existing 3D demo could not be upgraded because no usable voxel shader was found.");
-                return;
-            }
-
-            if (!AssignSharedMaterialToExistingVoxelPrefab(voxelMaterial))
-            {
-                Debug.LogWarning(
-                    $"No voxel prefab was found at {PrefabPath}. Use Tools > Flood Fill > Create 3D Demo first.");
-                return;
-            }
-
-            AssetDatabase.SaveAssets();
-            Debug.Log(
-                $"Existing Flood Fill 3D voxel prefab now uses the shared {MaterialPath} material.");
-        }
-
         private static Material CreateOrUpdateVoxelMaterial()
         {
             Material material = AssetDatabase.LoadAssetAtPath<Material>(MaterialPath);
@@ -359,42 +299,6 @@ namespace FloodFill.Editor
             else
             {
                 material.DisableKeyword(keyword);
-            }
-        }
-
-        private static bool AssignSharedMaterialToExistingVoxelPrefab(Material material)
-        {
-            if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null)
-            {
-                return false;
-            }
-
-            GameObject prefabContents = PrefabUtility.LoadPrefabContents(PrefabPath);
-            try
-            {
-                MeshRenderer[] renderers = prefabContents.GetComponentsInChildren<MeshRenderer>(true);
-                if (renderers.Length == 0)
-                {
-                    return false;
-                }
-
-                for (int i = 0; i < renderers.Length; i++)
-                {
-                    int materialSlotCount = Mathf.Max(1, renderers[i].sharedMaterials.Length);
-                    var sharedMaterials = new Material[materialSlotCount];
-                    for (int slot = 0; slot < materialSlotCount; slot++)
-                    {
-                        sharedMaterials[slot] = material;
-                    }
-                    renderers[i].sharedMaterials = sharedMaterials;
-                }
-
-                PrefabUtility.SaveAsPrefabAsset(prefabContents, PrefabPath);
-                return true;
-            }
-            finally
-            {
-                PrefabUtility.UnloadPrefabContents(prefabContents);
             }
         }
 
