@@ -78,43 +78,26 @@ namespace FloodFill.Editor
             Canvas canvas = CreateCanvas();
             CreateEventSystem();
 
-            CreateHeader(
-                canvas.transform,
-                gameManager,
-                out TMP_Text movesText,
-                out TMP_Text capturedText,
-                out TMP_Text scoreText,
-                out TMP_Dropdown boardModeDropdown,
-                out TMP_Dropdown boardSizeDropdown,
-                out TMP_Dropdown difficultyDropdown);
-            ColorButton3D[] colorButtons = CreateColorControls(canvas.transform, gameManager);
-            CreateResultPanel(
-                canvas.transform,
-                gameManager,
-                out GameObject resultPanel,
-                out TMP_Text resultText);
-
             gameManager.Configure(
                 boardManager,
                 orbitCamera,
-                movesText,
-                capturedText,
-                scoreText,
-                boardModeDropdown,
-                boardSizeDropdown,
-                resultPanel,
-                resultText,
-                colorButtons,
-                (Color[])Palette.Clone(),
-                difficultyDropdown);
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                (Color[])Palette.Clone());
+
+            FloodFillMobileUI3D mobileUI = gameManager.gameObject.AddComponent<FloodFillMobileUI3D>();
+            mobileUI.Initialize(gameManager, canvas.transform, voxelPrefab);
 
             EditorUtility.SetDirty(boardManager);
             EditorUtility.SetDirty(orbitCamera);
             EditorUtility.SetDirty(gameManager);
-            for (int i = 0; i < colorButtons.Length; i++)
-            {
-                EditorUtility.SetDirty(colorButtons[i]);
-            }
+            EditorUtility.SetDirty(mobileUI);
 
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene, ScenePath))

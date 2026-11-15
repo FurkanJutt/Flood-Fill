@@ -44,7 +44,7 @@ namespace FloodFill.ThreeD
 
         [Header("Voxel Layout")]
         [SerializeField, Min(0.05f)] private float voxelSize = 1f;
-        [SerializeField, Min(0f)] private float voxelGap = 0.05f;
+        [SerializeField, Min(0f)] private float voxelGap = 0.01f;
         [SerializeField] private bool castVoxelShadows;
 
         [Header("Performance")]
@@ -100,6 +100,7 @@ namespace FloodFill.ThreeD
         public event Action<VoxelCell3D> VoxelClicked;
 
         public int Width => width;
+        public VoxelCell3D VoxelPrefab => voxelPrefab;
         public int Height => height;
         public int Depth => depth;
         public VoxelVolumeMode VolumeMode => volumeMode;
@@ -515,6 +516,11 @@ namespace FloodFill.ThreeD
             {
                 CancelPointerGesture();
             }
+        }
+
+        public void SetBoardVisible(bool visible)
+        {
+            if (boardRoot != null) boardRoot.gameObject.SetActive(visible);
         }
 
         public bool TrySelectVoxelAtScreenPosition(Vector2 screenPosition)

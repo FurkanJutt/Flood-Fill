@@ -67,6 +67,7 @@ namespace FloodFill.ThreeD
         private CancellationTokenSource solverCancellation;
         private int solverGenerationId;
         private int currentMoveBudget = 1;
+        private bool gameSessionActive;
 
         public int MoveCount { get; private set; }
         public int Score { get; private set; }
@@ -80,6 +81,11 @@ namespace FloodFill.ThreeD
         public FloodFillSolverResult LastSolverResult { get; private set; }
         public MoveBudgetProfile CurrentMoveBudgetProfile { get; private set; }
         public int CurrentPlayerColor => boardManager != null ? boardManager.CurrentPlayerColor : -1;
+        public float CapturedPercentage => boardManager != null ? boardManager.CapturedPercentage : 0f;
+        public VoxelBoardManager3D BoardManager => boardManager;
+        public event System.Action UIChanged;
+        public event System.Action ManagerReady;
+        public bool HasSavedSession { get; private set; }
 
         private void Start()
         {
@@ -90,16 +96,71 @@ namespace FloodFill.ThreeD
             }
 
             boardManager.VoxelClicked += HandleVoxelClicked;
-            EnsureBoardModeDropdown();
-            EnsureBoardSizeDropdown();
-            EnsureDifficultyDropdown();
-            InitializeBoardModeDropdown();
-            InitializeBoardSizeDropdown();
-            InitializeDifficultyDropdown();
-            if (!TryRestoreSavedSession())
+            if (boardModeDropdown != null) InitializeBoardModeDropdown();
+            if (boardSizeDropdown != null) InitializeBoardSizeDropdown();
+            if (difficultyDropdown != null) InitializeDifficultyDropdown();
+            HasSavedSession = TryRestoreSavedSession();
+            gameSessionActive = HasSavedSession;
+            if (HasSavedSession)
             {
-                RestartGame();
+                boardManager.SetInputEnabled(false);
+                boardManager.SetBoardVisible(false);
             }
+            else
+            {
+                State = GameState.Calculating;
+                boardManager.SetInputEnabled(false);
+            }
+            UIChanged?.Invoke();
+            ManagerReady?.Invoke();
+        }
+
+        public void StartConfiguredGame(int modeIndex, int sizeIndex, int difficultyIndex)
+        {
+            if (modeIndex < 0 || modeIndex >= BoardModeOptions.Length ||
+                sizeIndex < 0 || sizeIndex >= BoardSizeOptions.Length ||
+                difficultyIndex < 0 || difficultyIndex > (int)FloodFillDifficulty.Perfect)
+                return;
+            gameSessionActive = true;
+            SelectedBoardMode = BoardModeOptions[modeIndex];
+            SelectedBoardSize = BoardSizeOptions[sizeIndex];
+            difficulty = (FloodFillDifficulty)difficultyIndex;
+            if (boardModeDropdown != null) boardModeDropdown.SetValueWithoutNotify(modeIndex);
+            if (boardSizeDropdown != null) boardSizeDropdown.SetValueWithoutNotify(sizeIndex);
+            if (difficultyDropdown != null) difficultyDropdown.SetValueWithoutNotify(difficultyIndex);
+            RestartGame();
+        }
+
+        public void PauseGame()
+        {
+            if (State != GameState.Playing) return;
+            boardManager.SetInputEnabled(false);
+        }
+
+        public void ResumeGame()
+        {
+            if (State == GameState.Playing) boardManager.SetInputEnabled(true);
+        }
+
+        public void ContinueSavedGame()
+        {
+            if (!HasSavedSession) return;
+            boardManager.SetBoardVisible(true);
+            if (State == GameState.Playing) boardManager.SetInputEnabled(true);
+        }
+
+        public void ReturnToMenu()
+        {
+            CancelPendingSolver();
+            solverGenerationId++;
+            if (resultCoroutine != null) { StopCoroutine(resultCoroutine); resultCoroutine = null; }
+            State = GameState.Calculating;
+            boardManager.SetInputEnabled(false);
+            boardManager.SetBoardVisible(false);
+            HasSavedSession = false;
+            gameSessionActive = false;
+            FloodFillSessionPersistence3D.Delete();
+            UIChanged?.Invoke();
         }
 
         public void SelectColor(int colorIndex)
@@ -149,6 +210,7 @@ namespace FloodFill.ThreeD
 
         public void RestartGame()
         {
+            boardManager.SetBoardVisible(true);
             Stopwatch restartWatch = Stopwatch.StartNew();
             FloodFillSessionPersistence3D.Delete();
             CancelPendingSolver();
@@ -828,20 +890,21 @@ namespace FloodFill.ThreeD
 
         private void RefreshUI()
         {
-            movesText.text = State == GameState.Calculating
+            if (movesText != null) movesText.text = State == GameState.Calculating
                 ? "Moves: Calculating..."
                 : $"Moves: {MoveCount} / {currentMoveBudget}";
             int displayedPercentage = MoveCount == 0
                 ? 0
                 : Mathf.RoundToInt(boardManager.CapturedPercentage);
-            capturedText.text = $"Captured: {displayedPercentage}%";
-            scoreText.text = $"Score: {Score:N0}";
+            if (capturedText != null) capturedText.text = $"Captured: {displayedPercentage}%";
+            if (scoreText != null) scoreText.text = $"Score: {Score:N0}";
             SetColorInputEnabled(State == GameState.Playing);
             if (difficultyDropdown != null)
             {
                 difficultyDropdown.interactable = State == GameState.Playing &&
                     MoveCount == 0 && CurrentMoveBudgetProfile.bestSolutionMoves > 0;
             }
+            UIChanged?.Invoke();
         }
 
         private bool TryRestoreSavedSession()
@@ -955,7 +1018,7 @@ namespace FloodFill.ThreeD
 
         private void SaveSession()
         {
-            if (boardManager == null || orbitCamera == null || colors == null ||
+            if (!gameSessionActive || boardManager == null || orbitCamera == null || colors == null ||
                 !boardManager.TryCapturePersistentState(out VoxelBoardSaveData3D boardState))
             {
                 return;
@@ -991,6 +1054,7 @@ namespace FloodFill.ThreeD
             {
                 resultPanel.SetActive(true);
             }
+            UIChanged?.Invoke();
         }
 
         private void SetColorInputEnabled(bool enabledInput)
@@ -1022,10 +1086,7 @@ namespace FloodFill.ThreeD
         private bool ValidateReferences()
         {
             bool valid = boardManager != null && orbitCamera != null &&
-                movesText != null && capturedText != null && scoreText != null &&
-                resultPanel != null && resultText != null &&
-                colorButtons != null && colorButtons.Length >= 2 &&
-                colors != null && colors.Length >= colorButtons.Length;
+                colors != null && colors.Length >= 2;
             if (!valid)
             {
                 Debug.LogError("Flood Fill 3D GameManager has missing references.", this);
