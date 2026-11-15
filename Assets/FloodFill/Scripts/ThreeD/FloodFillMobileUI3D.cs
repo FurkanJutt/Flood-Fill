@@ -19,6 +19,9 @@ namespace FloodFill.ThreeD
             new Color(0.98f, 0.82f, 0.20f), new Color(1f, 0.52f, 0.16f),
             new Color(0.20f, 0.48f, 0.95f), new Color(0.30f, 0.82f, 0.80f)
         };
+        private const string SetupModeKey = "FloodFill3D.SetupMode";
+        private const string SetupSizeKey = "FloodFill3D.SetupSize";
+        private const string SetupDifficultyKey = "FloodFill3D.SetupDifficulty";
         private readonly List<Button> modeButtons = new List<Button>();
         private readonly List<Button> sizeButtons = new List<Button>();
         private readonly List<Button> difficultyButtons = new List<Button>();
@@ -65,6 +68,7 @@ namespace FloodFill.ThreeD
             if (sizeIndex < 0) sizeIndex = 0;
             manager.UIChanged += Refresh;
             manager.ManagerReady += RefreshContinue;
+            LoadSetupSelections();
             Show(menu);
             Refresh();
         }
@@ -203,9 +207,25 @@ namespace FloodFill.ThreeD
             }
         }
 
-        private void SetMode(int value) { modeIndex = value; RefreshChoices(); }
-        private void SetSize(int value) { sizeIndex = value; RefreshChoices(); }
-        private void SetDifficulty(int value) { difficultyIndex = value; RefreshChoices(); }
+        private void SetMode(int value) { modeIndex = value; SaveSetupSelections(); RefreshChoices(); }
+        private void SetSize(int value) { sizeIndex = value; SaveSetupSelections(); RefreshChoices(); }
+        private void SetDifficulty(int value) { difficultyIndex = value; SaveSetupSelections(); RefreshChoices(); }
+
+        private void LoadSetupSelections()
+        {
+            modeIndex = Mathf.Clamp(PlayerPrefs.GetInt(SetupModeKey, modeIndex), 0, 1);
+            sizeIndex = Mathf.Clamp(PlayerPrefs.GetInt(SetupSizeKey, sizeIndex), 0, sizes.Length - 1);
+            difficultyIndex = Mathf.Clamp(PlayerPrefs.GetInt(SetupDifficultyKey, difficultyIndex), 0, 3);
+            RefreshChoices();
+        }
+
+        private void SaveSetupSelections()
+        {
+            PlayerPrefs.SetInt(SetupModeKey, modeIndex);
+            PlayerPrefs.SetInt(SetupSizeKey, sizeIndex);
+            PlayerPrefs.SetInt(SetupDifficultyKey, difficultyIndex);
+            PlayerPrefs.Save();
+        }
         private void RefreshChoices()
         {
             MarkChoices(modeButtons, modeIndex); MarkChoices(sizeButtons, sizeIndex); MarkChoices(difficultyButtons, difficultyIndex);
@@ -217,6 +237,7 @@ namespace FloodFill.ThreeD
 
         private void StartGame()
         {
+            SaveSetupSelections();
             started = true; manager.StartConfiguredGame(modeIndex, sizeIndex, difficultyIndex); Show(hud);
         }
         private void Continue()
@@ -230,11 +251,14 @@ namespace FloodFill.ThreeD
         {
             if (manager == null) return;
             if (continueButton != null) continueButton.SetActive(manager.HasSavedSession);
-            modeIndex = manager.SelectedBoardMode == VoxelBoardManager3D.VoxelVolumeMode.HollowCube ? 1 : 0;
-            sizeIndex = System.Array.IndexOf(sizes, manager.SelectedBoardSize);
-            if (sizeIndex < 0) sizeIndex = 0;
-            difficultyIndex = (int)manager.SelectedDifficulty;
-            RefreshChoices();
+            if (!PlayerPrefs.HasKey(SetupModeKey))
+            {
+                modeIndex = manager.SelectedBoardMode == VoxelBoardManager3D.VoxelVolumeMode.HollowCube ? 1 : 0;
+                sizeIndex = System.Array.IndexOf(sizes, manager.SelectedBoardSize);
+                if (sizeIndex < 0) sizeIndex = 0;
+                difficultyIndex = (int)manager.SelectedDifficulty;
+                RefreshChoices();
+            }
         }
         private void OpenPause() { if (manager.State == FloodFillGameManager3D.GameState.Playing) { manager.PauseGame(); Show(pause); } }
         private void Resume() { manager.ResumeGame(); Show(hud); }
