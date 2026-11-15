@@ -151,15 +151,10 @@ namespace FloodFill.ThreeD
 
         public void ReturnToMenu()
         {
-            CancelPendingSolver();
-            solverGenerationId++;
-            if (resultCoroutine != null) { StopCoroutine(resultCoroutine); resultCoroutine = null; }
-            State = GameState.Calculating;
+            SaveSession();
             boardManager.SetInputEnabled(false);
             boardManager.SetBoardVisible(false);
-            HasSavedSession = false;
-            gameSessionActive = false;
-            FloodFillSessionPersistence3D.Delete();
+            HasSavedSession = true;
             UIChanged?.Invoke();
         }
 

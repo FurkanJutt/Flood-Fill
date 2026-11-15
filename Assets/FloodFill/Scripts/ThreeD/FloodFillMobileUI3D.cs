@@ -265,6 +265,7 @@ namespace FloodFill.ThreeD
         {
             HideAll(); target.SetActive(true); target.transform.SetAsLastSibling();
             target.transform.localScale = Vector3.one * .96f; target.transform.DOScale(1f, .22f).SetEase(Ease.OutBack);
+            if (target == menu) RefreshContinue();
             if (cubeCluster != null) cubeCluster.SetActive(target == menu);
             if (target == hud) { manager.ResumeGame(); }
         }
