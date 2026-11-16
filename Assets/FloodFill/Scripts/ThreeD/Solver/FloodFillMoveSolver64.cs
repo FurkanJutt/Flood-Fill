@@ -14,6 +14,11 @@ namespace FloodFill.ThreeD.Solver
         public bool ProvenOptimal;
         public bool UsedFallback;
         public int ExpandedStates;
+        public int UniqueStates;
+        public int DuplicateStatesSkipped;
+        public long EstimatedPeakSearchMemoryBytes;
+        public string SearchAlgorithm;
+        public string SearchTerminationReason;
         public double GreedyMilliseconds;
         public double BeamMilliseconds;
         public double ExactMilliseconds;
@@ -188,12 +193,19 @@ namespace FloodFill.ThreeD.Solver
             outcome.GreedyMilliseconds = watch.Elapsed.TotalMilliseconds;
             outcome.GreedyMoves = greedy.Length;
             outcome.BestMoves = greedy;
+            outcome.SearchAlgorithm = "64-region bitset greedy + beam";
 
             watch.Restart();
-            FloodFillSolverMove3D[] beam = RunBeam(initial, greedy.Length, out int beamExpanded);
+            FloodFillSolverMove3D[] beam = RunBeam(
+                initial, greedy.Length, out int beamExpanded, out int beamUnique,
+                out int duplicatesSkipped, out string beamTermination, out long peakBytes);
             watch.Stop();
             outcome.BeamMilliseconds = watch.Elapsed.TotalMilliseconds;
             outcome.ExpandedStates += beamExpanded;
+            outcome.UniqueStates += beamUnique;
+            outcome.DuplicateStatesSkipped += duplicatesSkipped;
+            outcome.SearchTerminationReason = beamTermination;
+            outcome.EstimatedPeakSearchMemoryBytes = peakBytes;
             outcome.BeamMoves = beam.Length > 0 ? beam.Length : greedy.Length;
             if (beam.Length > 0 && beam.Length < outcome.BestMoves.Length)
             {
@@ -205,11 +217,17 @@ namespace FloodFill.ThreeD.Solver
             {
                 watch.Restart();
                 FloodFillSolverMove3D[] exact = RunExact(
-                    initial, outcome.BestMoves, out bool proven, out int exactExpanded);
+                    initial, outcome.BestMoves, out bool proven, out int exactExpanded,
+                    out string exactTermination);
                 watch.Stop();
                 outcome.ExactMilliseconds = watch.Elapsed.TotalMilliseconds;
                 outcome.ExpandedStates += exactExpanded;
                 outcome.ProvenOptimal = proven;
+                outcome.SearchTerminationReason = exactTermination;
+                outcome.SearchAlgorithm += " + bounded IDA*";
+                outcome.EstimatedPeakSearchMemoryBytes = Math.Max(
+                    outcome.EstimatedPeakSearchMemoryBytes,
+                    (long)exactExpanded * 128L + (long)outcome.BestMoves.Length * 16L);
                 if (exact.Length > 0)
                 {
                     outcome.ExactMoves = exact.Length;
@@ -219,6 +237,10 @@ namespace FloodFill.ThreeD.Solver
                 {
                     outcome.ExactMoves = outcome.BestMoves.Length;
                 }
+            }
+            else if (graph.RegionCount > settings.ExactRegionThreshold)
+            {
+                outcome.SearchTerminationReason = "Exact search skipped because the graph exceeds the configured region threshold.";
             }
 
             outcome.UsedFallback = outcome.BestMoves.Length == 0;
@@ -321,29 +343,51 @@ namespace FloodFill.ThreeD.Solver
         }
 
         private FloodFillSolverMove3D[] RunBeam(
-            State64 initial, int upperBound, out int expanded)
+            State64 initial,
+            int upperBound,
+            out int expanded,
+            out int uniqueStates,
+            out int duplicatesSkipped,
+            out string terminationReason,
+            out long peakMemoryBytes)
         {
             expanded = 0;
+            uniqueStates = 0;
+            duplicatesSkipped = 0;
+            terminationReason = "Beam search did not run.";
+            peakMemoryBytes = 0;
             if (upperBound <= 1)
             {
+                terminationReason = "Greedy solution is already one move or shorter.";
                 return Array.Empty<FloodFillSolverMove3D>();
             }
 
+            long configuredBeamMemory = (long)settings.MaximumSearchMemoryMegabytes * 1024L * 1024L;
+            int memoryBeamLimit = (int)Math.Max(1L, Math.Min(512L, configuredBeamMemory / 512L));
+            int beamWidth = Math.Max(1, Math.Min(settings.BeamWidth, memoryBeamLimit));
+            int candidateLimit = beamWidth * 2;
             traces.Clear();
-            var current = new List<BeamNode>(settings.BeamWidth) { new BeamNode(initial, -1) };
-            var next = new List<BeamNode>(settings.BeamWidth);
-            var unique = new Dictionary<State64, BeamCandidate>(settings.BeamWidth * 4);
-            var ranked = new List<BeamCandidate>(settings.BeamWidth * 4);
+            var current = new List<BeamNode>(beamWidth) { new BeamNode(initial, -1) };
+            var next = new List<BeamNode>(beamWidth);
+            var unique = new Dictionary<State64, BeamCandidate>(candidateLimit);
+            var ranked = new List<BeamCandidate>(candidateLimit);
             Stopwatch watch = Stopwatch.StartNew();
+            peakMemoryBytes = (long)beamWidth * (64L * 4L + 256L) +
+                (long)traces.Capacity * 16L;
+            terminationReason = "Beam frontier exhausted.";
             for (int depth = 0; depth < upperBound - 1; depth++)
             {
                 unique.Clear();
                 for (int nodeIndex = 0; nodeIndex < current.Count; nodeIndex++)
                 {
-                    if ((expanded & 127) == 0 &&
-                        (cancellationToken.IsCancellationRequested ||
-                         watch.ElapsedMilliseconds >= settings.BeamMilliseconds))
+                    if ((expanded & 127) == 0 && cancellationToken.IsCancellationRequested)
                     {
+                        terminationReason = "Beam search cancelled.";
+                        return Array.Empty<FloodFillSolverMove3D>();
+                    }
+                    if ((expanded & 127) == 0 && watch.ElapsedMilliseconds >= settings.BeamMilliseconds)
+                    {
+                        terminationReason = "Beam search reached its time budget.";
                         return Array.Empty<FloodFillSolverMove3D>();
                     }
 
@@ -356,6 +400,7 @@ namespace FloodFill.ThreeD.Solver
                         expanded++;
                         if (IsSolved(child))
                         {
+                            terminationReason = "Beam search found a complete solution.";
                             return Reconstruct(node.Trace, move);
                         }
 
@@ -364,11 +409,18 @@ namespace FloodFill.ThreeD.Solver
                             (long)largestVoxels * 100L;
                         var candidate = new BeamCandidate(
                             child, node.Trace, move, score);
-                        if (!unique.TryGetValue(child, out BeamCandidate existing) ||
-                            candidate.Score > existing.Score)
+                        if (!unique.TryGetValue(child, out BeamCandidate existing))
                         {
                             unique[child] = candidate;
+                            uniqueStates++;
                         }
+                        else
+                        {
+                            duplicatesSkipped++;
+                            if (candidate.Score > existing.Score) unique[child] = candidate;
+                        }
+                        if (unique.Count >= candidateLimit)
+                            TrimCandidates(unique, ranked, beamWidth);
                     }
                 }
 
@@ -379,7 +431,7 @@ namespace FloodFill.ThreeD.Solver
                 }
                 ranked.Sort((left, right) => right.Score.CompareTo(left.Score));
                 next.Clear();
-                int retained = Math.Min(settings.BeamWidth, ranked.Count);
+                int retained = Math.Min(beamWidth, ranked.Count);
                 for (int i = 0; i < retained; i++)
                 {
                     BeamCandidate candidate = ranked[i];
@@ -390,25 +442,46 @@ namespace FloodFill.ThreeD.Solver
                 }
                 if (next.Count == 0)
                 {
+                    terminationReason = "Beam frontier exhausted.";
                     break;
                 }
                 List<BeamNode> swap = current;
                 current = next;
                 next = swap;
+                peakMemoryBytes = Math.Max(peakMemoryBytes,
+                    (long)(current.Capacity + next.Capacity) * 64L +
+                    (long)unique.Count * 128L + (long)traces.Capacity * 16L);
             }
+            if (terminationReason == "Beam frontier exhausted.")
+                terminationReason = "Beam search exhausted its greedy solution bound.";
             return Array.Empty<FloodFillSolverMove3D>();
+        }
+
+        private static void TrimCandidates(
+            Dictionary<State64, BeamCandidate> candidates,
+            List<BeamCandidate> ranked,
+            int keep)
+        {
+            ranked.Clear();
+            foreach (BeamCandidate candidate in candidates.Values) ranked.Add(candidate);
+            ranked.Sort((left, right) => right.Score.CompareTo(left.Score));
+            for (int i = ranked.Count - 1; i >= keep; i--)
+                candidates.Remove(ranked[i].State);
         }
 
         private FloodFillSolverMove3D[] RunExact(
             State64 initial,
             FloodFillSolverMove3D[] upperSolution,
             out bool proven,
-            out int expanded)
+            out int expanded,
+            out string terminationReason)
         {
             proven = false;
             expanded = 0;
+            terminationReason = "Exact search did not run.";
             if (upperSolution.Length == 0)
             {
+                terminationReason = "Exact search skipped because no validated upper-bound path exists.";
                 return Array.Empty<FloodFillSolverMove3D>();
             }
 
@@ -432,15 +505,22 @@ namespace FloodFill.ThreeD.Solver
                     var result = new FloodFillSolverMove3D[solvedDepth];
                     Array.Copy(path, result, solvedDepth);
                     proven = true;
+                    terminationReason = "IDA* proved the first solution at this bound optimal.";
                     return result;
                 }
                 if (aborted)
                 {
+                    terminationReason = cancellationToken.IsCancellationRequested
+                        ? "IDA* cancelled before an optimality proof."
+                        : expanded >= settings.ExactNodes
+                            ? "IDA* reached its expanded-node limit before an optimality proof."
+                            : "IDA* reached its time limit before an optimality proof.";
                     return Array.Empty<FloodFillSolverMove3D>();
                 }
             }
 
             proven = true;
+            terminationReason = "IDA* exhausted all shorter move bounds and proved the upper-bound path optimal.";
             return Array.Empty<FloodFillSolverMove3D>();
         }
 

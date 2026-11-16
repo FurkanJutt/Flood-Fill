@@ -20,6 +20,7 @@ namespace FloodFill.ThreeD.Solver
         public int developmentExactSearchTimeBudgetMs = 200;
         public int exactMaxExpandedStates = 100000;
         public int beamSearchTimeBudgetMs = 80;
+        public int maximumSearchMemoryMegabytes = 32;
         public bool allowAsyncForLargeBoards = true;
         public int asyncRegionThreshold = 64;
         public bool logSolverPerformance;
@@ -36,6 +37,8 @@ namespace FloodFill.ThreeD.Solver
 
         internal MoveSolverRuntimeSettings CreateRuntimeSettings(bool developmentBudget)
         {
+            int memoryLimitedExactNodes = (int)Math.Min(int.MaxValue, Math.Max(100L,
+                (long)Math.Max(1, maximumSearchMemoryMegabytes) * 1024L * 1024L / 128L));
             return new MoveSolverRuntimeSettings(
                 Math.Max(1, exactSolverRegionThreshold),
                 Math.Max(1, beamWidth),
@@ -43,8 +46,9 @@ namespace FloodFill.ThreeD.Solver
                 Math.Max(1, developmentBudget
                     ? developmentExactSearchTimeBudgetMs
                     : runtimeExactSearchTimeBudgetMs),
-                Math.Max(1, exactMaxExpandedStates),
-                Math.Max(1, beamSearchTimeBudgetMs));
+                Math.Min(Math.Max(1, exactMaxExpandedStates), memoryLimitedExactNodes),
+                Math.Max(1, beamSearchTimeBudgetMs),
+                Math.Max(1, maximumSearchMemoryMegabytes));
         }
     }
 
@@ -56,7 +60,8 @@ namespace FloodFill.ThreeD.Solver
             int greedyRuns,
             int exactMilliseconds,
             int exactNodes,
-            int beamMilliseconds)
+            int beamMilliseconds,
+            int maximumSearchMemoryMegabytes)
         {
             ExactRegionThreshold = exactRegionThreshold;
             BeamWidth = beamWidth;
@@ -64,6 +69,7 @@ namespace FloodFill.ThreeD.Solver
             ExactMilliseconds = exactMilliseconds;
             ExactNodes = exactNodes;
             BeamMilliseconds = beamMilliseconds;
+            MaximumSearchMemoryMegabytes = maximumSearchMemoryMegabytes;
         }
 
         public int ExactRegionThreshold { get; }
@@ -72,6 +78,7 @@ namespace FloodFill.ThreeD.Solver
         public int ExactMilliseconds { get; }
         public int ExactNodes { get; }
         public int BeamMilliseconds { get; }
+        public int MaximumSearchMemoryMegabytes { get; }
     }
 
     [Serializable]
@@ -122,12 +129,18 @@ namespace FloodFill.ThreeD.Solver
         public double ExactMilliseconds { get; internal set; }
         public int ExploredStates { get; internal set; }
         public int RegionCount { get; internal set; }
+        public int DistinctColorCount { get; internal set; }
         public int PlayableVoxelCount { get; internal set; }
         public int GreedyMoveCount { get; internal set; }
         public int BeamMoveCount { get; internal set; }
         public int ExactMoveCount { get; internal set; } = -1;
         public bool UsedFallback { get; internal set; }
         public bool SolutionValidated { get; internal set; }
+        public string SearchAlgorithm { get; internal set; } = string.Empty;
+        public string SearchTerminationReason { get; internal set; } = string.Empty;
+        public int UniqueStates { get; internal set; }
+        public int DuplicateStatesSkipped { get; internal set; }
+        public long EstimatedPeakSearchMemoryBytes { get; internal set; }
         public MoveBudgetProfile BudgetProfile { get; internal set; }
     }
 

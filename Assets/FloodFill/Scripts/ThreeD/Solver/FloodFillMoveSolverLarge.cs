@@ -20,6 +20,8 @@ namespace FloodFill.ThreeD.Solver
         private readonly int[] targetVoxelEstimates;
         private readonly List<LargeMove> moves = new List<LargeMove>(4096);
         private readonly List<TraceNode> traces = new List<TraceNode>(4096);
+        private int beamUniqueStates;
+        private int beamDuplicatesSkipped;
         private int stamp;
 
         private readonly struct LargeMove
@@ -83,12 +85,19 @@ namespace FloodFill.ThreeD.Solver
             outcome.GreedyMilliseconds = watch.Elapsed.TotalMilliseconds;
             outcome.GreedyMoves = greedy.Length;
             outcome.BestMoves = greedy;
+            outcome.SearchAlgorithm = "Multiword greedy + bounded beam search";
 
             watch.Restart();
-            FloodFillSolverMove3D[] beam = RunBeam(initial, greedy.Length, out int expanded);
+            FloodFillSolverMove3D[] beam = RunBeam(
+                initial, greedy.Length, out int expanded, out int uniqueStates,
+                out int duplicatesSkipped, out string termination, out long peakBytes);
             watch.Stop();
             outcome.BeamMilliseconds = watch.Elapsed.TotalMilliseconds;
             outcome.ExpandedStates = expanded;
+            outcome.UniqueStates = uniqueStates;
+            outcome.DuplicateStatesSkipped = duplicatesSkipped;
+            outcome.SearchTerminationReason = termination;
+            outcome.EstimatedPeakSearchMemoryBytes = peakBytes;
             outcome.BeamMoves = beam.Length > 0 ? beam.Length : greedy.Length;
             if (beam.Length > 0 && beam.Length < outcome.BestMoves.Length)
             {
@@ -203,15 +212,31 @@ namespace FloodFill.ThreeD.Solver
         private FloodFillSolverMove3D[] RunBeam(
             ulong[] initial,
             int upperBound,
-            out int expanded)
+            out int expanded,
+            out int uniqueStates,
+            out int duplicatesSkipped,
+            out string terminationReason,
+            out long peakMemoryBytes)
         {
             expanded = 0;
+            uniqueStates = 0;
+            duplicatesSkipped = 0;
+            terminationReason = "Beam search did not run.";
+            peakMemoryBytes = 0;
             if (upperBound <= 1)
             {
+                terminationReason = "Greedy solution is already one move or shorter.";
                 return Array.Empty<FloodFillSolverMove3D>();
             }
 
-            int beamWidth = Math.Min(settings.BeamWidth, graph.RegionCount > 256 ? 32 : 64);
+            long stateBytes = (long)stateWords * sizeof(ulong);
+            long bytesPerBeamSlot = Math.Max(1L, stateBytes * 2L + 64L);
+            long memoryBudget = (long)settings.MaximumSearchMemoryMegabytes * 1024L * 1024L;
+            int memoryLimitedWidth = (int)Math.Max(1L,
+                Math.Min(int.MaxValue, memoryBudget / bytesPerBeamSlot));
+            int practicalWidthLimit = graph.RegionCount > 256 ? 32 : 64;
+            int beamWidth = Math.Max(1,
+                Math.Min(Math.Min(settings.BeamWidth, practicalWidthLimit), memoryLimitedWidth));
             var currentStates = new ulong[beamWidth * stateWords];
             var nextStates = new ulong[beamWidth * stateWords];
             var scratch = new ulong[stateWords];
@@ -231,19 +256,29 @@ namespace FloodFill.ThreeD.Solver
             currentTraces[0] = -1;
             int currentCount = 1;
             traces.Clear();
-            var hashes = new HashSet<ulong>(beamWidth * 8);
+            var hashCounts = new Dictionary<ulong, int>(beamWidth * 2);
             Stopwatch watch = Stopwatch.StartNew();
+            peakMemoryBytes = EstimateBeamMemoryBytes(beamWidth, stateBytes);
+            terminationReason = "Beam frontier exhausted.";
 
             for (int depth = 0; depth < upperBound - 1; depth++)
             {
                 int nextCount = 0;
-                hashes.Clear();
+                hashCounts.Clear();
                 for (int node = 0; node < currentCount; node++)
                 {
-                    if ((expanded & 63) == 0 &&
-                        (cancellationToken.IsCancellationRequested ||
-                         watch.ElapsedMilliseconds >= settings.BeamMilliseconds))
+                    if ((expanded & 63) == 0 && cancellationToken.IsCancellationRequested)
                     {
+                        terminationReason = "Beam search cancelled.";
+                        uniqueStates = beamUniqueStates;
+                        duplicatesSkipped = beamDuplicatesSkipped;
+                        return Array.Empty<FloodFillSolverMove3D>();
+                    }
+                    if ((expanded & 63) == 0 && watch.ElapsedMilliseconds >= settings.BeamMilliseconds)
+                    {
+                        terminationReason = "Beam search reached its time budget.";
+                        uniqueStates = beamUniqueStates;
+                        duplicatesSkipped = beamDuplicatesSkipped;
                         return Array.Empty<FloodFillSolverMove3D>();
                     }
 
@@ -251,10 +286,18 @@ namespace FloodFill.ThreeD.Solver
                     CollectMoves(currentStates, currentOffset, moves);
                     for (int moveIndex = 0; moveIndex < moves.Count; moveIndex++)
                     {
-                        if ((expanded & 255) == 0 &&
-                            (cancellationToken.IsCancellationRequested ||
-                             watch.ElapsedMilliseconds >= settings.BeamMilliseconds))
+                        if ((expanded & 255) == 0 && cancellationToken.IsCancellationRequested)
                         {
+                            terminationReason = "Beam search cancelled.";
+                            uniqueStates = beamUniqueStates;
+                            duplicatesSkipped = beamDuplicatesSkipped;
+                            return Array.Empty<FloodFillSolverMove3D>();
+                        }
+                        if ((expanded & 255) == 0 && watch.ElapsedMilliseconds >= settings.BeamMilliseconds)
+                        {
+                            terminationReason = "Beam search reached its time budget.";
+                            uniqueStates = beamUniqueStates;
+                            duplicatesSkipped = beamDuplicatesSkipped;
                             return Array.Empty<FloodFillSolverMove3D>();
                         }
                         LargeMove move = moves[moveIndex];
@@ -263,6 +306,9 @@ namespace FloodFill.ThreeD.Solver
                         expanded++;
                         if (IsSolved(scratch, 0))
                         {
+                            terminationReason = "Beam search found a complete solution.";
+                            uniqueStates = beamUniqueStates;
+                            duplicatesSkipped = beamDuplicatesSkipped;
                             return Reconstruct(currentTraces[node], move);
                         }
 
@@ -272,23 +318,36 @@ namespace FloodFill.ThreeD.Solver
                             currentLargest[node], move.VoxelEstimate);
                         long score = -(long)estimatedComponents * 1000000L +
                             (long)estimatedLargest * 100L;
-                        int slot = FindCandidateSlot(nextScores, nextCount, beamWidth, score);
-                        if (slot < 0)
-                        {
-                            continue;
-                        }
-
                         ulong hash = HashState(scratch, 0);
-                        if (hashes.Contains(hash))
+                        int duplicateSlot = hashCounts.ContainsKey(hash)
+                            ? FindEqualState(nextStates, nextHashes, nextCount, hash, scratch)
+                            : -1;
+                        if (duplicateSlot >= 0)
                         {
+                            beamDuplicatesSkipped++;
+                            if (score > nextScores[duplicateSlot])
+                            {
+                                nextComponents[duplicateSlot] = estimatedComponents;
+                                nextLargest[duplicateSlot] = estimatedLargest;
+                                nextParents[duplicateSlot] = currentTraces[node];
+                                nextMoves[duplicateSlot] = move;
+                                nextScores[duplicateSlot] = score;
+                            }
                             continue;
                         }
+                        beamUniqueStates++;
+                        int slot = FindCandidateSlot(nextScores, nextCount, beamWidth, score);
+                        if (slot < 0) continue;
                         if (slot < nextCount)
                         {
-                            hashes.Remove(nextHashes[slot]);
+                            ulong oldHash = nextHashes[slot];
+                            int oldCount = hashCounts[oldHash] - 1;
+                            if (oldCount == 0) hashCounts.Remove(oldHash);
+                            else hashCounts[oldHash] = oldCount;
                         }
-                        hashes.Add(hash);
                         nextHashes[slot] = hash;
+                        if (hashCounts.TryGetValue(hash, out int hashCount)) hashCounts[hash] = hashCount + 1;
+                        else hashCounts.Add(hash, 1);
                         Array.Copy(scratch, 0, nextStates, slot * stateWords, stateWords);
                         nextComponents[slot] = estimatedComponents;
                         nextLargest[slot] = estimatedLargest;
@@ -304,6 +363,7 @@ namespace FloodFill.ThreeD.Solver
 
                 if (nextCount == 0)
                 {
+                    terminationReason = "Beam frontier exhausted.";
                     break;
                 }
                 for (int i = 0; i < nextCount; i++)
@@ -319,8 +379,45 @@ namespace FloodFill.ThreeD.Solver
                 Swap(ref currentLargest, ref nextLargest);
                 Swap(ref currentTraces, ref nextTraces);
                 currentCount = nextCount;
+                peakMemoryBytes = Math.Max(peakMemoryBytes,
+                    EstimateBeamMemoryBytes(beamWidth, stateBytes) + (long)traces.Capacity * 16L);
             }
+            uniqueStates = beamUniqueStates;
+            duplicatesSkipped = beamDuplicatesSkipped;
+            if (terminationReason == "Beam frontier exhausted.")
+                terminationReason = "Beam search exhausted its greedy solution bound.";
             return Array.Empty<FloodFillSolverMove3D>();
+        }
+
+        private int FindEqualState(
+            ulong[] states,
+            ulong[] hashes,
+            int count,
+            ulong hash,
+            ulong[] candidate)
+        {
+            for (int slot = 0; slot < count; slot++)
+            {
+                if (hashes[slot] != hash) continue;
+                int offset = slot * stateWords;
+                bool equal = true;
+                for (int word = 0; word < stateWords; word++)
+                {
+                    if (states[offset + word] == candidate[word]) continue;
+                    equal = false;
+                    break;
+                }
+                if (equal) return slot;
+            }
+            return -1;
+        }
+
+        private long EstimateBeamMemoryBytes(int beamWidth, long stateBytes)
+        {
+            long stateBuffers = (long)beamWidth * stateBytes * 2L + stateBytes;
+            long metadata = (long)beamWidth * (sizeof(int) * 7L + sizeof(long) + sizeof(ulong) + 32L);
+            long reusableWorkspace = (long)graph.RegionCount * (sizeof(int) * 3L + 8L);
+            return stateBuffers + metadata + reusableWorkspace;
         }
 
         private void CollectMoves(ulong[] state, int stateOffset, List<LargeMove> output)

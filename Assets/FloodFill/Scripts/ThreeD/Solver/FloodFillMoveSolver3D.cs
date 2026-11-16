@@ -59,6 +59,11 @@ namespace FloodFill.ThreeD.Solver
                 BeamMoveCount = moves.Length,
                 UsedFallback = true,
                 SolutionValidated = true,
+                SearchAlgorithm = graph.RegionCount <= 64 && graph.ColorCount <= 8
+                    ? "64-region greedy fallback"
+                    : "Multiword greedy fallback",
+                SearchTerminationReason = "Search fallback produced a replay-validated solution.",
+                DistinctColorCount = CountDistinctColors(graph),
                 GraphBuildMilliseconds = graph.BuildMilliseconds,
                 BudgetProfile = budget
             };
@@ -94,6 +99,8 @@ namespace FloodFill.ThreeD.Solver
                     search.BestMoves = solver.CreateFallback();
                     search.UsedFallback = true;
                     search.ProvenOptimal = false;
+                    search.SearchTerminationReason = "Search candidate failed validation; a validated greedy fallback was used.";
+                    search.SearchAlgorithm += " + greedy fallback";
                     validated = solver.Validate(search.BestMoves);
                 }
             }
@@ -107,6 +114,8 @@ namespace FloodFill.ThreeD.Solver
                     search.BestMoves = solver.CreateFallback();
                     search.UsedFallback = true;
                     search.ProvenOptimal = false;
+                    search.SearchTerminationReason = "Search candidate failed validation; a validated greedy fallback was used.";
+                    search.SearchAlgorithm += " + greedy fallback";
                     validated = solver.Validate(search.BestMoves);
                 }
             }
@@ -151,8 +160,28 @@ namespace FloodFill.ThreeD.Solver
                 ExactMoveCount = search.ExactMoves,
                 UsedFallback = search.UsedFallback,
                 SolutionValidated = true,
+                SearchAlgorithm = search.SearchAlgorithm ?? "Unknown",
+                SearchTerminationReason = search.SearchTerminationReason ?? "No termination reason reported.",
+                UniqueStates = search.UniqueStates,
+                DuplicateStatesSkipped = search.DuplicateStatesSkipped,
+                EstimatedPeakSearchMemoryBytes = search.EstimatedPeakSearchMemoryBytes,
+                DistinctColorCount = CountDistinctColors(graph),
                 BudgetProfile = budget
             };
+        }
+
+        private static int CountDistinctColors(FloodFillRegionGraph3D graph)
+        {
+            var seen = new bool[graph.ColorCount];
+            int count = 0;
+            for (int i = 0; i < graph.RegionColors.Length; i++)
+            {
+                int color = graph.RegionColors[i];
+                if (seen[color]) continue;
+                seen[color] = true;
+                count++;
+            }
+            return count;
         }
     }
 }

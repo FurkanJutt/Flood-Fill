@@ -844,6 +844,8 @@ namespace FloodFill.ThreeD
                 $"Grid: {boardManager.Width}x{boardManager.Height}x{boardManager.Depth}\n" +
                 $"Playable voxels: {result.PlayableVoxelCount}\n" +
                 $"Compressed regions: {result.RegionCount}\n" +
+                $"Distinct colors: {result.DistinctColorCount}\n" +
+                $"Algorithm: {result.SearchAlgorithm}\n" +
                 $"Graph build: {result.GraphBuildMilliseconds:0.###} ms\n" +
                 $"Greedy: {result.GreedyMoveCount} moves / {result.GreedyMilliseconds:0.###} ms\n" +
                 $"Beam: {result.BeamMoveCount} moves / {result.BeamMilliseconds:0.###} ms\n" +
@@ -851,6 +853,11 @@ namespace FloodFill.ThreeD
                 $"Best solution: {result.BestMoveCount}\n" +
                 $"Proven optimal: {result.IsProvenOptimal}\n" +
                 $"Expanded states: {result.ExploredStates}\n" +
+                $"Unique states: {result.UniqueStates}\n" +
+                $"Duplicate states skipped: {result.DuplicateStatesSkipped}\n" +
+                $"Estimated peak search memory: {result.EstimatedPeakSearchMemoryBytes / (1024d * 1024d):0.##} MiB\n" +
+                $"Search termination: {result.SearchTerminationReason}\n" +
+                $"Result status: {(result.IsProvenOptimal ? "OPTIMAL" : result.SolutionValidated ? "VALIDATED" : "FAILED")}\n" +
                 $"Difficulty: Perfect {profile.perfectMoves}, Hard {profile.hardMoves}, " +
                 $"Normal {profile.normalMoves}, Easy {profile.easyMoves}\n" +
                 $"Complexity multiplier: {profile.complexityMultiplier:0.##}\n" +
@@ -870,6 +877,7 @@ namespace FloodFill.ThreeD
                 developmentExactSearchTimeBudgetMs = source.developmentExactSearchTimeBudgetMs,
                 exactMaxExpandedStates = source.exactMaxExpandedStates,
                 beamSearchTimeBudgetMs = source.beamSearchTimeBudgetMs,
+                maximumSearchMemoryMegabytes = source.maximumSearchMemoryMegabytes,
                 allowAsyncForLargeBoards = source.allowAsyncForLargeBoards,
                 asyncRegionThreshold = source.asyncRegionThreshold,
                 logSolverPerformance = source.logSolverPerformance,

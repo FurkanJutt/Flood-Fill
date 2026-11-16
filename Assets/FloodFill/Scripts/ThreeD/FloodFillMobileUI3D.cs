@@ -45,7 +45,7 @@ namespace FloodFill.ThreeD
         private TMP_Text fruitDropdownText;
         private TMP_Text fruitComingSoon;
         private Toggle showCurrentBlockToggle;
-        private TMP_Text moves, captured, score, resultTitle, resultDetails, gameTitle;
+        private TMP_Text moves, captured, score, resultTitle, resultDetails, resultActionLabel, gameTitle;
         private Image progress;
         private int modeIndex, sizeIndex, difficultyIndex = 1, fruitIndex;
         private static readonly string[] FruitNames = { "RANDOM FRUIT", "APPLE", "BANANA", "ORANGE", "PEAR", "STRAWBERRY", "GRAPES", "PINEAPPLE", "LEMON", "MANGO" };
@@ -196,7 +196,8 @@ namespace FloodFill.ThreeD
             results.GetComponent<Image>().color = new Color(.015f, .025f, .055f, .74f);
             resultTitle = AddText(results.transform, "YOU WIN!", 58, FontStyles.Bold, new Vector2(0, 330), new Vector2(800, 90));
             resultDetails = AddText(results.transform, "", 30, FontStyles.Normal, new Vector2(0, 115), new Vector2(760, 240), Color.white, true);
-            AddButton(results.transform, "PLAY AGAIN", new Vector2(0, -90), new Vector2(580, 92), Accent, Restart, 34);
+            Button resultAction = AddButton(results.transform, "PLAY AGAIN", new Vector2(0, -90), new Vector2(580, 92), Accent, OnResultAction, 34).GetComponent<Button>();
+            resultActionLabel = resultAction.GetComponentInChildren<TMP_Text>();
             AddButton(results.transform, "MAIN MENU", new Vector2(0, -210), new Vector2(580, 92), Panel, BackToMenu, 34);
             HideAll();
         }
@@ -511,6 +512,17 @@ namespace FloodFill.ThreeD
             manager.RestartCurrentGame();
             Show(hud);
         }
+        private void OnResultAction()
+        {
+            if (manager.State == FloodFillGameManager3D.GameState.Won)
+            {
+                started = true;
+                manager.StartCampaignGame((int)manager.SelectedDifficulty);
+                Show(hud);
+                return;
+            }
+            Restart();
+        }
         private void BackToMenu() { manager.ReturnToMenu(); started = false; Show(menu); }
 
         private void Refresh()
@@ -531,10 +543,16 @@ namespace FloodFill.ThreeD
             }
             if (manager.State == FloodFillGameManager3D.GameState.Won || manager.State == FloodFillGameManager3D.GameState.Lost)
             {
-                resultTitle.text = manager.State == FloodFillGameManager3D.GameState.Won ? "YOU WIN!" : "OUT OF MOVES";
+                bool won = manager.State == FloodFillGameManager3D.GameState.Won;
+                resultTitle.text = won ? "YOU WIN!" : "OUT OF MOVES";
+                if (resultActionLabel != null) resultActionLabel.text = won ? "NEXT LEVEL" : "PLAY AGAIN";
                 string levelDetails = manager.IsCampaignGame ? "Level: " + manager.ActiveCampaignLevel + "\n" : string.Empty;
                 resultDetails.text = levelDetails + "Final score: " + manager.Score.ToString("N0") + "\nMoves used: " + manager.MoveCount + "\nCaptured: " + Mathf.RoundToInt(manager.CapturedPercentage) + "%";
                 Show(results);
+            }
+            else if (started && results != null && results.activeSelf && (manager.State == FloodFillGameManager3D.GameState.Calculating || manager.State == FloodFillGameManager3D.GameState.Playing))
+            {
+                Show(hud);
             }
         }
 
