@@ -450,13 +450,14 @@ MonoBehaviour:
   cameraFillColor: {r: 0.86, g: 0.91, b: 1, a: 1}
   cameraFillIntensity: 0.65
   orbitSensitivity: 0.2
-  panSensitivity: 1.25
-  zoomSensitivity: 1.25
+  panSensitivity: 3
+  zoomSensitivity: 10
   minimumPitch: -75
   maximumPitch: 75
   minimumDistance: 4
   maximumDistance: 30
   framePadding: 1.22
+  boardSurfaceClearance: 15
   doubleTapMaximumDelay: 0.32
   tapMaximumMovement: 36
   doubleTapMaximumSeparation: 80

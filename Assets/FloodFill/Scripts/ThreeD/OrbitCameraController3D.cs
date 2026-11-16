@@ -30,6 +30,7 @@ namespace FloodFill.ThreeD
         [SerializeField, Min(0.1f)] private float minimumDistance = 4f;
         [SerializeField, Min(0.1f)] private float maximumDistance = 30f;
         [SerializeField, Min(1f)] private float framePadding = 1.22f;
+        [SerializeField, Min(0f)] private float boardSurfaceClearance = 0.75f;
 
         [Header("Double Tap Zoom Reset")]
         [SerializeField, Range(0.1f, 0.6f)] private float doubleTapMaximumDelay = 0.32f;
@@ -42,6 +43,10 @@ namespace FloodFill.ThreeD
         private float pitch = 28f;
         private float distance = 12f;
         private float defaultDistance = 12f;
+        private float configuredMaximumDistance;
+        private bool hasConfiguredMaximumDistance;
+        private Vector3 framedBoundsCenter;
+        private float framedBoundsRadius;
         private float zoomResetStartDistance;
         private float zoomResetElapsed;
         private bool zoomResetAnimating;
@@ -97,16 +102,29 @@ namespace FloodFill.ThreeD
 
         public void FrameBounds(Bounds bounds)
         {
+            framedBoundsCenter = bounds.center;
+            framedBoundsRadius = Mathf.Max(0f, bounds.extents.magnitude);
             targetPosition = bounds.center;
             yaw = -40f;
             pitch = 28f;
             float fieldOfView = targetCamera != null ? targetCamera.fieldOfView : 50f;
-            float halfFovRadians = Mathf.Max(1f, fieldOfView * 0.5f) * Mathf.Deg2Rad;
+            float halfVerticalFov = Mathf.Max(1f, fieldOfView * 0.5f) * Mathf.Deg2Rad;
+            float aspect = targetCamera != null ? Mathf.Max(0.1f, targetCamera.aspect) : 1f;
+            float halfHorizontalFov = Mathf.Atan(Mathf.Tan(halfVerticalFov) * aspect);
+            float limitingHalfFov = Mathf.Min(halfVerticalFov, halfHorizontalFov);
             float radius = Mathf.Max(0.5f, bounds.extents.magnitude);
-            distance = Mathf.Clamp(
-                radius / Mathf.Sin(halfFovRadians) * framePadding,
+            distance = Mathf.Max(
                 minimumDistance,
-                maximumDistance);
+                radius / Mathf.Sin(limitingHalfFov) * framePadding);
+            // Large boards and narrow portrait screens can need more distance than
+            // the default zoom limit. Raise the limit to the fitted distance so the
+            // board stays fully visible and the player can still zoom out farther.
+            if (!hasConfiguredMaximumDistance)
+            {
+                configuredMaximumDistance = maximumDistance;
+                hasConfiguredMaximumDistance = true;
+            }
+            maximumDistance = Mathf.Max(configuredMaximumDistance, distance);
             defaultDistance = distance;
             zoomResetAnimating = false;
             ApplyCameraTransform();
@@ -166,6 +184,11 @@ namespace FloodFill.ThreeD
 
         private void Awake()
         {
+            if (!hasConfiguredMaximumDistance)
+            {
+                configuredMaximumDistance = maximumDistance;
+                hasConfiguredMaximumDistance = true;
+            }
             EnsureCameraFillLight();
             ApplyCameraTransform();
         }
@@ -443,10 +466,36 @@ namespace FloodFill.ThreeD
         private void Zoom(float amount)
         {
             zoomResetAnimating = false;
+            float outsideDistance = GetMinimumOutsideDistance();
+            maximumDistance = Mathf.Max(maximumDistance, outsideDistance);
             distance = Mathf.Clamp(
                 distance - amount * zoomSensitivity,
-                minimumDistance,
+                outsideDistance,
                 maximumDistance);
+        }
+
+        private float GetMinimumOutsideDistance()
+        {
+            float minimum = minimumDistance;
+            if (framedBoundsRadius <= 0f) return minimum;
+
+            float clearance = Mathf.Max(
+                boardSurfaceClearance,
+                targetCamera != null ? targetCamera.nearClipPlane + 0.15f : 0.5f);
+            float safeRadius = framedBoundsRadius + clearance;
+            Quaternion cameraRotation = Quaternion.Euler(0f, yaw, 0f) *
+                                        Quaternion.Euler(pitch, 0f, 0f);
+            Vector3 forward = cameraRotation * Vector3.forward;
+            Vector3 targetOffset = targetPosition - framedBoundsCenter;
+            float alongView = Vector3.Dot(targetOffset, forward);
+            Vector3 perpendicularOffset = targetOffset - forward * alongView;
+            float remainingRadiusSquared = safeRadius * safeRadius - perpendicularOffset.sqrMagnitude;
+            if (remainingRadiusSquared <= 0f) return minimum;
+
+            // Keep the camera on the far side of the board's bounding sphere, even
+            // after the player pans or orbits before zooming in.
+            float farSideDistance = alongView + Mathf.Sqrt(remainingRadiusSquared);
+            return Mathf.Max(minimum, farSideDistance);
         }
 
         private static bool IsFinite(float value)
@@ -544,6 +593,13 @@ namespace FloodFill.ThreeD
             if (cameraPivot == null || targetCamera == null)
             {
                 return;
+            }
+
+            float outsideDistance = GetMinimumOutsideDistance();
+            if (distance < outsideDistance)
+            {
+                distance = outsideDistance;
+                maximumDistance = Mathf.Max(maximumDistance, distance);
             }
 
             transform.position = targetPosition;
