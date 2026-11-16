@@ -45,7 +45,7 @@ namespace FloodFill.ThreeD
         private TMP_Text fruitDropdownText;
         private TMP_Text fruitComingSoon;
         private Toggle showCurrentBlockToggle;
-        private TMP_Text moves, captured, score, resultTitle, resultDetails;
+        private TMP_Text moves, captured, score, resultTitle, resultDetails, gameTitle;
         private Image progress;
         private int modeIndex, sizeIndex, difficultyIndex = 1, fruitIndex;
         private static readonly string[] FruitNames = { "RANDOM FRUIT", "APPLE", "BANANA", "ORANGE", "PEAR", "STRAWBERRY", "GRAPES", "PINEAPPLE", "LEMON", "MANGO" };
@@ -160,7 +160,7 @@ namespace FloodFill.ThreeD
             hud.GetComponent<Image>().color = Color.clear;
             hud.GetComponent<Image>().raycastTarget = false;
             AddButton(hud.transform, "HOME", new Vector2(-390, 820), new Vector2(155, 72), Panel, OpenPause, 26);
-            AddText(hud.transform, "FLOOD FILL 3D", 28, FontStyles.Bold, new Vector2(0, 820), new Vector2(450, 62));
+            gameTitle = AddText(hud.transform, "FLOOD FILL 3D", 28, FontStyles.Bold, new Vector2(0, 820), new Vector2(450, 62));
             AddButton(hud.transform, "PAUSE", new Vector2(390, 820), new Vector2(155, 72), Panel, OpenPause, 26);
             BuildStat(hud.transform, "MOVES", new Vector2(-285, 670), out moves);
             BuildStat(hud.transform, "CAPTURED", new Vector2(0, 670), out captured);
@@ -472,13 +472,8 @@ namespace FloodFill.ThreeD
         private void PlayConfiguredGame()
         {
             SaveSetupSelections();
-            if (modeIndex == 2)
-            {
-                Show(setup);
-                return;
-            }
             started = true;
-            manager.StartConfiguredGame(modeIndex, sizeIndex, difficultyIndex);
+            manager.StartCampaignGame(difficultyIndex);
             Show(hud);
         }
         private void Continue()
@@ -512,11 +507,8 @@ namespace FloodFill.ThreeD
         private void Resume() { manager.ResumeGame(); Show(hud); }
         private void Restart()
         {
-            int activeMode = manager.SelectedBoardMode == VoxelBoardManager3D.VoxelVolumeMode.HollowCube ? 1 : 0;
-            int activeSizeIndex = System.Array.IndexOf(sizes, manager.SelectedBoardSize);
-            if (activeSizeIndex < 0) activeSizeIndex = sizeIndex;
             started = true;
-            manager.StartConfiguredGame(activeMode, activeSizeIndex, (int)manager.SelectedDifficulty);
+            manager.RestartCurrentGame();
             Show(hud);
         }
         private void BackToMenu() { manager.ReturnToMenu(); started = false; Show(menu); }
@@ -524,6 +516,10 @@ namespace FloodFill.ThreeD
         private void Refresh()
         {
             if (!started || moves == null) return;
+            if (gameTitle != null)
+                gameTitle.text = manager.IsCampaignGame
+                    ? "LEVEL " + manager.ActiveCampaignLevel
+                    : "FLOOD FILL 3D";
             moves.text = manager.State == FloodFillGameManager3D.GameState.Calculating ? "…" : manager.MoveCount + " / " + manager.CurrentMoveBudget;
             captured.text = Mathf.RoundToInt(manager.CapturedPercentage) + "%";
             score.text = manager.Score.ToString("N0");
@@ -536,7 +532,8 @@ namespace FloodFill.ThreeD
             if (manager.State == FloodFillGameManager3D.GameState.Won || manager.State == FloodFillGameManager3D.GameState.Lost)
             {
                 resultTitle.text = manager.State == FloodFillGameManager3D.GameState.Won ? "YOU WIN!" : "OUT OF MOVES";
-                resultDetails.text = "Final score: " + manager.Score.ToString("N0") + "\nMoves used: " + manager.MoveCount + "\nCaptured: " + Mathf.RoundToInt(manager.CapturedPercentage) + "%";
+                string levelDetails = manager.IsCampaignGame ? "Level: " + manager.ActiveCampaignLevel + "\n" : string.Empty;
+                resultDetails.text = levelDetails + "Final score: " + manager.Score.ToString("N0") + "\nMoves used: " + manager.MoveCount + "\nCaptured: " + Mathf.RoundToInt(manager.CapturedPercentage) + "%";
                 Show(results);
             }
         }

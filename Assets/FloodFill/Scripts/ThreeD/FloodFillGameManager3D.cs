@@ -30,6 +30,10 @@ namespace FloodFill.ThreeD
         {
             6, 8, 10, 12, 15, 18, 20
         };
+        private const int CampaignLevelsPerSize = 5;
+        private const string CampaignLevelKey = "FloodFill3D.CampaignLevel";
+        private const string CampaignRandomSizeLevelKey = "FloodFill3D.CampaignRandomSizeLevel";
+        private const string CampaignRandomSizeIndexKey = "FloodFill3D.CampaignRandomSizeIndex";
 
         [Header("Game")]
         [SerializeField] private FloodFillDifficulty difficulty = FloodFillDifficulty.Normal;
@@ -68,6 +72,8 @@ namespace FloodFill.ThreeD
         private int solverGenerationId;
         private int currentMoveBudget = 1;
         private bool gameSessionActive;
+        private bool isCampaignGame;
+        private int activeCampaignLevel = 1;
 
         public int MoveCount { get; private set; }
         public int Score { get; private set; }
@@ -83,6 +89,9 @@ namespace FloodFill.ThreeD
         public int CurrentPlayerColor => boardManager != null ? boardManager.CurrentPlayerColor : -1;
         public float CapturedPercentage => boardManager != null ? boardManager.CapturedPercentage : 0f;
         public VoxelBoardManager3D BoardManager => boardManager;
+        public bool IsCampaignGame => isCampaignGame;
+        public int ActiveCampaignLevel => activeCampaignLevel;
+        public int CampaignLevel { get; private set; } = 1;
         public event System.Action UIChanged;
         public event System.Action ManagerReady;
         public bool HasSavedSession { get; private set; }
@@ -99,6 +108,7 @@ namespace FloodFill.ThreeD
             if (boardModeDropdown != null) InitializeBoardModeDropdown();
             if (boardSizeDropdown != null) InitializeBoardSizeDropdown();
             if (difficultyDropdown != null) InitializeDifficultyDropdown();
+            CampaignLevel = Mathf.Max(1, PlayerPrefs.GetInt(CampaignLevelKey, 1));
             HasSavedSession = TryRestoreSavedSession();
             gameSessionActive = HasSavedSession;
             if (HasSavedSession)
@@ -117,11 +127,34 @@ namespace FloodFill.ThreeD
 
         public void StartConfiguredGame(int modeIndex, int sizeIndex, int difficultyIndex)
         {
+            StartGame(modeIndex, sizeIndex, difficultyIndex, false);
+        }
+
+        public void StartCampaignGame(int difficultyIndex)
+        {
+            CampaignLevel = Mathf.Max(1, PlayerPrefs.GetInt(CampaignLevelKey, CampaignLevel));
+            int maxStructuredLevel = BoardSizeOptions.Length * CampaignLevelsPerSize;
+            int sizeIndex = CampaignLevel <= maxStructuredLevel
+                ? (CampaignLevel - 1) / CampaignLevelsPerSize
+                : GetRandomCampaignSizeIndex();
+            int modeIndex = CampaignLevel % CampaignLevelsPerSize == 0 ? 0 : 1;
+            StartGame(modeIndex, sizeIndex, difficultyIndex, true);
+        }
+
+        public void RestartCurrentGame()
+        {
+            RestartGame();
+        }
+
+        private void StartGame(int modeIndex, int sizeIndex, int difficultyIndex, bool campaign)
+        {
             if (modeIndex < 0 || modeIndex >= BoardModeOptions.Length ||
                 sizeIndex < 0 || sizeIndex >= BoardSizeOptions.Length ||
                 difficultyIndex < 0 || difficultyIndex > (int)FloodFillDifficulty.Perfect)
                 return;
             gameSessionActive = true;
+            isCampaignGame = campaign;
+            if (campaign) activeCampaignLevel = CampaignLevel;
             SelectedBoardMode = BoardModeOptions[modeIndex];
             SelectedBoardSize = BoardSizeOptions[sizeIndex];
             difficulty = (FloodFillDifficulty)difficultyIndex;
@@ -129,6 +162,28 @@ namespace FloodFill.ThreeD
             if (boardSizeDropdown != null) boardSizeDropdown.SetValueWithoutNotify(sizeIndex);
             if (difficultyDropdown != null) difficultyDropdown.SetValueWithoutNotify(difficultyIndex);
             RestartGame();
+        }
+
+        private int GetRandomCampaignSizeIndex()
+        {
+            int savedLevel = PlayerPrefs.GetInt(CampaignRandomSizeLevelKey, -1);
+            int savedIndex = PlayerPrefs.GetInt(CampaignRandomSizeIndexKey, -1);
+            if (savedLevel != CampaignLevel || savedIndex < 0 || savedIndex >= BoardSizeOptions.Length)
+            {
+                savedIndex = Random.Range(0, BoardSizeOptions.Length);
+                PlayerPrefs.SetInt(CampaignRandomSizeLevelKey, CampaignLevel);
+                PlayerPrefs.SetInt(CampaignRandomSizeIndexKey, savedIndex);
+                PlayerPrefs.Save();
+            }
+            return savedIndex;
+        }
+
+        private void AdvanceCampaignAfterWin()
+        {
+            if (!isCampaignGame || CampaignLevel > activeCampaignLevel) return;
+            CampaignLevel = activeCampaignLevel + 1;
+            PlayerPrefs.SetInt(CampaignLevelKey, CampaignLevel);
+            PlayerPrefs.Save();
         }
 
         public void PauseGame()
@@ -164,6 +219,7 @@ namespace FloodFill.ThreeD
                 FloodFillSessionPersistence3D.Delete();
                 HasSavedSession = false;
                 gameSessionActive = false;
+                isCampaignGame = false;
             }
             else
             {
@@ -870,6 +926,7 @@ namespace FloodFill.ThreeD
         {
             State = state;
             SetColorInputEnabled(false);
+            if (state == GameState.Won) AdvanceCampaignAfterWin();
             SaveSession();
             if (resultCoroutine != null)
             {
@@ -943,6 +1000,10 @@ namespace FloodFill.ThreeD
             State = System.Enum.IsDefined(typeof(GameState), saved.gameState)
                 ? (GameState)saved.gameState
                 : GameState.Calculating;
+            isCampaignGame = saved.isCampaignGame;
+            activeCampaignLevel = saved.campaignLevel > 0
+                ? saved.campaignLevel
+                : CampaignLevel;
 
             if (resultPanel != null)
             {
@@ -1042,6 +1103,8 @@ namespace FloodFill.ThreeD
                 selectedBoardMode = (int)SelectedBoardMode,
                 selectedBoardSize = SelectedBoardSize,
                 difficulty = (int)difficulty,
+                isCampaignGame = isCampaignGame,
+                campaignLevel = activeCampaignLevel,
                 moveCount = MoveCount,
                 score = Score,
                 currentMoveBudget = currentMoveBudget,

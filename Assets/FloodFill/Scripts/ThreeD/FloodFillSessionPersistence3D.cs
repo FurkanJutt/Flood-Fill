@@ -14,6 +14,8 @@ namespace FloodFill.ThreeD
         public int selectedBoardMode;
         public int selectedBoardSize;
         public int difficulty;
+        public bool isCampaignGame;
+        public int campaignLevel;
         public int moveCount;
         public int score;
         public int currentMoveBudget;
