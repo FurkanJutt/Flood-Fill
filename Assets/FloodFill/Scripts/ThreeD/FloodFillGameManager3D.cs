@@ -145,6 +145,7 @@ namespace FloodFill.ThreeD
         public void ContinueSavedGame()
         {
             if (!HasSavedSession) return;
+            boardManager.RestoreMenuPreview();
             boardManager.SetBoardVisible(true);
             if (State == GameState.Playing)
             {
@@ -209,6 +210,7 @@ namespace FloodFill.ThreeD
 
         public void RestartGame()
         {
+            boardManager.RestoreMenuPreview();
             boardManager.SetBoardVisible(true);
             Stopwatch restartWatch = Stopwatch.StartNew();
             FloodFillSessionPersistence3D.Delete();

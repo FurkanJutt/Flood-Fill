@@ -22,6 +22,7 @@ namespace FloodFill.ThreeD
         private const string SetupModeKey = "FloodFill3D.SetupMode";
         private const string SetupSizeKey = "FloodFill3D.SetupSize";
         private const string SetupDifficultyKey = "FloodFill3D.SetupDifficulty";
+        private const string ShowCurrentBlockKey = "FloodFill3D.ShowCurrentBlock";
         private readonly List<Button> modeButtons = new List<Button>();
         private readonly List<Button> sizeButtons = new List<Button>();
         private readonly List<Button> difficultyButtons = new List<Button>();
@@ -31,10 +32,11 @@ namespace FloodFill.ThreeD
         [SerializeField] private Transform canvasRoot;
         [SerializeField] private VoxelCell3D menuVoxelPrefab;
         [Header("Menu Decoration")]
-        [SerializeField, Min(0f)] private float decorativeGap = 0.01f;
+        [SerializeField, Min(0f)] private float decorativeGap = 0.3f;
         private Transform safeRoot;
         private GameObject menu, setup, howTo, settings, hud, pause, results;
         private GameObject continueButton;
+        private Toggle showCurrentBlockToggle;
         private TMP_Text moves, captured, score, resultTitle, resultDetails;
         private Image progress;
         private int modeIndex, sizeIndex, difficultyIndex = 1;
@@ -89,7 +91,7 @@ namespace FloodFill.ThreeD
             continueButton = AddButton(menu.transform, "CONTINUE", new Vector2(0, -405), new Vector2(700, 92), Panel, Continue, 32).gameObject;
             continueButton.SetActive(false);
             AddButton(menu.transform, "HOW TO PLAY", new Vector2(0, -530), new Vector2(700, 88), Panel, () => Show(howTo), 32);
-            AddButton(menu.transform, "SETTINGS", new Vector2(0, -640), new Vector2(700, 88), Panel, () => Show(settings), 32);
+            AddButton(menu.transform, "SETTINGS", new Vector2(0, -640), new Vector2(700, 88), Panel, OpenSettings, 32);
             if (Application.platform != RuntimePlatform.Android && Application.platform != RuntimePlatform.IPhonePlayer)
                 AddButton(menu.transform, "QUIT", new Vector2(0, -750), new Vector2(500, 72), Panel, Application.Quit, 26);
 
@@ -129,7 +131,8 @@ namespace FloodFill.ThreeD
 
             settings = ModalScreen("Settings");
             AddText(settings.transform, "SETTINGS", 54, FontStyles.Bold, new Vector2(0, 320), new Vector2(800, 90));
-            AddText(settings.transform, "Camera orbit, pan and zoom are enabled during play.\n\nSound and vibration controls are not available in this project yet.", 30, FontStyles.Normal, new Vector2(0, 30), new Vector2(740, 260), Muted, true);
+            AddText(settings.transform, "Camera orbit, pan and zoom are enabled during play.", 30, FontStyles.Normal, new Vector2(0, 145), new Vector2(740, 150), Muted, true);
+            BuildCurrentBlockToggle(settings.transform);
             AddButton(settings.transform, "BACK", new Vector2(0, -260), new Vector2(540, 88), Accent, () => Show(menu), 32);
 
             pause = ModalScreen("PauseMenu");
@@ -157,6 +160,50 @@ namespace FloodFill.ThreeD
                 int index = i; GameObject item = new GameObject("Color_" + i, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button)); item.transform.SetParent(dock.transform, false); item.GetComponent<RectTransform>().sizeDelta = new Vector2(112, 112); item.GetComponent<Image>().color = Palette[i];
                 Button b = item.GetComponent<Button>(); b.onClick.AddListener(() => manager.SelectColor(index)); colorButtons.Add(b);
             }
+        }
+
+        private void BuildCurrentBlockToggle(Transform parent)
+        {
+            GameObject row = MakeRect("ShowCurrentBlockOption", parent, new Vector2(.5f, .5f), new Vector2(.5f, .5f), new Vector2(0, 20), new Vector2(700, 90));
+            HorizontalLayoutGroup layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.spacing = 20f;
+            layout.childControlWidth = false;
+            layout.childControlHeight = false;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            GameObject toggleObject = new GameObject("ShowCurrentBlockToggle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Toggle));
+            toggleObject.transform.SetParent(row.transform, false);
+            toggleObject.GetComponent<RectTransform>().sizeDelta = new Vector2(52, 52);
+            Image background = toggleObject.GetComponent<Image>();
+            background.color = Panel;
+            GameObject checkmark = MakeImage("Checkmark", toggleObject.transform, Vector2.zero, new Vector2(32, 32), Accent);
+            checkmark.GetComponent<RectTransform>().anchorMin = Vector2.zero;
+            checkmark.GetComponent<RectTransform>().anchorMax = Vector2.one;
+            checkmark.GetComponent<RectTransform>().offsetMin = new Vector2(8, 8);
+            checkmark.GetComponent<RectTransform>().offsetMax = new Vector2(-8, -8);
+            showCurrentBlockToggle = toggleObject.GetComponent<Toggle>();
+            showCurrentBlockToggle.targetGraphic = background;
+            showCurrentBlockToggle.graphic = checkmark.GetComponent<Image>();
+            showCurrentBlockToggle.onValueChanged.AddListener(SetShowCurrentBlock);
+
+            TMP_Text label = AddText(row.transform, "SHOW CURRENT BLOCK", 27, FontStyles.Bold, Vector2.zero, new Vector2(520, 64), Color.white, false);
+            label.alignment = TextAlignmentOptions.MidlineLeft;
+            RefreshShowCurrentBlockToggle();
+        }
+
+        private void RefreshShowCurrentBlockToggle()
+        {
+            if (showCurrentBlockToggle == null) return;
+            showCurrentBlockToggle.SetIsOnWithoutNotify(PlayerPrefs.GetInt(ShowCurrentBlockKey, 0) != 0);
+        }
+
+        private void SetShowCurrentBlock(bool enabled)
+        {
+            PlayerPrefs.SetInt(ShowCurrentBlockKey, enabled ? 1 : 0);
+            PlayerPrefs.Save();
+            if (menu != null && menu.activeSelf) UpdateMenuCenterpiece(false);
         }
 
         private void BuildCubeCluster(Transform parent)
@@ -262,6 +309,7 @@ namespace FloodFill.ThreeD
             PlayerPrefs.SetInt(SetupDifficultyKey, difficultyIndex);
             PlayerPrefs.Save();
         }
+
         private void RefreshChoices()
         {
             MarkChoices(modeButtons, modeIndex); MarkChoices(sizeButtons, sizeIndex); MarkChoices(difficultyButtons, difficultyIndex);
@@ -295,8 +343,14 @@ namespace FloodFill.ThreeD
                 difficultyIndex = (int)manager.SelectedDifficulty;
                 RefreshChoices();
             }
+            if (menu != null && menu.activeSelf) UpdateMenuCenterpiece(false);
         }
         private void OpenPause() { if (manager.State == FloodFillGameManager3D.GameState.Playing) { manager.PauseGame(); Show(pause); } }
+        private void OpenSettings()
+        {
+            RefreshShowCurrentBlockToggle();
+            Show(settings);
+        }
         private void Resume() { manager.ResumeGame(); Show(hud); }
         private void Restart() { started = true; manager.StartConfiguredGame(modeIndex, sizeIndex, difficultyIndex); Show(hud); }
         private void BackToMenu() { manager.ReturnToMenu(); started = false; Show(menu); }
@@ -328,13 +382,34 @@ namespace FloodFill.ThreeD
             if (target == menu)
             {
                 RefreshContinue();
-                RebuildDecorativeCubeCluster();
             }
-            else if (cubeCluster != null)
+            else
             {
-                cubeCluster.SetActive(false);
+                VoxelBoardManager3D board = manager != null ? manager.BoardManager : null;
+                if (board != null && board.RestoreMenuPreview()) board.SetBoardVisible(false);
+                if (cubeCluster != null) cubeCluster.SetActive(false);
             }
             if (target == hud) { manager.ResumeGame(); }
+        }
+
+        private void UpdateMenuCenterpiece(bool rebuildDecorative)
+        {
+            VoxelBoardManager3D board = manager != null ? manager.BoardManager : null;
+            bool showCurrentBlock = PlayerPrefs.GetInt(ShowCurrentBlockKey, 0) != 0;
+            bool showingCurrent = showCurrentBlock && board != null && board.ShowMenuPreview(Camera.main);
+            if (showingCurrent)
+            {
+                if (cubeCluster != null) cubeCluster.SetActive(false);
+                return;
+            }
+
+            if (board != null)
+            {
+                if (board.RestoreMenuPreview()) board.SetBoardVisible(false);
+                board.SetBoardVisible(false);
+            }
+            if (rebuildDecorative || cubeCluster == null) RebuildDecorativeCubeCluster();
+            else cubeCluster.SetActive(true);
         }
 
         private void RebuildDecorativeCubeCluster()

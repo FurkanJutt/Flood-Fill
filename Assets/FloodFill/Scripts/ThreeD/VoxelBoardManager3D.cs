@@ -85,6 +85,13 @@ namespace FloodFill.ThreeD
         private Vector3 boardRestingScale = Vector3.one;
         private Quaternion boardRestingRotation = Quaternion.identity;
         private bool hasBoardRestingTransform;
+        private bool menuPreviewActive;
+        private Transform menuPreviewOriginalParent;
+        private Vector3 menuPreviewOriginalPosition;
+        private Quaternion menuPreviewOriginalRotation;
+        private Vector3 menuPreviewOriginalScale;
+        private DecorativeRotation3D menuPreviewRotation;
+        private bool ownsMenuPreviewRotation;
         private Sequence winIntroSequence;
         private Tween winRotationTween;
 
@@ -132,6 +139,7 @@ namespace FloodFill.ThreeD
             ? CapturedVoxelCount * 100f / TotalVoxelCount
             : 0f;
         public bool IsFullyCaptured => TotalVoxelCount > 0 && CapturedVoxelCount == TotalVoxelCount;
+        public bool HasActiveBoard => boardRoot != null && allVoxels.Count > 0;
         public VoxelCell3D StartingVoxel { get; private set; }
 
         public bool GenerateBoard(Color[] colors)
@@ -521,6 +529,55 @@ namespace FloodFill.ThreeD
         public void SetBoardVisible(bool visible)
         {
             if (boardRoot != null) boardRoot.gameObject.SetActive(visible);
+        }
+
+        public bool ShowMenuPreview(Camera menuCamera)
+        {
+            if (!HasActiveBoard || menuCamera == null) return false;
+            if (menuPreviewActive) RestoreMenuPreview();
+            StopWinCelebration(true);
+            menuPreviewOriginalParent = boardRoot.parent;
+            menuPreviewOriginalPosition = boardRoot.localPosition;
+            menuPreviewOriginalRotation = boardRoot.localRotation;
+            menuPreviewOriginalScale = boardRoot.localScale;
+            menuPreviewActive = true;
+
+            if (!TryGetWorldBounds(out Bounds bounds))
+            {
+                menuPreviewActive = false;
+                menuPreviewOriginalParent = null;
+                return false;
+            }
+            float largestDimension = Mathf.Max(bounds.size.x, Mathf.Max(bounds.size.y, bounds.size.z));
+            float previewScale = largestDimension > 0f ? 1.65f / largestDimension : 0.1f;
+            boardRoot.SetParent(menuCamera.transform, false);
+            boardRoot.localPosition = new Vector3(0f, 0.65f, 8f);
+            boardRoot.localRotation = Quaternion.Euler(-16f, 24f, 0f);
+            boardRoot.localScale = Vector3.one * previewScale;
+            boardRoot.gameObject.SetActive(true);
+            if (menuPreviewRotation == null)
+            {
+                menuPreviewRotation = boardRoot.GetComponent<DecorativeRotation3D>();
+                ownsMenuPreviewRotation = menuPreviewRotation == null;
+                if (ownsMenuPreviewRotation) menuPreviewRotation = boardRoot.gameObject.AddComponent<DecorativeRotation3D>();
+            }
+            if (menuPreviewRotation != null) menuPreviewRotation.enabled = true;
+            return true;
+        }
+
+        public bool RestoreMenuPreview()
+        {
+            if (!menuPreviewActive || boardRoot == null) return false;
+            if (ownsMenuPreviewRotation && menuPreviewRotation != null)
+                menuPreviewRotation.enabled = false;
+            boardRoot.SetParent(menuPreviewOriginalParent, false);
+            boardRoot.localPosition = menuPreviewOriginalPosition;
+            boardRoot.localRotation = menuPreviewOriginalRotation;
+            boardRoot.localScale = menuPreviewOriginalScale;
+            boardRoot.gameObject.SetActive(false);
+            menuPreviewActive = false;
+            menuPreviewOriginalParent = null;
+            return true;
         }
 
         public void PlayStartAnimation()
