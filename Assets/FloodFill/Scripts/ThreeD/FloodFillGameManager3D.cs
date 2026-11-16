@@ -146,7 +146,11 @@ namespace FloodFill.ThreeD
         {
             if (!HasSavedSession) return;
             boardManager.SetBoardVisible(true);
-            if (State == GameState.Playing) boardManager.SetInputEnabled(true);
+            if (State == GameState.Playing)
+            {
+                boardManager.PlayStartAnimation();
+                boardManager.SetInputEnabled(true);
+            }
         }
 
         public void ReturnToMenu()
@@ -248,6 +252,8 @@ namespace FloodFill.ThreeD
                 cameraWatch.Stop();
                 cameraFramingMilliseconds = cameraWatch.Elapsed.TotalMilliseconds;
             }
+
+            boardManager.PlayStartAnimation();
 
             RefreshUI();
             if (boardManager.IsFullyCaptured)

@@ -76,7 +76,7 @@ Material:
     - _FlatRimSize: 0.5
     - _FlatSpecularEdgeSmoothness: 0.35
     - _FlatSpecularSize: 0.08
-    - _Flatness: 0.92
+    - _Flatness: 1
     - _FlatnessExtra: 1
     - _GradientAngle: 0
     - _GradientCenterX: 0
@@ -96,9 +96,9 @@ Material:
     - _OverrideLightmapDir: 0
     - _QueueOffset: 0
     - _RimEnabled: 0
-    - _SelfShadingSize: 0.52
+    - _SelfShadingSize: 0.65
     - _SelfShadingSizeExtra: 0.6
-    - _ShadowEdgeSize: 0.06
+    - _ShadowEdgeSize: 0.351
     - _ShadowEdgeSizeExtra: 0.05
     - _SpecularEnabled: 0
     - _SrcBlend: 1

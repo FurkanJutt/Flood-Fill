@@ -346,6 +346,7 @@ MonoBehaviour:
   manager: {fileID: 99276400}
   canvasRoot: {fileID: 626835849}
   menuVoxelPrefab: {fileID: 5850776491364219721, guid: a424f5487f9f3425b85560e5b7b75970, type: 3}
+  decorativeGap: 0.3
 --- !u!114 &99276400
 MonoBehaviour:
   m_ObjectHideFlags: 0

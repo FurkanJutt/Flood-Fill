@@ -523,6 +523,17 @@ namespace FloodFill.ThreeD
             if (boardRoot != null) boardRoot.gameObject.SetActive(visible);
         }
 
+        public void PlayStartAnimation()
+        {
+            if (boardRoot == null) return;
+            CacheBoardRestingTransform();
+            boardRoot.DOKill();
+            boardRoot.localScale = boardRestingScale * 0.82f;
+            boardRoot.DOScale(boardRestingScale, 0.42f)
+                .SetEase(Ease.OutBack)
+                .SetUpdate(true);
+        }
+
         public bool TrySelectVoxelAtScreenPosition(Vector2 screenPosition)
         {
             if (!inputEnabled || !TryGetVoxelAtScreenPosition(screenPosition, out VoxelCell3D voxel))

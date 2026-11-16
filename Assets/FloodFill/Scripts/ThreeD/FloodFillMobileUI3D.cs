@@ -30,6 +30,8 @@ namespace FloodFill.ThreeD
         [SerializeField] private FloodFillGameManager3D manager;
         [SerializeField] private Transform canvasRoot;
         [SerializeField] private VoxelCell3D menuVoxelPrefab;
+        [Header("Menu Decoration")]
+        [SerializeField, Min(0f)] private float decorativeGap = 0.01f;
         private Transform safeRoot;
         private GameObject menu, setup, howTo, settings, hud, pause, results;
         private GameObject continueButton;
@@ -78,9 +80,11 @@ namespace FloodFill.ThreeD
         private void BuildScreens()
         {
             menu = Screen("MainMenu");
+            Image menuBackground = menu.GetComponent<Image>();
+            menuBackground.color = new Color(0f, 0f, 0f, 0.001f);
+            menuBackground.raycastTarget = true;
             AddText(menu.transform, "FLOOD FILL 3D", 72, FontStyles.Bold, new Vector2(0, 610), new Vector2(900, 110));
             AddText(menu.transform, "A colorful spatial puzzle", 32, FontStyles.Normal, new Vector2(0, 535), new Vector2(850, 58), Muted);
-            BuildCubeCluster(menu.transform);
             AddButton(menu.transform, "PLAY", new Vector2(0, -280), new Vector2(700, 112), Accent, () => Show(setup), 42);
             continueButton = AddButton(menu.transform, "CONTINUE", new Vector2(0, -405), new Vector2(700, 92), Panel, Continue, 32).gameObject;
             continueButton.SetActive(false);
@@ -158,22 +162,54 @@ namespace FloodFill.ThreeD
         private void BuildCubeCluster(Transform parent)
         {
             cubeCluster = new GameObject("DecorativeCubeCluster");
-            for (int i = 0; i < 19; i++)
+            const float decorativeVoxelSize = 0.68f;
+            const float decorativeClusterScale = 0.4f;
+            float decorativeVoxelSpacing = decorativeVoxelSize +
+                Mathf.Max(0f, decorativeGap) / decorativeClusterScale;
+            for (int x = -1; x <= 1; x++)
             {
-                int x = i % 3 - 1, y = (i / 3) % 3 - 1, z = i / 9 - 1;
-                if ((x == 0 && y == 0 && z == 0) || (i % 4 == 0 && Mathf.Abs(x + y + z) > 1)) continue;
-                if (menuVoxelPrefab == null) continue;
-                VoxelCell3D cube = Instantiate(menuVoxelPrefab, cubeCluster.transform);
-                cube.name = "MenuCube";
-                cube.transform.localPosition = new Vector3(x, y, z) * .92f;
-                cube.transform.localScale = Vector3.one * .86f;
-                cube.SetColor((i * 7) % Palette.Length, Palette[(i * 7) % Palette.Length]);
-                cube.SetShadowCasting(false);
-                Collider cubeCollider = cube.GetComponent<Collider>();
-                if (cubeCollider != null) cubeCollider.enabled = false;
+                for (int y = -1; y <= 1; y++)
+                {
+                    for (int z = -1; z <= 1; z++)
+                    {
+                        if (!ShouldCreateDecorativeVoxel(x, y, z) || menuVoxelPrefab == null) continue;
+
+                        int colorIndex = Mathf.Abs(x * 3 + y * 5 + z * 7) % Palette.Length;
+                        VoxelCell3D cube = Instantiate(menuVoxelPrefab, cubeCluster.transform);
+                        cube.name = "MenuCube";
+                        cube.transform.localPosition = new Vector3(x, y, z) * decorativeVoxelSpacing;
+                        cube.transform.localScale = Vector3.one * decorativeVoxelSize;
+                        cube.SetColor(colorIndex, Palette[colorIndex]);
+                        cube.SetShadowCasting(false);
+                        Collider cubeCollider = cube.GetComponent<Collider>();
+                        if (cubeCollider != null) cubeCollider.enabled = false;
+                    }
+                }
             }
-            cubeCluster.transform.position = Vector3.zero;
+            Camera menuCamera = Camera.main;
+            if (menuCamera != null)
+            {
+                cubeCluster.transform.SetParent(menuCamera.transform, false);
+                cubeCluster.transform.localPosition = new Vector3(0f, 0.65f, 8f);
+                cubeCluster.transform.localRotation = Quaternion.identity;
+                cubeCluster.transform.localScale = Vector3.one * decorativeClusterScale;
+            }
+            else
+            {
+                cubeCluster.transform.position = Vector3.zero;
+            }
             cubeCluster.AddComponent<DecorativeRotation3D>();
+        }
+
+        private static bool ShouldCreateDecorativeVoxel(int x, int y, int z)
+        {
+            // Keep a compact, cube-like silhouette with a few open cells for depth.
+            if (x == 0 && y == 0 && z == 0) return false;
+            return Mathf.Abs(x + y + z) != 3 &&
+                   !(x == -1 && y == 1 && z == 0) &&
+                   !(x == 1 && y == -1 && z == 0) &&
+                   !(x == 0 && y == 1 && z == 1) &&
+                   !(x == 0 && y == -1 && z == -1);
         }
 
         private void BuildStat(Transform parent, string label, Vector2 position, out TMP_Text value)
@@ -289,9 +325,31 @@ namespace FloodFill.ThreeD
         {
             HideAll(); target.SetActive(true); target.transform.SetAsLastSibling();
             target.transform.localScale = Vector3.one * .96f; target.transform.DOScale(1f, .22f).SetEase(Ease.OutBack);
-            if (target == menu) RefreshContinue();
-            if (cubeCluster != null) cubeCluster.SetActive(target == menu);
+            if (target == menu)
+            {
+                RefreshContinue();
+                RebuildDecorativeCubeCluster();
+            }
+            else if (cubeCluster != null)
+            {
+                cubeCluster.SetActive(false);
+            }
             if (target == hud) { manager.ResumeGame(); }
+        }
+
+        private void RebuildDecorativeCubeCluster()
+        {
+            if (cubeCluster != null) Destroy(cubeCluster);
+            Camera menuCamera = Camera.main;
+            if (menuCamera != null)
+            {
+                for (int i = menuCamera.transform.childCount - 1; i >= 0; i--)
+                {
+                    Transform child = menuCamera.transform.GetChild(i);
+                    if (child.name == "DecorativeCubeCluster") Destroy(child.gameObject);
+                }
+            }
+            BuildCubeCluster(menu.transform);
         }
         private void HideAll() { menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); }
 
