@@ -156,10 +156,20 @@ namespace FloodFill.ThreeD
 
         public void ReturnToMenu()
         {
-            SaveSession();
             boardManager.SetInputEnabled(false);
             boardManager.SetBoardVisible(false);
-            HasSavedSession = true;
+            bool completed = State == GameState.Won || State == GameState.Lost;
+            if (completed)
+            {
+                FloodFillSessionPersistence3D.Delete();
+                HasSavedSession = false;
+                gameSessionActive = false;
+            }
+            else
+            {
+                SaveSession();
+                HasSavedSession = true;
+            }
             UIChanged?.Invoke();
         }
 

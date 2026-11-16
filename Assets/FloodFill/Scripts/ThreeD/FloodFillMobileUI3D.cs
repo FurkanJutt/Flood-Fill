@@ -22,11 +22,14 @@ namespace FloodFill.ThreeD
         private const string SetupModeKey = "FloodFill3D.SetupMode";
         private const string SetupSizeKey = "FloodFill3D.SetupSize";
         private const string SetupDifficultyKey = "FloodFill3D.SetupDifficulty";
+        private const string SetupFruitKey = "FloodFill3D.SetupFruit";
         private const string ShowCurrentBlockKey = "FloodFill3D.ShowCurrentBlock";
         private readonly List<Button> modeButtons = new List<Button>();
         private readonly List<Button> sizeButtons = new List<Button>();
         private readonly List<Button> difficultyButtons = new List<Button>();
         private readonly List<Button> colorButtons = new List<Button>();
+        private readonly List<RectTransform> menuButtonRects = new List<RectTransform>();
+        private readonly List<float> menuButtonPreferredWidths = new List<float>();
         private readonly int[] sizes = { 6, 8, 10, 12, 15, 18, 20 };
         [SerializeField] private FloodFillGameManager3D manager;
         [SerializeField] private Transform canvasRoot;
@@ -36,10 +39,16 @@ namespace FloodFill.ThreeD
         private Transform safeRoot;
         private GameObject menu, setup, howTo, settings, hud, pause, results;
         private GameObject continueButton;
+        private RectTransform menuButtonsRoot;
+        private GameObject sizeLabel, fruitLabel, fruitDropdownMenu;
+        private Button fruitDropdownButton;
+        private TMP_Text fruitDropdownText;
+        private TMP_Text fruitComingSoon;
         private Toggle showCurrentBlockToggle;
         private TMP_Text moves, captured, score, resultTitle, resultDetails;
         private Image progress;
-        private int modeIndex, sizeIndex, difficultyIndex = 1;
+        private int modeIndex, sizeIndex, difficultyIndex = 1, fruitIndex;
+        private static readonly string[] FruitNames = { "RANDOM FRUIT", "APPLE", "BANANA", "ORANGE", "PEAR", "STRAWBERRY", "GRAPES", "PINEAPPLE", "LEMON", "MANGO" };
         private bool started;
         private GameObject cubeCluster;
 
@@ -57,6 +66,7 @@ namespace FloodFill.ThreeD
         }
 
         private bool built;
+        private Vector2 lastMenuLayoutSize;
         public bool IsBuilt => built;
 
         private void BuildUI()
@@ -85,22 +95,62 @@ namespace FloodFill.ThreeD
             Image menuBackground = menu.GetComponent<Image>();
             menuBackground.color = new Color(0f, 0f, 0f, 0.001f);
             menuBackground.raycastTarget = true;
-            AddText(menu.transform, "FLOOD FILL 3D", 72, FontStyles.Bold, new Vector2(0, 610), new Vector2(900, 110));
-            AddText(menu.transform, "A colorful spatial puzzle", 32, FontStyles.Normal, new Vector2(0, 535), new Vector2(850, 58), Muted);
-            AddButton(menu.transform, "PLAY", new Vector2(0, -280), new Vector2(700, 112), Accent, () => Show(setup), 42);
-            continueButton = AddButton(menu.transform, "CONTINUE", new Vector2(0, -405), new Vector2(700, 92), Panel, Continue, 32).gameObject;
+            TMP_Text menuTitle = AddText(menu.transform, "FLOOD FILL 3D", 72, FontStyles.Bold, Vector2.zero, new Vector2(900, 110));
+            RectTransform menuTitleRect = menuTitle.rectTransform;
+            menuTitleRect.anchorMin = new Vector2(0f, 1f);
+            menuTitleRect.anchorMax = new Vector2(1f, 1f);
+            menuTitleRect.pivot = new Vector2(.5f, 1f);
+            menuTitleRect.sizeDelta = new Vector2(-48f, 110f);
+            menuTitleRect.anchoredPosition = new Vector2(0f, -105f);
+            TMP_Text menuDescription = AddText(menu.transform, "A colorful spatial puzzle", 32, FontStyles.Normal, Vector2.zero, new Vector2(850, 58), Muted);
+            RectTransform menuDescriptionRect = menuDescription.rectTransform;
+            menuDescriptionRect.anchorMin = new Vector2(0f, 1f);
+            menuDescriptionRect.anchorMax = new Vector2(1f, 1f);
+            menuDescriptionRect.pivot = new Vector2(.5f, 1f);
+            menuDescriptionRect.sizeDelta = new Vector2(-48f, 58f);
+            menuDescriptionRect.anchoredPosition = new Vector2(0f, -190f);
+
+            GameObject menuButtons = new GameObject("MenuButtons", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            menuButtons.transform.SetParent(menu.transform, false);
+            menuButtonsRoot = menuButtons.GetComponent<RectTransform>();
+            menuButtonsRoot.anchorMin = new Vector2(0f, 0f);
+            menuButtonsRoot.anchorMax = new Vector2(1f, 0f);
+            menuButtonsRoot.pivot = new Vector2(.5f, 0f);
+            menuButtonsRoot.offsetMin = new Vector2(24f, 70f);
+            menuButtonsRoot.offsetMax = new Vector2(-24f, 70f);
+            VerticalLayoutGroup menuButtonLayout = menuButtons.GetComponent<VerticalLayoutGroup>();
+            menuButtonLayout.childAlignment = TextAnchor.UpperCenter;
+            menuButtonLayout.spacing = 12f;
+            menuButtonLayout.childControlWidth = false;
+            menuButtonLayout.childControlHeight = false;
+            menuButtonLayout.childForceExpandWidth = false;
+            menuButtonLayout.childForceExpandHeight = false;
+            ContentSizeFitter menuButtonFitter = menuButtons.GetComponent<ContentSizeFitter>();
+            menuButtonFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            menuButtonFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            RegisterMenuButton(AddButton(menuButtons.transform, "PLAY", Vector2.zero, new Vector2(700, 94), Accent, PlayConfiguredGame, 36));
+            continueButton = AddButton(menuButtons.transform, "CONTINUE", Vector2.zero, new Vector2(700, 82), Panel, Continue, 30).gameObject;
+            RegisterMenuButton(continueButton.GetComponent<Button>());
             continueButton.SetActive(false);
-            AddButton(menu.transform, "HOW TO PLAY", new Vector2(0, -530), new Vector2(700, 88), Panel, () => Show(howTo), 32);
-            AddButton(menu.transform, "SETTINGS", new Vector2(0, -640), new Vector2(700, 88), Panel, OpenSettings, 32);
+            RegisterMenuButton(AddButton(menuButtons.transform, "CUSTOM", Vector2.zero, new Vector2(700, 82), Panel, () => Show(setup), 30));
+            RegisterMenuButton(AddButton(menuButtons.transform, "HOW TO PLAY", Vector2.zero, new Vector2(700, 82), Panel, () => Show(howTo), 30));
+            RegisterMenuButton(AddButton(menuButtons.transform, "SETTINGS", Vector2.zero, new Vector2(700, 82), Panel, OpenSettings, 30));
             if (Application.platform != RuntimePlatform.Android && Application.platform != RuntimePlatform.IPhonePlayer)
-                AddButton(menu.transform, "QUIT", new Vector2(0, -750), new Vector2(500, 72), Panel, Application.Quit, 26);
+                RegisterMenuButton(AddButton(menuButtons.transform, "QUIT", Vector2.zero, new Vector2(500, 68), Panel, Application.Quit, 25));
+            RefreshMenuLayout(true);
 
             setup = Screen("GameSetup");
             AddText(setup.transform, "GAME SETUP", 58, FontStyles.Bold, new Vector2(0, 690), new Vector2(850, 90));
             AddText(setup.transform, "GAME MODE", 28, FontStyles.Bold, new Vector2(0, 555), new Vector2(800, 50), Muted);
-            AddChoiceRow(setup.transform, modeButtons, new[] { "RANDOM SHAPE", "FULL GRID" }, new Vector2(0, 475), new Vector2(390, 86), SetMode);
-            AddText(setup.transform, "BOARD SIZE", 28, FontStyles.Bold, new Vector2(0, 335), new Vector2(800, 50), Muted);
+            AddChoiceRow(setup.transform, modeButtons, new[] { "RANDOM SHAPE", "FULL GRID", "FRUITS" }, new Vector2(0, 475), new Vector2(275, 86), SetMode);
+            sizeLabel = AddText(setup.transform, "BOARD SIZE", 28, FontStyles.Bold, new Vector2(0, 335), new Vector2(800, 50), Muted).gameObject;
             AddChoiceRow(setup.transform, sizeButtons, new[] { "6", "8", "10", "12", "15", "18", "20" }, new Vector2(0, 245), new Vector2(130, 78), SetSize);
+            fruitLabel = AddText(setup.transform, "FRUIT", 28, FontStyles.Bold, new Vector2(0, 335), new Vector2(800, 50), Muted).gameObject;
+            fruitDropdownButton = AddButton(setup.transform, "RANDOM FRUIT  ▼", new Vector2(0, 245), new Vector2(540, 78), Panel, ToggleFruitDropdown, 28);
+            fruitDropdownText = fruitDropdownButton.GetComponentInChildren<TMP_Text>();
+            BuildFruitDropdown(setup.transform);
+            fruitComingSoon = AddText(setup.transform, "COMING SOON", 25, FontStyles.Bold, new Vector2(0, 155), new Vector2(800, 44), Muted).gameObject.GetComponent<TMP_Text>();
             AddText(setup.transform, "DIFFICULTY", 28, FontStyles.Bold, new Vector2(0, 95), new Vector2(800, 50), Muted);
             AddChoiceRow(setup.transform, difficultyButtons, new[] { "EASY", "NORMAL", "HARD", "PERFECT" }, new Vector2(0, 5), new Vector2(190, 82), SetDifficulty);
             AddButton(setup.transform, "START GAME", new Vector2(0, -170), new Vector2(700, 110), Accent, StartGame, 40);
@@ -160,6 +210,49 @@ namespace FloodFill.ThreeD
                 int index = i; GameObject item = new GameObject("Color_" + i, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button)); item.transform.SetParent(dock.transform, false); item.GetComponent<RectTransform>().sizeDelta = new Vector2(112, 112); item.GetComponent<Image>().color = Palette[i];
                 Button b = item.GetComponent<Button>(); b.onClick.AddListener(() => manager.SelectColor(index)); colorButtons.Add(b);
             }
+        }
+
+        private void BuildFruitDropdown(Transform parent)
+        {
+            fruitDropdownMenu = MakeImage("FruitDropdownMenu", parent, new Vector2(0, -140), new Vector2(620, 590), Navy);
+            for (int i = 0; i < FruitNames.Length; i++)
+            {
+                int index = i;
+                AddButton(fruitDropdownMenu.transform, FruitNames[i], new Vector2(0, 260 - i * 56), new Vector2(570, 50), Panel, () => SetFruit(index), 23);
+            }
+            fruitDropdownMenu.SetActive(false);
+            RefreshFruitSelection();
+        }
+
+        private void ToggleFruitDropdown()
+        {
+            fruitDropdownMenu.SetActive(!fruitDropdownMenu.activeSelf);
+            if (fruitDropdownMenu.activeSelf) fruitDropdownMenu.transform.SetAsLastSibling();
+        }
+
+        private void SetFruit(int value)
+        {
+            fruitIndex = Mathf.Clamp(value, 0, FruitNames.Length - 1);
+            PlayerPrefs.SetInt(SetupFruitKey, fruitIndex);
+            PlayerPrefs.Save();
+            RefreshFruitSelection();
+            fruitDropdownMenu.SetActive(false);
+        }
+
+        private void RefreshFruitSelection()
+        {
+            if (fruitDropdownText != null) fruitDropdownText.text = FruitNames[Mathf.Clamp(fruitIndex, 0, FruitNames.Length - 1)] + "  ▼";
+        }
+
+        private void UpdateModeSections()
+        {
+            bool fruitsMode = modeIndex == 2;
+            if (sizeLabel != null) sizeLabel.SetActive(!fruitsMode);
+            for (int i = 0; i < sizeButtons.Count; i++) sizeButtons[i].gameObject.SetActive(!fruitsMode);
+            if (fruitLabel != null) fruitLabel.SetActive(fruitsMode);
+            if (fruitDropdownButton != null) fruitDropdownButton.gameObject.SetActive(fruitsMode);
+            if (fruitComingSoon != null) fruitComingSoon.gameObject.SetActive(fruitsMode);
+            if (!fruitsMode && fruitDropdownMenu != null) fruitDropdownMenu.SetActive(false);
         }
 
         private void BuildCurrentBlockToggle(Transform parent)
@@ -266,6 +359,48 @@ namespace FloodFill.ThreeD
             value = AddText(card.transform, "0", 34, FontStyles.Bold, new Vector2(0, -18), new Vector2(245, 54));
         }
 
+        private void RegisterMenuButton(Button button)
+        {
+            RectTransform rect = button.GetComponent<RectTransform>();
+            menuButtonRects.Add(rect);
+            menuButtonPreferredWidths.Add(rect.sizeDelta.x);
+        }
+
+        private void LateUpdate()
+        {
+            RefreshMenuLayout(false);
+        }
+
+        private void RefreshMenuLayout(bool force)
+        {
+            if (safeRoot == null || menuButtonsRoot == null) return;
+            Vector2 safeSize = safeRoot.GetComponent<RectTransform>().rect.size;
+            if (!force && safeSize == lastMenuLayoutSize) return;
+            lastMenuLayoutSize = safeSize;
+
+            float buttonWidth = Mathf.Max(0f, safeSize.x - 48f);
+            for (int i = 0; i < menuButtonRects.Count; i++)
+            {
+                RectTransform button = menuButtonRects[i];
+                Vector2 size = button.sizeDelta;
+                size.x = Mathf.Min(menuButtonPreferredWidths[i], buttonWidth);
+                button.sizeDelta = size;
+                RectTransform label = button.childCount > 0 ? button.GetChild(0) as RectTransform : null;
+                if (label != null)
+                {
+                    Vector2 labelSize = label.sizeDelta;
+                    labelSize.x = Mathf.Max(0f, size.x - 20f);
+                    label.sizeDelta = labelSize;
+                }
+            }
+
+            VerticalLayoutGroup layout = menuButtonsRoot.GetComponent<VerticalLayoutGroup>();
+            float desiredHeight = layout != null ? layout.preferredHeight : 0f;
+            float availableHeight = Mathf.Max(0f, safeSize.y - 250f);
+            float scale = desiredHeight > 0f ? Mathf.Min(1f, availableHeight / desiredHeight) : 1f;
+            menuButtonsRoot.localScale = Vector3.one * scale;
+        }
+
         private GameObject Screen(string name)
         {
             GameObject screen = MakeImage(name, safeRoot, Vector2.zero, Vector2.zero, Navy);
@@ -296,9 +431,11 @@ namespace FloodFill.ThreeD
 
         private void LoadSetupSelections()
         {
-            modeIndex = Mathf.Clamp(PlayerPrefs.GetInt(SetupModeKey, modeIndex), 0, 1);
             sizeIndex = Mathf.Clamp(PlayerPrefs.GetInt(SetupSizeKey, sizeIndex), 0, sizes.Length - 1);
             difficultyIndex = Mathf.Clamp(PlayerPrefs.GetInt(SetupDifficultyKey, difficultyIndex), 0, 3);
+            modeIndex = Mathf.Clamp(PlayerPrefs.GetInt(SetupModeKey, modeIndex), 0, 2);
+            fruitIndex = Mathf.Clamp(PlayerPrefs.GetInt(SetupFruitKey, fruitIndex), 0, FruitNames.Length - 1);
+            RefreshFruitSelection();
             RefreshChoices();
         }
 
@@ -307,12 +444,14 @@ namespace FloodFill.ThreeD
             PlayerPrefs.SetInt(SetupModeKey, modeIndex);
             PlayerPrefs.SetInt(SetupSizeKey, sizeIndex);
             PlayerPrefs.SetInt(SetupDifficultyKey, difficultyIndex);
+            PlayerPrefs.SetInt(SetupFruitKey, fruitIndex);
             PlayerPrefs.Save();
         }
 
         private void RefreshChoices()
         {
             MarkChoices(modeButtons, modeIndex); MarkChoices(sizeButtons, sizeIndex); MarkChoices(difficultyButtons, difficultyIndex);
+            UpdateModeSections();
         }
         private static void MarkChoices(List<Button> buttons, int selected)
         {
@@ -322,7 +461,25 @@ namespace FloodFill.ThreeD
         private void StartGame()
         {
             SaveSetupSelections();
+            if (modeIndex == 2)
+            {
+                fruitComingSoon.text = "COMING SOON";
+                fruitComingSoon.transform.DOPunchScale(Vector3.one * .08f, .3f, 5);
+                return;
+            }
             started = true; manager.StartConfiguredGame(modeIndex, sizeIndex, difficultyIndex); Show(hud);
+        }
+        private void PlayConfiguredGame()
+        {
+            SaveSetupSelections();
+            if (modeIndex == 2)
+            {
+                Show(setup);
+                return;
+            }
+            started = true;
+            manager.StartConfiguredGame(modeIndex, sizeIndex, difficultyIndex);
+            Show(hud);
         }
         private void Continue()
         {
@@ -335,6 +492,7 @@ namespace FloodFill.ThreeD
         {
             if (manager == null) return;
             if (continueButton != null) continueButton.SetActive(manager.HasSavedSession);
+            RefreshMenuLayout(true);
             if (!PlayerPrefs.HasKey(SetupModeKey))
             {
                 modeIndex = manager.SelectedBoardMode == VoxelBoardManager3D.VoxelVolumeMode.HollowCube ? 1 : 0;
@@ -352,7 +510,15 @@ namespace FloodFill.ThreeD
             Show(settings);
         }
         private void Resume() { manager.ResumeGame(); Show(hud); }
-        private void Restart() { started = true; manager.StartConfiguredGame(modeIndex, sizeIndex, difficultyIndex); Show(hud); }
+        private void Restart()
+        {
+            int activeMode = manager.SelectedBoardMode == VoxelBoardManager3D.VoxelVolumeMode.HollowCube ? 1 : 0;
+            int activeSizeIndex = System.Array.IndexOf(sizes, manager.SelectedBoardSize);
+            if (activeSizeIndex < 0) activeSizeIndex = sizeIndex;
+            started = true;
+            manager.StartConfiguredGame(activeMode, activeSizeIndex, (int)manager.SelectedDifficulty);
+            Show(hud);
+        }
         private void BackToMenu() { manager.ReturnToMenu(); started = false; Show(menu); }
 
         private void Refresh()
@@ -377,6 +543,7 @@ namespace FloodFill.ThreeD
 
         private void Show(GameObject target)
         {
+            if (target != setup && fruitDropdownMenu != null) fruitDropdownMenu.SetActive(false);
             HideAll(); target.SetActive(true); target.transform.SetAsLastSibling();
             target.transform.localScale = Vector3.one * .96f; target.transform.DOScale(1f, .22f).SetEase(Ease.OutBack);
             if (target == menu)
