@@ -183,10 +183,12 @@ namespace FloodFill.EditorTools
             out string error)
         {
             error = null;
+            int[] logicalIndices = snapshot.LogicalIndices;
+            byte[] snapshotColors = snapshot.Colors;
             int volume = snapshot.Width * snapshot.Height * snapshot.Depth;
             int[] voxelAt = new int[volume];
             Array.Fill(voxelAt, -1);
-            for (int i = 0; i < snapshot.VoxelCount; i++) voxelAt[snapshot.LogicalIndices[i]] = i;
+            for (int i = 0; i < snapshot.VoxelCount; i++) voxelAt[logicalIndices[i]] = i;
             int[] regions = new int[snapshot.VoxelCount];
             Array.Fill(regions, -1);
             int[] counts = new int[snapshot.VoxelCount];
@@ -194,18 +196,22 @@ namespace FloodFill.EditorTools
             int[] representatives = new int[snapshot.VoxelCount];
             var queue = new int[snapshot.VoxelCount];
             int regionCount = 0;
-            for (int start = 0; start < snapshot.VoxelCount; start++)
+            var order = new int[snapshot.VoxelCount];
+            for (int i = 0; i < order.Length; i++) order[i] = i;
+            Array.Sort(order, (left, right) => logicalIndices[left].CompareTo(logicalIndices[right]));
+            for (int orderIndex = 0; orderIndex < order.Length; orderIndex++)
             {
+                int start = order[orderIndex];
                 if (regions[start] >= 0) continue;
                 int head = 0, tail = 0;
-                byte color = snapshot.Colors[start];
+                byte color = snapshotColors[start];
                 regions[start] = regionCount;
                 queue[tail++] = start;
                 while (head < tail)
                 {
                     int voxel = queue[head++];
                     counts[regionCount]++;
-                    int logical = snapshot.LogicalIndices[voxel];
+                    int logical = logicalIndices[voxel];
                     int x = logical % snapshot.Width;
                     int yz = logical / snapshot.Width;
                     int y = yz % snapshot.Height;
@@ -215,14 +221,14 @@ namespace FloodFill.EditorTools
                     Visit(x, y, z + 1); Visit(x, y, z - 1);
                 }
                 regionColors[regionCount] = color;
-                representatives[regionCount] = snapshot.LogicalIndices[start];
+                representatives[regionCount] = logicalIndices[start];
                 regionCount++;
 
                 void Visit(int nx, int ny, int nz)
                 {
                     if (nx < 0 || nx >= snapshot.Width || ny < 0 || ny >= snapshot.Height || nz < 0 || nz >= snapshot.Depth) return;
                     int adjacent = voxelAt[nx + snapshot.Width * (ny + snapshot.Height * nz)];
-                    if (adjacent < 0 || regions[adjacent] >= 0 || snapshot.Colors[adjacent] != color) return;
+                    if (adjacent < 0 || regions[adjacent] >= 0 || snapshotColors[adjacent] != color) return;
                     regions[adjacent] = regionCount;
                     queue[tail++] = adjacent;
                 }
@@ -244,7 +250,7 @@ namespace FloodFill.EditorTools
             var expectedEdges = new HashSet<ulong>();
             for (int voxel = 0; voxel < snapshot.VoxelCount; voxel++)
             {
-                int logical = snapshot.LogicalIndices[voxel];
+                int logical = logicalIndices[voxel];
                 int x = logical % snapshot.Width;
                 int yz = logical / snapshot.Width;
                 int y = yz % snapshot.Height;
@@ -409,12 +415,12 @@ namespace FloodFill.EditorTools
                 exactMaxExpandedStates = source.exactMaxExpandedStates,
                 beamSearchTimeBudgetMs = source.beamSearchTimeBudgetMs,
                 greedySearchTimeBudgetMs = source.greedySearchTimeBudgetMs,
+                developmentGreedySearchTimeBudgetMs = source.developmentGreedySearchTimeBudgetMs,
+                developmentBeamSearchTimeBudgetMs = source.developmentBeamSearchTimeBudgetMs,
                 maximumSearchMemoryMegabytes = source.maximumSearchMemoryMegabytes,
                 lookaheadDepth = source.lookaheadDepth,
                 lookaheadBranchLimit = source.lookaheadBranchLimit,
                 lookaheadNodeLimit = source.lookaheadNodeLimit,
-                allowAsyncForLargeBoards = source.allowAsyncForLargeBoards,
-                asyncRegionThreshold = source.asyncRegionThreshold,
                 logSolverPerformance = source.logSolverPerformance,
                 complexityThreshold1 = source.complexityThreshold1,
                 complexityThreshold2 = source.complexityThreshold2,
@@ -471,7 +477,9 @@ namespace FloodFill.EditorTools
                         MoveSolverSettings variant = CopySettings(settings);
                         variant.lookaheadDepth = depth;
                         variant.lookaheadBranchLimit = depth == 1 ? 1 : 2;
-                        variant.greedyRuns = 1;
+                        variant.greedyRuns = 6;
+                        variant.developmentBeamSearchTimeBudgetMs = 1;
+                        variant.developmentExactSearchTimeBudgetMs = 1;
                         Stopwatch variantWatch = Stopwatch.StartNew();
                         FloodFillSolverResult variantResult = FloodFillMoveSolver3D.Solve(
                             test.Graph, variant, true, token);

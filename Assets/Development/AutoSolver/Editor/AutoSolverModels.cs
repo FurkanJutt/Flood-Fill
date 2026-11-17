@@ -12,6 +12,7 @@ namespace FloodFill.Development.AutoSolver
         public int MoveCount;
         public int MoveLimit;
         public int OriginalSolutionLength;
+        public string OriginalSolutionSource;
         public bool OriginalOptimalityProven;
         public int SelectedColor;
         public int CurrentPlayerColor;

@@ -21,12 +21,12 @@ namespace FloodFill.ThreeD.Solver
         public int exactMaxExpandedStates = 100000;
         public int beamSearchTimeBudgetMs = 200;
         public int greedySearchTimeBudgetMs = 200;
+        public int developmentGreedySearchTimeBudgetMs = 500;
+        public int developmentBeamSearchTimeBudgetMs = 1500;
         public int maximumSearchMemoryMegabytes = 32;
         public int lookaheadDepth = 3;
         public int lookaheadBranchLimit = 2;
         public int lookaheadNodeLimit = 128;
-        public bool allowAsyncForLargeBoards = true;
-        public int asyncRegionThreshold = 64;
         public bool logSolverPerformance;
 
         public int complexityThreshold1 = 80;
@@ -51,12 +51,12 @@ namespace FloodFill.ThreeD.Solver
                     ? developmentExactSearchTimeBudgetMs
                     : runtimeExactSearchTimeBudgetMs),
                 Math.Min(Math.Max(1, exactMaxExpandedStates), memoryLimitedExactNodes),
-                Math.Max(1, beamSearchTimeBudgetMs),
+                Math.Max(1, developmentBudget ? developmentBeamSearchTimeBudgetMs : beamSearchTimeBudgetMs),
                 Math.Max(1, maximumSearchMemoryMegabytes),
                 Math.Max(1, Math.Min(5, lookaheadDepth)),
                 Math.Max(1, Math.Min(6, lookaheadBranchLimit)),
                 Math.Max(8, Math.Min(4096, lookaheadNodeLimit)),
-                Math.Max(1, greedySearchTimeBudgetMs));
+                Math.Max(1, developmentBudget ? developmentGreedySearchTimeBudgetMs : greedySearchTimeBudgetMs));
         }
     }
 
@@ -138,6 +138,7 @@ namespace FloodFill.ThreeD.Solver
 
     public sealed class FloodFillSolverResult
     {
+        public string Status => IsProvenOptimal && SolutionValidated ? "OPTIMAL" : SolutionValidated ? "VALIDATED" : "FAILED";
         public int BestMoveCount { get; internal set; }
         public bool IsProvenOptimal { get; internal set; }
         public int[] BestColorSequence { get; internal set; } = Array.Empty<int>();

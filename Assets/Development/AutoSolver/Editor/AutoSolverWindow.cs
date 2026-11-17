@@ -219,6 +219,7 @@ namespace FloodFill.Development.AutoSolver
 
             EditorGUILayout.LabelField("Result", AutoSolverDiagnostics.Classify(boardSnapshot, solution));
             EditorGUILayout.LabelField("Budget source length", boardSnapshot.OriginalSolutionLength + (boardSnapshot.OriginalOptimalityProven ? " (optimal)" : " (best known, unproven)"));
+            EditorGUILayout.LabelField("Budget calculation source", boardSnapshot.OriginalSolutionSource);
             if (solution.CoreResult != null)
             {
                 EditorGUILayout.LabelField("Greedy / beam", solution.CoreResult.GreedyMoveCount + " / " + solution.CoreResult.BeamMoveCount);

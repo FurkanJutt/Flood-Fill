@@ -28,6 +28,7 @@ namespace FloodFill.Development.AutoSolver
             builder.AppendLine($"Connected Color Regions: {graph.RegionCount}");
             builder.AppendLine($"Solution Length: {(result.Conclusion == AutoSolverConclusion.Solved ? result.Moves.Length.ToString() : "Not found")}");
             builder.AppendLine($"Original budget solution length: {snapshot.OriginalSolutionLength} ({(snapshot.OriginalOptimalityProven ? "proven optimal" : "best known, unproven")})");
+            builder.AppendLine($"Original budget source: {snapshot.OriginalSolutionSource}");
             builder.AppendLine($"Analysis position: {snapshot.MoveCount} moves already played; analysis uses current colors.");
             builder.AppendLine($"Starting Region: {graph.Core.StartingRegion}; Distinct Colors: {result.CoreResult?.DistinctColorCount}");
             builder.AppendLine($"Greedy: {result.CoreResult?.GreedyMoveCount}; Beam: {result.CoreResult?.BeamMoveCount}; Duplicates: {result.CoreResult?.DuplicateStatesSkipped}; Estimated peak search bytes: {result.CoreResult?.EstimatedPeakSearchMemoryBytes}");

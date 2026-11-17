@@ -28,6 +28,7 @@ namespace FloodFill.ThreeD.Solver
         private bool interrupted;
         private readonly long memoryLimit;
         private long peak;
+        private string exactTermination = "Exact search skipped by adaptive region threshold.";
         internal FloodSolver(FloodFillRegionGraph3D graph, MoveSolverRuntimeSettings settings, CancellationToken token)
         {
             this.graph = graph; this.settings = settings; this.token = token;
@@ -42,8 +43,9 @@ namespace FloodFill.ThreeD.Solver
             // One monotone completion is established first, then all phases retain the incumbent.
             Accept(Complete(initial, null, 2, false));
             result.GreedyMoveCount = best.Length;
-            double start = watch.Elapsed.TotalMilliseconds;
+            double start = 0;
             phaseDeadline = watch.ElapsedMilliseconds + settings.GreedyMilliseconds;
+            phaseNodes = 0;
             for (int strategy = 0; !fallbackOnly && strategy < settings.GreedyRuns && !Stopped(); strategy++)
             {
                 Accept(Complete(initial, null, strategy, true));
@@ -56,7 +58,14 @@ namespace FloodFill.ThreeD.Solver
                 start = watch.Elapsed.TotalMilliseconds;
                 phaseDeadline = watch.ElapsedMilliseconds + settings.BeamMilliseconds;
                 phaseNodes = 0;
+                long fullBeamDeadline = phaseDeadline;
+                phaseDeadline = watch.ElapsedMilliseconds + Math.Max(1, settings.BeamMilliseconds / 5);
                 Beam(initial);
+                phaseDeadline = fullBeamDeadline;
+                var anchored = new FloodAnchoredSearch(graph, Stopped, () => best.Length, Accept,
+                    duplicate => { result.ExploredStates++; phaseNodes++; if (duplicate) result.DuplicateStatesSkipped++; else result.UniqueStates++; });
+                anchored.Run(settings.BeamWidth, memoryLimit);
+                peak = Math.Max(peak, anchored.PeakBytes);
                 result.BeamMilliseconds = watch.Elapsed.TotalMilliseconds - start;
                 result.BeamMoveCount = best.Length;
             }
@@ -65,6 +74,7 @@ namespace FloodFill.ThreeD.Solver
                 start = watch.Elapsed.TotalMilliseconds;
                 phaseDeadline = watch.ElapsedMilliseconds + settings.ExactMilliseconds;
                 phaseNodes = 0; interrupted = false;
+                exactTermination = "Exact search reached its time or node limit.";
                 int bound = FloodHeuristics.LowerBound(initial, graph.ColorCount);
                 var path = new List<FloodFillSolverMove3D>();
                 while (bound < best.Length && !Stopped())
@@ -89,12 +99,12 @@ namespace FloodFill.ThreeD.Solver
             result.ElapsedMilliseconds = watch.Elapsed.TotalMilliseconds + graph.BuildMilliseconds;
             result.GraphBuildMilliseconds = graph.BuildMilliseconds;
             result.EstimatedPeakSearchMemoryBytes = peak;
-            result.SearchAlgorithm = "Free-flood portfolio + memoized lookahead + bounded beam + IDA*";
+            result.SearchAlgorithm = "Free-flood portfolio + memoized lookahead + diverse/anchored beam + IDA*";
             result.UsedFallback = fallbackOnly;
             result.SearchTerminationReason = token.IsCancellationRequested ? "Cancelled; validated incumbent retained."
                 : result.IsProvenOptimal ? "OPTIMAL: admissible bound/exhaustive search proves minimum."
                 : fallbackOnly ? "Validated monotone completion."
-                : "VALIDATED: configured search limits reached; optimality unproven.";
+                : "VALIDATED: bounded search finished; optimality unproven. " + exactTermination;
             return result;
         }
         private bool Stopped()
@@ -121,7 +131,7 @@ namespace FloodFill.ThreeD.Solver
                 var chosen = moves[0].Move;
                 if (bounded && strategy >= 5 && settings.LookaheadDepth > 1)
                 {
-                    int remaining = settings.LookaheadNodeLimit;
+                    int remaining = (int)Math.Min(settings.LookaheadNodeLimit, Math.Max(1L, memoryLimit / (graph.RegionCount + 256L) / 8L));
                     var cache = new Dictionary<FloodSolverState, double[]>();
                     double score = double.MaxValue;
                     int count = Math.Min(moves.Count, Math.Max(2, settings.LookaheadBranchLimit));
@@ -132,7 +142,7 @@ namespace FloodFill.ThreeD.Solver
                         if (value < score) { score = value; chosen = moves[i].Move; }
                     }
                 }
-                state = simulator.Apply(state, chosen); path.Add(chosen); result.ExploredStates++;
+                state = simulator.Apply(state, chosen); path.Add(chosen); result.ExploredStates++; phaseNodes++;
             }
             return path.ToArray();
         }
@@ -140,6 +150,7 @@ namespace FloodFill.ThreeD.Solver
         {
             if (FloodHeuristics.LowerBound(state, graph.ColorCount) == 0) return 0;
             if (depth == 0 || nodes-- <= 0 || Stopped()) return FloodHeuristics.Estimate(graph, state);
+            result.ExploredStates++; phaseNodes++;
             var key = new FloodSolverState(state);
             if (cache.TryGetValue(key, out double[] entry) && !double.IsNaN(entry[depth])) { result.DuplicateStatesSkipped++; return entry[depth]; }
             List<FloodCandidate> moves = FloodHeuristics.Moves(graph, state, 5);
@@ -165,7 +176,7 @@ namespace FloodFill.ThreeD.Solver
                 foreach (Node parent in beam)
                 {
                     var moves = FloodHeuristics.Moves(graph, parent.State.Colors, 4);
-                    for (int i = 0; i < moves.Count; i++)
+                    for (int i = 0; i < Math.Min(moves.Count, Math.Max(8, width / 2)); i++)
                     {
                         if (Stopped()) break;
                         result.ExploredStates++; phaseNodes++;
@@ -199,7 +210,8 @@ namespace FloodFill.ThreeD.Solver
                 beam = selected;
                 peak = Math.Max(peak, bytesPerNode * (width * (depth + 2L) + capacity));
                 // Completions allow improvement long before the beam reaches a terminal depth.
-                if (!Stopped()) Accept(Complete(candidates[0].State.Colors, candidates[0], 2, true));
+                for (int i = 0; i < Math.Min(4, candidates.Count) && !Stopped(); i++)
+                    Accept(Complete(candidates[i].State.Colors, candidates[i], i % 2 == 0 ? 5 : 1, true));
             }
         }
         private static int Compare(Node a, Node b)
@@ -217,7 +229,7 @@ namespace FloodFill.ThreeD.Solver
             if (lower == 0) { Accept(path.ToArray()); return; }
             if (visited.TryGetValue(state, out int previous) && previous <= used) { result.DuplicateStatesSkipped++; return; }
             long estimated = (visited.Count + 1L) * (graph.RegionCount + 128L);
-            if (estimated > memoryLimit) { interrupted = true; return; }
+            if (estimated > memoryLimit) { interrupted = true; exactTermination = "Exact search reached its retained-memory limit."; return; }
             peak = Math.Max(peak, estimated); visited[state] = used;
             result.UniqueStates++; result.ExploredStates++; phaseNodes++;
             foreach (FloodCandidate candidate in FloodHeuristics.Moves(graph, state.Colors, 4, true))

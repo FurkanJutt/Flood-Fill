@@ -16,8 +16,8 @@ namespace FloodFill.Development.AutoSolver
             var settings = new MoveSolverSettings
             {
                 beamWidth = Math.Max(1, beamWidth), exactMaxExpandedStates = Math.Max(1, expandedStateBudget),
-                greedySearchTimeBudgetMs = Math.Max(1, timeBudgetMilliseconds / 4),
-                beamSearchTimeBudgetMs = Math.Max(1, timeBudgetMilliseconds / 2),
+                developmentGreedySearchTimeBudgetMs = Math.Max(1, timeBudgetMilliseconds / 4),
+                developmentBeamSearchTimeBudgetMs = Math.Max(1, timeBudgetMilliseconds / 2),
                 developmentExactSearchTimeBudgetMs = Math.Max(1, timeBudgetMilliseconds / 4),
                 exactSolverRegionThreshold = 256
             };

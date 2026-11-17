@@ -48,7 +48,7 @@ namespace FloodFill.ThreeD.Solver
                         case 2: score = merged * 10d + groups[color] * 20d; break;
                         case 3: score = merged * 4d + exposedMass * 2d + exposedGroups * 5d; break;
                         case 4: score = groups[color] * 150d + merged * 3d + exposedMass; break;
-                        default: score = groups[color] * 50d + merged * 5d + exposedMass * 2d; break;
+                        default: score = merged * 1000d + groups[color] * 10d + exposedMass; break;
                     }
                     moves.Add(new FloodCandidate(new FloodFillSolverMove3D(a.Representatives[c], color), score));
                 }
@@ -60,8 +60,7 @@ namespace FloodFill.ThreeD.Solver
         {
             var a = new FloodComponentAnalysis(graph, state);
             // Ordering estimate only, never an exact-search pruning bound.
-            return Math.Max(a.DistinctColors - 1, (a.Count - 1) / 2.5d) +
-                2d * (graph.TotalVoxelCount - a.LargestMass) / graph.TotalVoxelCount;
+            return (a.Count - 1) + 0.95d * (graph.TotalVoxelCount - a.LargestMass) / graph.TotalVoxelCount;
         }
     }
 }
