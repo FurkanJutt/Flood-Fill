@@ -13,14 +13,18 @@ namespace FloodFill.ThreeD.Solver
     [Serializable]
     public sealed class MoveSolverSettings
     {
-        public int exactSolverRegionThreshold = 64;
+        public int exactSolverRegionThreshold = 128;
         public int beamWidth = 128;
         public int greedyRuns = 6;
         public int runtimeExactSearchTimeBudgetMs = 40;
         public int developmentExactSearchTimeBudgetMs = 200;
         public int exactMaxExpandedStates = 100000;
-        public int beamSearchTimeBudgetMs = 80;
+        public int beamSearchTimeBudgetMs = 200;
+        public int greedySearchTimeBudgetMs = 200;
         public int maximumSearchMemoryMegabytes = 32;
+        public int lookaheadDepth = 3;
+        public int lookaheadBranchLimit = 2;
+        public int lookaheadNodeLimit = 128;
         public bool allowAsyncForLargeBoards = true;
         public int asyncRegionThreshold = 64;
         public bool logSolverPerformance;
@@ -48,7 +52,11 @@ namespace FloodFill.ThreeD.Solver
                     : runtimeExactSearchTimeBudgetMs),
                 Math.Min(Math.Max(1, exactMaxExpandedStates), memoryLimitedExactNodes),
                 Math.Max(1, beamSearchTimeBudgetMs),
-                Math.Max(1, maximumSearchMemoryMegabytes));
+                Math.Max(1, maximumSearchMemoryMegabytes),
+                Math.Max(1, Math.Min(5, lookaheadDepth)),
+                Math.Max(1, Math.Min(6, lookaheadBranchLimit)),
+                Math.Max(8, Math.Min(4096, lookaheadNodeLimit)),
+                Math.Max(1, greedySearchTimeBudgetMs));
         }
     }
 
@@ -61,7 +69,11 @@ namespace FloodFill.ThreeD.Solver
             int exactMilliseconds,
             int exactNodes,
             int beamMilliseconds,
-            int maximumSearchMemoryMegabytes)
+            int maximumSearchMemoryMegabytes,
+            int lookaheadDepth,
+            int lookaheadBranchLimit,
+            int lookaheadNodeLimit,
+            int greedyMilliseconds)
         {
             ExactRegionThreshold = exactRegionThreshold;
             BeamWidth = beamWidth;
@@ -70,8 +82,13 @@ namespace FloodFill.ThreeD.Solver
             ExactNodes = exactNodes;
             BeamMilliseconds = beamMilliseconds;
             MaximumSearchMemoryMegabytes = maximumSearchMemoryMegabytes;
+            LookaheadDepth = lookaheadDepth;
+            LookaheadBranchLimit = lookaheadBranchLimit;
+            LookaheadNodeLimit = lookaheadNodeLimit;
+            GreedyMilliseconds = greedyMilliseconds;
         }
 
+        public int GreedyMilliseconds { get; }
         public int ExactRegionThreshold { get; }
         public int BeamWidth { get; }
         public int GreedyRuns { get; }
@@ -79,6 +96,9 @@ namespace FloodFill.ThreeD.Solver
         public int ExactNodes { get; }
         public int BeamMilliseconds { get; }
         public int MaximumSearchMemoryMegabytes { get; }
+        public int LookaheadDepth { get; }
+        public int LookaheadBranchLimit { get; }
+        public int LookaheadNodeLimit { get; }
     }
 
     [Serializable]
@@ -159,8 +179,8 @@ namespace FloodFill.ThreeD.Solver
             Height = height;
             Depth = depth;
             ColorCount = colorCount;
-            LogicalIndices = logicalIndices;
-            Colors = colors;
+            this.logicalIndices = logicalIndices == null ? null : (int[])logicalIndices.Clone();
+            this.colors = colors == null ? null : (byte[])colors.Clone();
             StartingVoxel = startingVoxel;
         }
 
@@ -168,9 +188,11 @@ namespace FloodFill.ThreeD.Solver
         public int Height { get; }
         public int Depth { get; }
         public int ColorCount { get; }
-        public int[] LogicalIndices { get; }
-        public byte[] Colors { get; }
+        private readonly int[] logicalIndices;
+        private readonly byte[] colors;
+        public int[] LogicalIndices => logicalIndices == null ? null : (int[])logicalIndices.Clone();
+        public byte[] Colors => colors == null ? null : (byte[])colors.Clone();
         public int StartingVoxel { get; }
-        public int VoxelCount => LogicalIndices?.Length ?? 0;
+        public int VoxelCount => logicalIndices?.Length ?? 0;
     }
 }

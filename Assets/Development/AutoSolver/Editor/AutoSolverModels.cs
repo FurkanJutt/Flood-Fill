@@ -11,6 +11,8 @@ namespace FloodFill.Development.AutoSolver
         public int ColorCount;
         public int MoveCount;
         public int MoveLimit;
+        public int OriginalSolutionLength;
+        public bool OriginalOptimalityProven;
         public int SelectedColor;
         public int CurrentPlayerColor;
         public string GameState;
@@ -36,6 +38,7 @@ namespace FloodFill.Development.AutoSolver
 
     internal sealed class AutoSolverGraph
     {
+        public FloodFill.ThreeD.Solver.FloodFillRegionGraph3D Core;
         public int Width;
         public int Height;
         public int Depth;
@@ -72,6 +75,7 @@ namespace FloodFill.Development.AutoSolver
 
     internal sealed class AutoSolverResult
     {
+        public FloodFill.ThreeD.Solver.FloodFillSolverResult CoreResult;
         public AutoSolverConclusion Conclusion;
         public AutoSolverMove[] Moves = Array.Empty<AutoSolverMove>();
         public int[] CapturedPerMove = Array.Empty<int>();

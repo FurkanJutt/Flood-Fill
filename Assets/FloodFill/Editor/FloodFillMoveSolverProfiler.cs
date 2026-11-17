@@ -17,6 +17,7 @@ namespace FloodFill.EditorTools
             public string Name;
             public FloodFillRegionGraph3D Graph;
             public int ReferenceMoves = -1;
+            public bool IsPurpleYellowScenario;
         }
 
         private sealed class TestResult
@@ -26,9 +27,10 @@ namespace FloodFill.EditorTools
             public FloodFillSolverResult SolverResult;
             public double SolveMilliseconds;
             public long AllocatedBytes;
+            public string StrategySweep;
         }
 
-        private static readonly int[] Sizes = { 6, 8, 10, 12 };
+        private static readonly int[] Sizes = { 6, 8, 10, 12, 16 };
         private static readonly int[] Seeds = { 1103, 2207 };
         private readonly List<string> reports = new List<string>();
         private Vector2 scroll;
@@ -94,6 +96,9 @@ namespace FloodFill.EditorTools
                 AddCase(testCases, $"{size}^3 irregular seed={seed}", shape.Mask, size, size, size, seed);
                 AddCase(testCases, $"{size}^3 Full Grid seed={seed}", null, size, size, size, seed);
             }
+
+            AddPurpleYellowScenario(testCases, false);
+            AddPurpleYellowScenario(testCases, true);
 
             byte[,,] smallPattern = new byte[2, 2, 2];
             for (int x = 0; x < 2; x++)
@@ -329,8 +334,98 @@ namespace FloodFill.EditorTools
                         queue.Enqueue(next);
                     }
                 }
-            }
+                }
             return -1;
+        }
+
+        private static void AddPurpleYellowScenario(List<TestCase> cases, bool reverse)
+        {
+            const int width = 6;
+            const int height = 6;
+            var occupied = new Dictionary<int, byte>();
+            for (int y = 0; y < 5; y++) occupied[2 + width * y] = 0;
+            for (int y = 0; y < 5; y++) occupied[3 + width * y] = 1;
+            occupied[4 + width * 2] = 1;
+            for (int y = 1; y <= 3; y++) occupied[1 + width * y] = 2;
+            occupied[2 + width * 5] = 3;
+            occupied[3 + width * 5] = 3;
+            for (int y = 2; y <= 4; y++) occupied[5 + width * y] = 4;
+
+            var logical = new List<int>(occupied.Keys);
+            logical.Sort();
+            if (reverse) logical.Reverse();
+            var colors = new byte[logical.Count];
+            int startingVoxel = -1;
+            for (int i = 0; i < logical.Count; i++)
+            {
+                colors[i] = occupied[logical[i]];
+                if (logical[i] == 2) startingVoxel = i;
+            }
+
+            var snapshot = new FloodFillBoardSnapshot3D(
+                width, height, 1, 5, logical.ToArray(), colors, startingVoxel);
+            string name = "Purple/yellow strategic case" + (reverse ? " (reversed voxel order)" : string.Empty);
+            if (!FloodFillRegionGraph3D.TryBuild(snapshot, out FloodFillRegionGraph3D graph))
+            {
+                cases.Add(new TestCase { Name = name + " (graph build failed)" });
+                return;
+            }
+            cases.Add(new TestCase { Name = name, Graph = graph, IsPurpleYellowScenario = true });
+        }
+
+        private static int CountCapturedVoxels(
+            FloodFillRegionGraph3D graph, byte[] state, int representative)
+        {
+            var visited = new bool[graph.RegionCount];
+            var queue = new int[graph.RegionCount];
+            int head = 0, tail = 0, capturedVoxels = 0;
+            int source = state[representative];
+            queue[tail++] = representative;
+            visited[representative] = true;
+            while (head < tail)
+            {
+                int region = queue[head++];
+                capturedVoxels += graph.RegionVoxelCounts[region];
+                for (int edge = graph.NeighborOffsets[region]; edge < graph.NeighborOffsets[region + 1]; edge++)
+                {
+                    int neighbor = graph.Neighbors[edge];
+                    if (visited[neighbor] || state[neighbor] != source) continue;
+                    visited[neighbor] = true;
+                    queue[tail++] = neighbor;
+                }
+            }
+            return capturedVoxels;
+        }
+
+        private static MoveSolverSettings CopySettings(MoveSolverSettings source)
+        {
+            return new MoveSolverSettings
+            {
+                exactSolverRegionThreshold = source.exactSolverRegionThreshold,
+                beamWidth = source.beamWidth,
+                greedyRuns = source.greedyRuns,
+                runtimeExactSearchTimeBudgetMs = source.runtimeExactSearchTimeBudgetMs,
+                developmentExactSearchTimeBudgetMs = source.developmentExactSearchTimeBudgetMs,
+                exactMaxExpandedStates = source.exactMaxExpandedStates,
+                beamSearchTimeBudgetMs = source.beamSearchTimeBudgetMs,
+                greedySearchTimeBudgetMs = source.greedySearchTimeBudgetMs,
+                maximumSearchMemoryMegabytes = source.maximumSearchMemoryMegabytes,
+                lookaheadDepth = source.lookaheadDepth,
+                lookaheadBranchLimit = source.lookaheadBranchLimit,
+                lookaheadNodeLimit = source.lookaheadNodeLimit,
+                allowAsyncForLargeBoards = source.allowAsyncForLargeBoards,
+                asyncRegionThreshold = source.asyncRegionThreshold,
+                logSolverPerformance = source.logSolverPerformance,
+                complexityThreshold1 = source.complexityThreshold1,
+                complexityThreshold2 = source.complexityThreshold2,
+                complexityThreshold3 = source.complexityThreshold3,
+                complexityThreshold4 = source.complexityThreshold4,
+                complexityMultiplier1 = source.complexityMultiplier1,
+                complexityMultiplier2 = source.complexityMultiplier2,
+                complexityMultiplier3 = source.complexityMultiplier3,
+                complexityMultiplier4 = source.complexityMultiplier4,
+                maximumMoveBudget = source.maximumMoveBudget
+            };
         }
 
         private static TestResult[] SolveCases(List<TestCase> cases, CancellationToken token)
@@ -348,6 +443,14 @@ namespace FloodFill.EditorTools
                     results[i] = item;
                     continue;
                 }
+                if (test.IsPurpleYellowScenario)
+                {
+                    var simulator = new FloodMoveSimulator(test.Graph);
+                    byte[] state = simulator.Apply(test.Graph.RegionColors,
+                        new FloodFillSolverMove3D(test.Graph.StartingRegion, 1));
+                    int captured = simulator.CountComponent(state, test.Graph.StartingRegion);
+                    if (captured != 11) item.Error = "Purple/yellow merge must contain 11 voxels.";
+                }
                 long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
                 Stopwatch watch = Stopwatch.StartNew();
                 item.SolverResult = FloodFillMoveSolver3D.Solve(test.Graph, settings, true, token);
@@ -359,6 +462,27 @@ namespace FloodFill.EditorTools
                     item.Error = $"Optimality mismatch: reference={test.ReferenceMoves}, solver={item.SolverResult.BestMoveCount}.";
                 if (test.ReferenceMoves >= 0 && item.SolverResult.BestMoveCount < test.ReferenceMoves)
                     item.Error = $"Solver path is shorter than independent exact reference ({test.ReferenceMoves}).";
+                if (!test.IsPurpleYellowScenario)
+                {
+                    var comparison = new System.Text.StringBuilder();
+                    for (int depth = 1; depth <= 5; depth++)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        MoveSolverSettings variant = CopySettings(settings);
+                        variant.lookaheadDepth = depth;
+                        variant.lookaheadBranchLimit = depth == 1 ? 1 : 2;
+                        variant.greedyRuns = 1;
+                        Stopwatch variantWatch = Stopwatch.StartNew();
+                        FloodFillSolverResult variantResult = FloodFillMoveSolver3D.Solve(
+                            test.Graph, variant, true, token);
+                        variantWatch.Stop();
+                        if (depth > 1) comparison.Append(" | ");
+                        comparison.Append($"d{depth}: greedy={variantResult.GreedyMoveCount}, best={variantResult.BestMoveCount}, {variantWatch.Elapsed.TotalMilliseconds:0.0}ms, {(variantResult.SolutionValidated ? "valid" : "INVALID")}");
+                        if (!variantResult.SolutionValidated)
+                            item.Error = $"Lookahead depth {depth} returned an invalid solution.";
+                    }
+                    item.StrategySweep = comparison.ToString();
+                }
                 results[i] = item;
             }
             return results;
@@ -392,7 +516,7 @@ namespace FloodFill.EditorTools
                 if (item.Error != null) failures++;
                 string report = item.Error != null
                     ? $"FAIL {item.Name}: {item.Error}"
-                    : $"PASS {item.Name}: voxels={r.PlayableVoxelCount}, regions={r.RegionCount}, colors={r.DistinctColorCount}, greedy={r.GreedyMoveCount}, beam={r.BeamMoveCount}, best={r.BestMoveCount}, status={(r.IsProvenOptimal ? "OPTIMAL" : "VALIDATED")}, time={item.SolveMilliseconds:0.0}ms, expanded={r.ExploredStates}, unique={r.UniqueStates}, duplicateSkipped={r.DuplicateStatesSkipped}, estimatedPeak={r.EstimatedPeakSearchMemoryBytes / (1024d * 1024d):0.##}MiB, allocated={item.AllocatedBytes / 1024d:0.##}KiB, termination={r.SearchTerminationReason}";
+                    : $"PASS {item.Name}: voxels={r.PlayableVoxelCount}, regions={r.RegionCount}, colors={r.DistinctColorCount}, greedy={r.GreedyMoveCount}, beam={r.BeamMoveCount}, best={r.BestMoveCount}, status={(r.IsProvenOptimal ? "OPTIMAL" : "VALIDATED")}, time={item.SolveMilliseconds:0.0}ms, expanded={r.ExploredStates}, unique={r.UniqueStates}, duplicateSkipped={r.DuplicateStatesSkipped}, estimatedPeak={r.EstimatedPeakSearchMemoryBytes / (1024d * 1024d):0.##}MiB, allocated={item.AllocatedBytes / 1024d:0.##}KiB, termination={r.SearchTerminationReason}" + (string.IsNullOrEmpty(item.StrategySweep) ? string.Empty : "\n  quality sweep: " + item.StrategySweep);
                 reports.Add(report);
                 Debug.Log("[Move Solver Profile] " + report);
             }

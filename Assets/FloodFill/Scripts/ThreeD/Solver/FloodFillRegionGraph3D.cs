@@ -14,6 +14,8 @@ namespace FloodFill.ThreeD.Solver
         {
         }
 
+        public bool IsConnected { get; private set; }
+        public int[] VoxelRegionIds { get; private set; }
         public int RegionCount { get; private set; }
         public int ColorCount { get; private set; }
         public int TotalVoxelCount { get; private set; }
@@ -31,7 +33,7 @@ namespace FloodFill.ThreeD.Solver
         {
             graph = null;
             if (snapshot == null || snapshot.Width < 1 || snapshot.Height < 1 ||
-                snapshot.Depth < 1 || snapshot.ColorCount < 2 || snapshot.VoxelCount < 1 ||
+                snapshot.Depth < 1 || snapshot.ColorCount < 1 || snapshot.ColorCount > 256 || snapshot.VoxelCount < 1 ||
                 snapshot.Colors == null || snapshot.Colors.Length != snapshot.VoxelCount ||
                 snapshot.StartingVoxel < 0 || snapshot.StartingVoxel >= snapshot.VoxelCount)
             {
@@ -39,17 +41,22 @@ namespace FloodFill.ThreeD.Solver
             }
 
             Stopwatch watch = Stopwatch.StartNew();
+            if ((long)snapshot.Width * snapshot.Height > int.MaxValue ||
+                (long)snapshot.Width * snapshot.Height * snapshot.Depth > int.MaxValue) return false;
             int volume = snapshot.Width * snapshot.Height * snapshot.Depth;
+            int[] logicalIndices = snapshot.LogicalIndices;
+            byte[] voxelColors = snapshot.Colors;
+            if (logicalIndices == null || logicalIndices.Length != snapshot.VoxelCount) return false;
             var voxelAtLogicalIndex = new int[volume];
             var voxelRegion = new int[snapshot.VoxelCount];
             Array.Fill(voxelAtLogicalIndex, -1);
             Array.Fill(voxelRegion, -1);
             for (int i = 0; i < snapshot.VoxelCount; i++)
             {
-                int logicalIndex = snapshot.LogicalIndices[i];
+                int logicalIndex = logicalIndices[i];
                 if (logicalIndex < 0 || logicalIndex >= volume ||
                     voxelAtLogicalIndex[logicalIndex] >= 0 ||
-                    snapshot.Colors[i] >= snapshot.ColorCount)
+                    voxelColors[i] >= snapshot.ColorCount)
                 {
                     return false;
                 }
@@ -60,15 +67,19 @@ namespace FloodFill.ThreeD.Solver
             var counts = new List<int>();
             var representatives = new List<int>();
             var queue = new int[snapshot.VoxelCount];
-            for (int startVoxel = 0; startVoxel < snapshot.VoxelCount; startVoxel++)
+            var order = new int[snapshot.VoxelCount];
+            for (int i = 0; i < order.Length; i++) order[i] = i;
+            Array.Sort(order, (a, b) => logicalIndices[a].CompareTo(logicalIndices[b]));
+            for (int orderIndex = 0; orderIndex < order.Length; orderIndex++)
             {
+                int startVoxel = order[orderIndex];
                 if (voxelRegion[startVoxel] >= 0)
                 {
                     continue;
                 }
 
                 int regionId = colors.Count;
-                byte color = snapshot.Colors[startVoxel];
+                byte color = voxelColors[startVoxel];
                 int head = 0;
                 int tail = 0;
                 int voxelCount = 0;
@@ -78,7 +89,7 @@ namespace FloodFill.ThreeD.Solver
                 {
                     int voxel = queue[head++];
                     voxelCount++;
-                    int logicalIndex = snapshot.LogicalIndices[voxel];
+                    int logicalIndex = logicalIndices[voxel];
                     FromIndex(logicalIndex, snapshot.Width, snapshot.Height,
                         out int x, out int y, out int z);
                     for (int direction = 0; direction < 6; direction++)
@@ -94,7 +105,7 @@ namespace FloodFill.ThreeD.Solver
                         int neighborVoxel = voxelAtLogicalIndex[
                             ToIndex(nx, ny, nz, snapshot.Width, snapshot.Height)];
                         if (neighborVoxel < 0 || voxelRegion[neighborVoxel] >= 0 ||
-                            snapshot.Colors[neighborVoxel] != color)
+                            voxelColors[neighborVoxel] != color)
                         {
                             continue;
                         }
@@ -106,7 +117,7 @@ namespace FloodFill.ThreeD.Solver
 
                 colors.Add(color);
                 counts.Add(voxelCount);
-                representatives.Add(snapshot.LogicalIndices[startVoxel]);
+                representatives.Add(logicalIndices[startVoxel]);
             }
 
             var edges = new HashSet<ulong>();
@@ -114,7 +125,7 @@ namespace FloodFill.ThreeD.Solver
             for (int voxel = 0; voxel < snapshot.VoxelCount; voxel++)
             {
                 int region = voxelRegion[voxel];
-                int logicalIndex = snapshot.LogicalIndices[voxel];
+                int logicalIndex = logicalIndices[voxel];
                 FromIndex(logicalIndex, snapshot.Width, snapshot.Height,
                     out int x, out int y, out int z);
                 for (int direction = 0; direction < 6; direction++)
@@ -166,9 +177,21 @@ namespace FloodFill.ThreeD.Solver
                 neighbors[cursors[high]++] = low;
             }
 
+            for (int r = 0; r < colors.Count; r++) Array.Sort(neighbors, offsets[r], offsets[r + 1] - offsets[r]);
+            var reached = new bool[colors.Count];
+            int qHead = 0, qTail = 0;
+            queue[qTail++] = 0; reached[0] = true;
+            while (qHead < qTail)
+            {
+                int r = queue[qHead++];
+                for (int e = offsets[r]; e < offsets[r + 1]; e++)
+                    if (!reached[neighbors[e]]) { reached[neighbors[e]] = true; queue[qTail++] = neighbors[e]; }
+            }
             watch.Stop();
             graph = new FloodFillRegionGraph3D
             {
+                IsConnected = qTail == colors.Count,
+                VoxelRegionIds = voxelRegion,
                 RegionCount = colors.Count,
                 ColorCount = snapshot.ColorCount,
                 TotalVoxelCount = snapshot.VoxelCount,

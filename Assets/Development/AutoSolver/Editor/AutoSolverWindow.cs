@@ -218,6 +218,12 @@ namespace FloodFill.Development.AutoSolver
             }
 
             EditorGUILayout.LabelField("Result", AutoSolverDiagnostics.Classify(boardSnapshot, solution));
+            EditorGUILayout.LabelField("Budget source length", boardSnapshot.OriginalSolutionLength + (boardSnapshot.OriginalOptimalityProven ? " (optimal)" : " (best known, unproven)"));
+            if (solution.CoreResult != null)
+            {
+                EditorGUILayout.LabelField("Greedy / beam", solution.CoreResult.GreedyMoveCount + " / " + solution.CoreResult.BeamMoveCount);
+                EditorGUILayout.LabelField("Duplicates / estimated peak MiB", solution.CoreResult.DuplicateStatesSkipped + " / " + (solution.CoreResult.EstimatedPeakSearchMemoryBytes / 1048576d).ToString("0.##"));
+            }
             EditorGUILayout.LabelField("Planned moves", solution.Conclusion == AutoSolverConclusion.Solved ? solution.Moves.Length.ToString() : "—");
             EditorGUILayout.LabelField("Optimality proven", solution.IsProvenOptimal ? "Yes" : "No");
             EditorGUILayout.LabelField("Explored states", solution.ExploredStates.ToString("N0"));

@@ -720,24 +720,6 @@ namespace FloodFill.ThreeD
             }
 
             bool developmentBudget = Application.isEditor || Debug.isDebugBuild;
-            bool solveAsynchronously = solverSettings.allowAsyncForLargeBoards &&
-                graph.RegionCount >= Mathf.Max(1, solverSettings.asyncRegionThreshold);
-            if (!solveAsynchronously)
-            {
-                try
-                {
-                    FloodFillSolverResult result = FloodFillMoveSolver3D.Solve(
-                        graph, solverSettings, developmentBudget);
-                    ApplySolverResult(result, generationId, false);
-                }
-                catch (System.Exception exception)
-                {
-                    Debug.LogException(exception, this);
-                    ApplyGuaranteedFallback(graph, generationId, false);
-                }
-                return;
-            }
-
             solverCancellation = new CancellationTokenSource();
             CancellationToken token = solverCancellation.Token;
             MoveSolverSettings settingsCopy = CopySolverSettings(solverSettings);
@@ -877,7 +859,11 @@ namespace FloodFill.ThreeD
                 developmentExactSearchTimeBudgetMs = source.developmentExactSearchTimeBudgetMs,
                 exactMaxExpandedStates = source.exactMaxExpandedStates,
                 beamSearchTimeBudgetMs = source.beamSearchTimeBudgetMs,
+                greedySearchTimeBudgetMs = source.greedySearchTimeBudgetMs,
                 maximumSearchMemoryMegabytes = source.maximumSearchMemoryMegabytes,
+                lookaheadDepth = source.lookaheadDepth,
+                lookaheadBranchLimit = source.lookaheadBranchLimit,
+                lookaheadNodeLimit = source.lookaheadNodeLimit,
                 allowAsyncForLargeBoards = source.allowAsyncForLargeBoards,
                 asyncRegionThreshold = source.asyncRegionThreshold,
                 logSolverPerformance = source.logSolverPerformance,

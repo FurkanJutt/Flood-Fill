@@ -7,27 +7,11 @@ namespace FloodFill.Development.AutoSolver
     {
         public static string Classify(AutoSolverBoardSnapshot snapshot, AutoSolverResult result)
         {
-            if (snapshot == null || result == null || result.Conclusion == AutoSolverConclusion.Invalid ||
-                result.Conclusion == AutoSolverConclusion.Cancelled) return "INCONCLUSIVE";
-            if (result.Conclusion == AutoSolverConclusion.ProvenNoSolution) return "FAIL";
-            if (result.Conclusion == AutoSolverConclusion.Solved && result.ValidationPassed)
-            {
-                if (result.Moves.Length <= snapshot.RemainingMoves) return "PASS";
-                return result.IsProvenOptimal ? "FAIL" : "INCONCLUSIVE";
-            }
-
-            int distinctColors = 0;
-            var seen = new bool[snapshot.ColorCount];
-            for (int i = 0; i < snapshot.Colors.Length; i++)
-            {
-                int color = snapshot.Colors[i];
-                if (color >= 0 && color < seen.Length && !seen[color])
-                {
-                    seen[color] = true;
-                    distinctColors++;
-                }
-            }
-            return distinctColors - 1 > snapshot.RemainingMoves ? "FAIL" : "INCONCLUSIVE";
+            if (snapshot == null || result == null) return "INCONCLUSIVE";
+            if (result.Conclusion == AutoSolverConclusion.Invalid || result.Conclusion == AutoSolverConclusion.ProvenNoSolution) return "FAILED";
+            if (!result.ValidationPassed) return "INCONCLUSIVE";
+            string validity = result.IsProvenOptimal ? "OPTIMAL" : "VALIDATED";
+            return validity + (result.Moves.Length <= snapshot.RemainingMoves ? " — within budget" : " — OVER BUDGET");
         }
 
         public static string FormatReport(
@@ -43,6 +27,10 @@ namespace FloodFill.Development.AutoSolver
             builder.AppendLine($"Playable Voxels: {snapshot.VoxelCount}");
             builder.AppendLine($"Connected Color Regions: {graph.RegionCount}");
             builder.AppendLine($"Solution Length: {(result.Conclusion == AutoSolverConclusion.Solved ? result.Moves.Length.ToString() : "Not found")}");
+            builder.AppendLine($"Original budget solution length: {snapshot.OriginalSolutionLength} ({(snapshot.OriginalOptimalityProven ? "proven optimal" : "best known, unproven")})");
+            builder.AppendLine($"Analysis position: {snapshot.MoveCount} moves already played; analysis uses current colors.");
+            builder.AppendLine($"Starting Region: {graph.Core.StartingRegion}; Distinct Colors: {result.CoreResult?.DistinctColorCount}");
+            builder.AppendLine($"Greedy: {result.CoreResult?.GreedyMoveCount}; Beam: {result.CoreResult?.BeamMoveCount}; Duplicates: {result.CoreResult?.DuplicateStatesSkipped}; Estimated peak search bytes: {result.CoreResult?.EstimatedPeakSearchMemoryBytes}");
             builder.AppendLine($"Maximum Moves: {snapshot.MoveLimit} (remaining: {snapshot.RemainingMoves})");
             builder.AppendLine($"Optimality Proven: {(result.IsProvenOptimal ? "Yes" : "No")}");
             builder.AppendLine($"Explored States: {result.ExploredStates}");

@@ -142,6 +142,8 @@ namespace FloodFill.Development.AutoSolver
                 ColorCount = palette.Length,
                 MoveCount = MoveCount,
                 MoveLimit = MoveLimit,
+                OriginalSolutionLength = (Manager as FloodFill.ThreeD.FloodFillGameManager3D)?.CurrentMoveBudgetProfile.bestSolutionMoves ?? 0,
+                OriginalOptimalityProven = (Manager as FloodFill.ThreeD.FloodFillGameManager3D)?.CurrentMoveBudgetProfile.isProvenOptimal ?? false,
                 SelectedColor = SelectedColor,
                 CurrentPlayerColor = CurrentColor,
                 GameState = GameState,

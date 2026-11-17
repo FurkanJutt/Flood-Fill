@@ -31,6 +31,8 @@ namespace FloodFill.ThreeD.Solver
         private readonly CancellationToken cancellationToken;
         private readonly ulong[] adjacency;
         private readonly ulong allRegions;
+        private readonly FloodFillMoveLookahead3D moveOrderingEvaluator;
+        private readonly byte[] orderingColorScratch;
         private readonly List<Move64> moves = new List<Move64>(256);
         private readonly List<TraceNode> traces = new List<TraceNode>(2048);
 
@@ -107,18 +109,28 @@ namespace FloodFill.ThreeD.Solver
 
         private readonly struct Move64
         {
-            public Move64(ulong component, int representative, int source, int target)
+            public Move64(
+                ulong component,
+                int representative,
+                int source,
+                int target,
+                int mergeEstimate,
+                int voxelEstimate)
             {
                 Component = component;
                 Representative = representative;
                 Source = source;
                 Target = target;
+                MergeEstimate = mergeEstimate;
+                VoxelEstimate = voxelEstimate;
             }
 
             public ulong Component { get; }
             public int Representative { get; }
             public int Source { get; }
             public int Target { get; }
+            public int MergeEstimate { get; }
+            public int VoxelEstimate { get; }
         }
 
         private readonly struct TraceNode
@@ -134,28 +146,33 @@ namespace FloodFill.ThreeD.Solver
 
         private readonly struct BeamNode
         {
-            public BeamNode(State64 state, int trace)
+            public BeamNode(State64 state, int trace, int firstColor)
             {
                 State = state;
                 Trace = trace;
+                FirstColor = firstColor;
             }
             public State64 State { get; }
             public int Trace { get; }
+            public int FirstColor { get; }
         }
 
         private readonly struct BeamCandidate
         {
-            public BeamCandidate(State64 state, int parentTrace, Move64 move, long score)
+            public BeamCandidate(
+                State64 state, int parentTrace, Move64 move, long score, int firstColor)
             {
                 State = state;
                 ParentTrace = parentTrace;
                 Move = move;
                 Score = score;
+                FirstColor = firstColor;
             }
             public State64 State { get; }
             public int ParentTrace { get; }
             public Move64 Move { get; }
             public long Score { get; }
+            public int FirstColor { get; }
         }
 
         public FloodFillMoveSolver64(
@@ -166,6 +183,8 @@ namespace FloodFill.ThreeD.Solver
             this.graph = graph;
             this.settings = settings;
             this.cancellationToken = cancellationToken;
+            moveOrderingEvaluator = new FloodFillMoveLookahead3D(graph, 1, 1);
+            orderingColorScratch = new byte[graph.RegionCount];
             adjacency = new ulong[graph.RegionCount];
             for (int region = 0; region < graph.RegionCount; region++)
             {
@@ -193,7 +212,8 @@ namespace FloodFill.ThreeD.Solver
             outcome.GreedyMilliseconds = watch.Elapsed.TotalMilliseconds;
             outcome.GreedyMoves = greedy.Length;
             outcome.BestMoves = greedy;
-            outcome.SearchAlgorithm = "64-region bitset greedy + beam";
+            outcome.SearchAlgorithm =
+                $"64-region depth-{settings.LookaheadDepth} lookahead greedy + diverse beam";
 
             watch.Restart();
             FloodFillSolverMove3D[] beam = RunBeam(
@@ -246,7 +266,7 @@ namespace FloodFill.ThreeD.Solver
             outcome.UsedFallback = outcome.BestMoves.Length == 0;
             if (outcome.UsedFallback)
             {
-                outcome.BestMoves = RunSingleGreedy(initial, 0);
+                outcome.BestMoves = RunSingleGreedy(initial, settings.LookaheadDepth);
                 outcome.GreedyMoves = outcome.BestMoves.Length;
             }
             return outcome;
@@ -259,7 +279,8 @@ namespace FloodFill.ThreeD.Solver
             {
                 FloodFillSolverMove3D step = sequence[i];
                 int source = FindColor(state, step.RegionId);
-                if (source < 0 || step.ColorIndex < 0 || step.ColorIndex >= graph.ColorCount ||
+                if (source < 0 ||
+                    step.ColorIndex < 0 || step.ColorIndex >= graph.ColorCount ||
                     source == step.ColorIndex)
                 {
                     return false;
@@ -271,14 +292,14 @@ namespace FloodFill.ThreeD.Solver
                     return false;
                 }
                 state = Apply(state, new Move64(
-                    component, step.RegionId, source, step.ColorIndex));
+                    component, step.RegionId, source, step.ColorIndex, 0, 0));
             }
             return IsSolved(state);
         }
 
         public FloodFillSolverMove3D[] CreateFallback()
         {
-            return RunSingleGreedy(CreateInitialState(), 0);
+            return RunSingleGreedy(CreateInitialState(), settings.LookaheadDepth);
         }
 
         private State64 CreateInitialState()
@@ -295,10 +316,18 @@ namespace FloodFill.ThreeD.Solver
         private FloodFillSolverMove3D[] RunGreedyVariants(State64 initial)
         {
             FloodFillSolverMove3D[] best = Array.Empty<FloodFillSolverMove3D>();
-            for (int variant = 0; variant < settings.GreedyRuns; variant++)
+            int[] depths =
+            {
+                settings.LookaheadDepth,
+                settings.LookaheadDepth < 5
+                    ? settings.LookaheadDepth + 1
+                    : settings.LookaheadDepth - 1
+            };
+            int runCount = Math.Min(settings.GreedyRuns, depths.Length);
+            for (int variant = 0; variant < runCount; variant++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                FloodFillSolverMove3D[] candidate = RunSingleGreedy(initial, variant);
+                FloodFillSolverMove3D[] candidate = RunSingleGreedy(initial, depths[variant]);
                 if (candidate.Length > 0 && (best.Length == 0 || candidate.Length < best.Length))
                 {
                     best = candidate;
@@ -307,9 +336,15 @@ namespace FloodFill.ThreeD.Solver
             return best;
         }
 
-        private FloodFillSolverMove3D[] RunSingleGreedy(State64 initial, int variant)
+        private FloodFillSolverMove3D[] RunSingleGreedy(State64 initial, int lookaheadDepth)
         {
             State64 state = initial;
+            var colorState = new byte[graph.RegionCount];
+            for (int region = 0; region < graph.RegionCount; region++)
+                colorState[region] = (byte)FindColor(state, region);
+            var lookahead = new FloodFillMoveLookahead3D(
+                graph, lookaheadDepth, settings.LookaheadBranchLimit,
+                settings.LookaheadNodeLimit);
             var path = new List<FloodFillSolverMove3D>(graph.RegionCount);
             while (!IsSolved(state) && path.Count < graph.RegionCount)
             {
@@ -319,24 +354,21 @@ namespace FloodFill.ThreeD.Solver
                     return Array.Empty<FloodFillSolverMove3D>();
                 }
 
-                int bestIndex = 0;
-                long bestScore = long.MinValue;
+                int selectedTarget = lookahead.SelectMove(colorState, out int selectedRepresentative);
+                Move64 selected = default;
+                bool found = false;
                 for (int i = 0; i < moves.Count; i++)
                 {
-                    State64 child = Apply(state, moves[i]);
-                    int componentCount = CountComponents(child, out int largestVoxels);
-                    long score = -(long)componentCount * (variant % 2 == 0 ? 1000000L : 500000L) +
-                        (long)largestVoxels * (variant % 3 + 1) * 100L -
-                        ((moves[i].Target + variant) % graph.ColorCount);
-                    if (score > bestScore)
-                    {
-                        bestScore = score;
-                        bestIndex = i;
-                    }
+                    if (moves[i].Target != selectedTarget ||
+                        moves[i].Representative != selectedRepresentative) continue;
+                    selected = moves[i];
+                    found = true;
+                    break;
                 }
-
-                Move64 selected = moves[bestIndex];
+                if (!found) return Array.Empty<FloodFillSolverMove3D>();
                 state = Apply(state, selected);
+                lookahead.ApplyMoveInPlace(
+                    colorState, selected.Representative, selected.Target);
                 path.Add(new FloodFillSolverMove3D(selected.Representative, selected.Target));
             }
             return IsSolved(state) ? path.ToArray() : Array.Empty<FloodFillSolverMove3D>();
@@ -367,10 +399,12 @@ namespace FloodFill.ThreeD.Solver
             int beamWidth = Math.Max(1, Math.Min(settings.BeamWidth, memoryBeamLimit));
             int candidateLimit = beamWidth * 2;
             traces.Clear();
-            var current = new List<BeamNode>(beamWidth) { new BeamNode(initial, -1) };
+            var current = new List<BeamNode>(beamWidth) { new BeamNode(initial, -1, -1) };
             var next = new List<BeamNode>(beamWidth);
             var unique = new Dictionary<State64, BeamCandidate>(candidateLimit);
             var ranked = new List<BeamCandidate>(candidateLimit);
+            var beamEvaluator = new FloodFillMoveLookahead3D(graph, 1, 1);
+            var beamColorState = new byte[graph.RegionCount];
             Stopwatch watch = Stopwatch.StartNew();
             peakMemoryBytes = (long)beamWidth * (64L * 4L + 256L) +
                 (long)traces.Capacity * 16L;
@@ -405,10 +439,14 @@ namespace FloodFill.ThreeD.Solver
                         }
 
                         int componentCount = CountComponents(child, out int largestVoxels);
-                        long score = -(long)componentCount * 1000000L +
-                            (long)largestVoxels * 100L;
+                        CopyColors(child, beamColorState);
+                        long score = (long)move.VoxelEstimate * 100000L +
+                            (long)move.MergeEstimate * 10000L +
+                            beamEvaluator.Evaluate(beamColorState, move.Representative) * 100L -
+                            (long)componentCount * 1000L + largestVoxels;
+                        int firstColor = node.FirstColor >= 0 ? node.FirstColor : move.Target;
                         var candidate = new BeamCandidate(
-                            child, node.Trace, move, score);
+                            child, node.Trace, move, score, firstColor);
                         if (!unique.TryGetValue(child, out BeamCandidate existing))
                         {
                             unique[child] = candidate;
@@ -420,7 +458,7 @@ namespace FloodFill.ThreeD.Solver
                             if (candidate.Score > existing.Score) unique[child] = candidate;
                         }
                         if (unique.Count >= candidateLimit)
-                            TrimCandidates(unique, ranked, beamWidth);
+                            TrimCandidates(unique, ranked, beamWidth, graph.ColorCount);
                     }
                 }
 
@@ -432,13 +470,15 @@ namespace FloodFill.ThreeD.Solver
                 ranked.Sort((left, right) => right.Score.CompareTo(left.Score));
                 next.Clear();
                 int retained = Math.Min(beamWidth, ranked.Count);
+                var retainedStates = SelectDiverseStates(ranked, retained, graph.ColorCount);
                 for (int i = 0; i < retained; i++)
                 {
                     BeamCandidate candidate = ranked[i];
+                    if (!retainedStates.Contains(candidate.State)) continue;
                     int trace = traces.Count;
                     traces.Add(new TraceNode(candidate.ParentTrace, new FloodFillSolverMove3D(
                         candidate.Move.Representative, candidate.Move.Target)));
-                    next.Add(new BeamNode(candidate.State, trace));
+                    next.Add(new BeamNode(candidate.State, trace, candidate.FirstColor));
                 }
                 if (next.Count == 0)
                 {
@@ -460,13 +500,35 @@ namespace FloodFill.ThreeD.Solver
         private static void TrimCandidates(
             Dictionary<State64, BeamCandidate> candidates,
             List<BeamCandidate> ranked,
-            int keep)
+            int keep,
+            int colorCount)
         {
             ranked.Clear();
             foreach (BeamCandidate candidate in candidates.Values) ranked.Add(candidate);
             ranked.Sort((left, right) => right.Score.CompareTo(left.Score));
-            for (int i = ranked.Count - 1; i >= keep; i--)
-                candidates.Remove(ranked[i].State);
+            HashSet<State64> keepStates = SelectDiverseStates(ranked, keep, colorCount);
+            for (int i = ranked.Count - 1; i >= 0; i--)
+                if (!keepStates.Contains(ranked[i].State)) candidates.Remove(ranked[i].State);
+        }
+
+        private static HashSet<State64> SelectDiverseStates(
+            List<BeamCandidate> ranked,
+            int keep,
+            int colorCount)
+        {
+            var selected = new HashSet<State64>(keep);
+            var counts = new int[colorCount];
+            int quota = Math.Max(1, keep / Math.Max(1, colorCount));
+            for (int i = 0; i < ranked.Count && selected.Count < keep; i++)
+            {
+                BeamCandidate candidate = ranked[i];
+                int color = candidate.FirstColor;
+                if (color < 0 || color >= colorCount || counts[color] >= quota) continue;
+                if (selected.Add(candidate.State)) counts[color]++;
+            }
+            for (int i = 0; i < ranked.Count && selected.Count < keep; i++)
+                selected.Add(ranked[i].State);
+            return selected;
         }
 
         private FloodFillSolverMove3D[] RunExact(
@@ -570,8 +632,9 @@ namespace FloodFill.ThreeD.Solver
             {
                 State64 leftState = Apply(state, left);
                 State64 rightState = Apply(state, right);
-                return CountComponents(leftState, out _).CompareTo(
-                    CountComponents(rightState, out _));
+                long leftScore = EvaluateOrderingState(leftState, left.Representative);
+                long rightScore = EvaluateOrderingState(rightState, right.Representative);
+                return rightScore.CompareTo(leftScore);
             });
             for (int i = 0; i < buffer.Count; i++)
             {
@@ -591,6 +654,18 @@ namespace FloodFill.ThreeD.Solver
             return false;
         }
 
+        private long EvaluateOrderingState(State64 state, int representative)
+        {
+            CopyColors(state, orderingColorScratch);
+            return moveOrderingEvaluator.Evaluate(orderingColorScratch, representative);
+        }
+
+        private void CopyColors(State64 state, byte[] destination)
+        {
+            for (int region = 0; region < graph.RegionCount; region++)
+                destination[region] = (byte)FindColor(state, region);
+        }
+
         private void CollectMoves(State64 state, List<Move64> output)
         {
             output.Clear();
@@ -603,16 +678,40 @@ namespace FloodFill.ThreeD.Solver
                     ulong component = FloodComponent(1UL << representative, remaining);
                     remaining &= ~component;
                     ulong boundary = CollectAdjacent(component) & ~component;
+                    int componentVoxels = CountRegionVoxels(component);
                     for (int target = 0; target < graph.ColorCount; target++)
                     {
-                        if (target != source && (boundary & state.Get(target)) != 0)
-                        {
-                            output.Add(new Move64(
-                                component, representative, source, target));
-                        }
+                        if (target == source) continue;
+                        ulong targetRegions = boundary & state.Get(target);
+                        if (targetRegions == 0) continue;
+                        ulong capturedTargetGroup = FloodComponent(
+                            1UL << representative, state.Get(target) | component) & ~component;
+                        output.Add(new Move64(
+                            component, representative, source, target,
+                            CountBits(capturedTargetGroup),
+                            componentVoxels + CountRegionVoxels(capturedTargetGroup)));
                     }
                 }
             }
+        }
+
+        private int CountRegionVoxels(ulong regions)
+        {
+            int count = 0;
+            while (regions != 0)
+            {
+                int region = LowestBitIndex(regions);
+                count += graph.RegionVoxelCounts[region];
+                regions &= regions - 1UL;
+            }
+            return count;
+        }
+
+        private static int CountBits(ulong value)
+        {
+            int count = 0;
+            while (value != 0) { value &= value - 1UL; count++; }
+            return count;
         }
 
         private State64 Apply(State64 state, Move64 move)
