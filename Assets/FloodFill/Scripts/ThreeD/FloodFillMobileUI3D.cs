@@ -1,3 +1,4 @@
+using FloodFill.ThreeD.Audio;
 using System.Collections.Generic;
 using DG.Tweening;
 using TMPro;
@@ -7,7 +8,7 @@ using UnityEngine.UI;
 namespace FloodFill.ThreeD
 {
     /// <summary>Responsive mobile-first navigation and presentation for the generated 3D demo.</summary>
-    public sealed class FloodFillMobileUI3D : MonoBehaviour
+    public sealed partial class FloodFillMobileUI3D : MonoBehaviour
     {
         private static readonly Color Navy = new Color(0.025f, 0.045f, 0.09f, 1f);
         private static readonly Color Panel = new Color(0.07f, 0.105f, 0.18f, 0.96f);
@@ -180,10 +181,11 @@ namespace FloodFill.ThreeD
             AddButton(howTo.transform, "BACK", new Vector2(0, -500), new Vector2(540, 88), Accent, () => Show(menu), 32);
 
             settings = ModalScreen("Settings");
-            AddText(settings.transform, "SETTINGS", 54, FontStyles.Bold, new Vector2(0, 320), new Vector2(800, 90));
-            AddText(settings.transform, "Camera orbit, pan and zoom are enabled during play.", 30, FontStyles.Normal, new Vector2(0, 145), new Vector2(740, 150), Muted, true);
+            AddText(settings.transform, "SETTINGS", 54, FontStyles.Bold, new Vector2(0, 480), new Vector2(800, 90));
+            AddText(settings.transform, "Camera orbit, pan and zoom are enabled during play.", 30, FontStyles.Normal, new Vector2(0, 375), new Vector2(740, 90), Muted, true);
             BuildCurrentBlockToggle(settings.transform);
-            AddButton(settings.transform, "BACK", new Vector2(0, -260), new Vector2(540, 88), Accent, () => Show(menu), 32);
+            BuildAudioSettings(settings.transform);
+            AddButton(settings.transform, "BACK", new Vector2(0, -470), new Vector2(540, 88), Accent, () => Show(menu), 32);
 
             pause = ModalScreen("PauseMenu");
             pause.GetComponent<Image>().color = new Color(.015f, .025f, .055f, .72f);
@@ -228,6 +230,7 @@ namespace FloodFill.ThreeD
         private void ToggleFruitDropdown()
         {
             fruitDropdownMenu.SetActive(!fruitDropdownMenu.activeSelf);
+            FloodAudioSignals.Popup(fruitDropdownMenu.activeSelf);
             if (fruitDropdownMenu.activeSelf) fruitDropdownMenu.transform.SetAsLastSibling();
         }
 
@@ -237,6 +240,7 @@ namespace FloodFill.ThreeD
             PlayerPrefs.SetInt(SetupFruitKey, fruitIndex);
             PlayerPrefs.Save();
             RefreshFruitSelection();
+            if (fruitDropdownMenu.activeSelf) FloodAudioSignals.Popup(false);
             fruitDropdownMenu.SetActive(false);
         }
 
@@ -258,32 +262,25 @@ namespace FloodFill.ThreeD
 
         private void BuildCurrentBlockToggle(Transform parent)
         {
-            GameObject row = MakeRect("ShowCurrentBlockOption", parent, new Vector2(.5f, .5f), new Vector2(.5f, .5f), new Vector2(0, 20), new Vector2(700, 90));
-            HorizontalLayoutGroup layout = row.AddComponent<HorizontalLayoutGroup>();
-            layout.childAlignment = TextAnchor.MiddleCenter;
-            layout.spacing = 20f;
-            layout.childControlWidth = false;
-            layout.childControlHeight = false;
-            layout.childForceExpandWidth = false;
-            layout.childForceExpandHeight = false;
-
-            GameObject toggleObject = new GameObject("ShowCurrentBlockToggle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Toggle));
-            toggleObject.transform.SetParent(row.transform, false);
-            toggleObject.GetComponent<RectTransform>().sizeDelta = new Vector2(52, 52);
-            Image background = toggleObject.GetComponent<Image>();
-            background.color = Panel;
-            GameObject checkmark = MakeImage("Checkmark", toggleObject.transform, Vector2.zero, new Vector2(32, 32), Accent);
-            checkmark.GetComponent<RectTransform>().anchorMin = Vector2.zero;
-            checkmark.GetComponent<RectTransform>().anchorMax = Vector2.one;
-            checkmark.GetComponent<RectTransform>().offsetMin = new Vector2(8, 8);
-            checkmark.GetComponent<RectTransform>().offsetMax = new Vector2(-8, -8);
-            showCurrentBlockToggle = toggleObject.GetComponent<Toggle>();
-            showCurrentBlockToggle.targetGraphic = background;
-            showCurrentBlockToggle.graphic = checkmark.GetComponent<Image>();
+            if (showCurrentBlockToggle != null)
+            {
+                RectTransform existingRow = showCurrentBlockToggle.transform.parent as RectTransform;
+                if (existingRow != null && existingRow.GetComponent<HorizontalLayoutGroup>() == null)
+                {
+                    existingRow.anchoredPosition = new Vector2(0, 270);
+                    existingRow.gameObject.SetActive(true);
+                    existingRow.SetAsLastSibling();
+                    return;
+                }
+                // Repair an older generated layout after a script reload without retaining
+                // duplicate controls or changing the saved current-block preference.
+                showCurrentBlockToggle.onValueChanged.RemoveListener(SetShowCurrentBlock);
+                if (existingRow != null) { existingRow.gameObject.SetActive(false); Destroy(existingRow.gameObject); }
+            }
+            showCurrentBlockToggle = AudioToggle(parent, "SHOW CURRENT BLOCK", 270);
+            showCurrentBlockToggle.name = "ShowCurrentBlockToggle";
+            showCurrentBlockToggle.transform.parent.name = "ShowCurrentBlockOption";
             showCurrentBlockToggle.onValueChanged.AddListener(SetShowCurrentBlock);
-
-            TMP_Text label = AddText(row.transform, "SHOW CURRENT BLOCK", 27, FontStyles.Bold, Vector2.zero, new Vector2(520, 64), Color.white, false);
-            label.alignment = TextAlignmentOptions.MidlineLeft;
             RefreshShowCurrentBlockToggle();
         }
 
@@ -502,7 +499,9 @@ namespace FloodFill.ThreeD
         private void OpenPause() { if (manager.State == FloodFillGameManager3D.GameState.Playing) { manager.PauseGame(); Show(pause); } }
         private void OpenSettings()
         {
+            BuildCurrentBlockToggle(settings.transform);
             RefreshShowCurrentBlockToggle();
+            RefreshAudioControls();
             Show(settings);
         }
         private void Resume() { manager.ResumeGame(); Show(hud); }
@@ -556,8 +555,18 @@ namespace FloodFill.ThreeD
             }
         }
 
+        private GameObject audioScreen;
         private void Show(GameObject target)
         {
+            if (settings != null && settings.activeSelf && target != settings) FloodAudioManager.Instance?.SaveSettings();
+            if (audioScreen != target)
+            {
+                bool wasPopup = audioScreen == setup || audioScreen == howTo || audioScreen == settings || audioScreen == pause || audioScreen == results;
+                bool isPopup = target == setup || target == howTo || target == settings || target == pause || target == results;
+                if (isPopup || wasPopup) FloodAudioSignals.Popup(isPopup);
+                audioScreen = target;
+            }
+            FloodAudioSignals.Menu(target != hud && target != pause && target != results);
             if (target != setup && fruitDropdownMenu != null) fruitDropdownMenu.SetActive(false);
             HideAll(); target.SetActive(true); target.transform.SetAsLastSibling();
             target.transform.localScale = Vector3.one * .96f; target.transform.DOScale(1f, .22f).SetEase(Ease.OutBack);
@@ -625,6 +634,7 @@ namespace FloodFill.ThreeD
         private Button AddButton(Transform parent, string label, Vector2 position, Vector2 dimensions, Color color, UnityEngine.Events.UnityAction action, float fontSize)
         {
             GameObject go = MakeImage(label + "Button", parent, position, dimensions, color); Button button = go.AddComponent<Button>(); button.targetGraphic = go.GetComponent<Image>(); button.onClick.AddListener(action); button.navigation = new Navigation { mode = Navigation.Mode.None };
+            FloodAudioManager.Instance?.BindControl(button, label);
             AddText(go.transform, label, fontSize, FontStyles.Bold, Vector2.zero, dimensions - new Vector2(20, 12)); button.transform.localScale = Vector3.one; button.onClick.AddListener(() => button.transform.DOPunchScale(Vector3.one * .045f, .18f, 6)); return button;
         }
 
@@ -640,7 +650,7 @@ namespace FloodFill.ThreeD
 
         private static void Stretch(RectTransform rect) { rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero; }
 
-        private void OnDestroy() { if (manager != null) { manager.UIChanged -= Refresh; manager.ManagerReady -= RefreshContinue; } }
+        private void OnDestroy() { UnbindAudioControls(); if (manager != null) { manager.UIChanged -= Refresh; manager.ManagerReady -= RefreshContinue; } }
     }
 
 }

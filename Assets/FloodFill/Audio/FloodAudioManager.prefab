@@ -1,0 +1,296 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &7138987625184870694
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 720013496896144275}
+  - component: {fileID: 2208989333082476059}
+  m_Layer: 0
+  m_Name: FloodAudioManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &720013496896144275
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7138987625184870694}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2208989333082476059
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7138987625184870694}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d0850a3b3f940738692f556dd4f375e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.Audio.FloodAudioManager
+  mixer: {fileID: 24100000, guid: 5dd654d9b91ba47dea0a269f420c6dc6, type: 2}
+  musicGroup: {fileID: 2103308414128699049, guid: 5dd654d9b91ba47dea0a269f420c6dc6, type: 2}
+  effectsGroup: {fileID: -6452712345095773262, guid: 5dd654d9b91ba47dea0a269f420c6dc6, type: 2}
+  feedbackGroup: {fileID: 24300002, guid: 5dd654d9b91ba47dea0a269f420c6dc6, type: 2}
+  masterVolume: 1
+  musicVolume: 0.65
+  soundEffectsVolume: 0.8
+  enableMusic: 1
+  enableSoundEffects: 1
+  defaultFadeDuration: 0.5
+  defaultCrossfadeDuration: 1.75
+  audioSourcePoolSize: 12
+  fadeCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  mainMenuMusic: {fileID: 8300000, guid: 9dcdd5701e496477890076a3003f5521, type: 3}
+  mainMenuMusicMultiplier: 0.8
+  mainMenuFadeIn: 1.5
+  mainMenuFadeOut: 1.5
+  normalMusic: {fileID: 8300000, guid: 99ec2e5723ada46eeab74f3065623227, type: 3}
+  mediumMusic: {fileID: 8300000, guid: f4ed9e8002db44a6ba35e8f5b350d8d6, type: 3}
+  hardMusic: {fileID: 8300000, guid: dd05f8fa0a93f44e88002939d15d9c72, type: 3}
+  normalMusicMultiplier: 0.7
+  mediumMusicMultiplier: 0.7
+  hardMusicMultiplier: 0.7
+  gameplayCrossfadeDuration: 1.75
+  musicTransitionCooldown: 0.4
+  enableDynamicMusic: 1
+  mediumThresholdPercentage: 0.5
+  hardThresholdMoves: 10
+  resultMusicDuck: 0.3
+  buttonClick:
+    clip: {fileID: 8300000, guid: b63bae7db915d4dfbaaa4683b77fa5ec, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 2
+    fadeDuration: 0.015
+  buttonBack:
+    clip: {fileID: 8300000, guid: 4cfcf4ea58c8049b3825b2c91fcf8e51, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 2
+    fadeDuration: 0.015
+  buttonConfirm:
+    clip: {fileID: 8300000, guid: 82921726e3cf84d42a8f226a9135324d, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 2
+    fadeDuration: 0.015
+  buttonCancel:
+    clip: {fileID: 8300000, guid: 4cfcf4ea58c8049b3825b2c91fcf8e51, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 2
+    fadeDuration: 0.015
+  toggleOn:
+    clip: {fileID: 8300000, guid: 82921726e3cf84d42a8f226a9135324d, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 2
+    fadeDuration: 0.015
+  toggleOff:
+    clip: {fileID: 8300000, guid: 4cfcf4ea58c8049b3825b2c91fcf8e51, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 2
+    fadeDuration: 0.015
+  sliderInteraction:
+    clip: {fileID: 8300000, guid: b63bae7db915d4dfbaaa4683b77fa5ec, type: 3}
+    alternateClips: []
+    volume: 0.35
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.12
+    maximumInstances: 1
+    fadeDuration: 0.015
+  popupOpen:
+    clip: {fileID: 0}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 2
+    fadeDuration: 0.015
+  popupClose:
+    clip: {fileID: 0}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 2
+    fadeDuration: 0.015
+  colorSelected:
+    clip: {fileID: 8300000, guid: 52f53406449a041cbaae153cba1203d7, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 1
+    fadeDuration: 0.015
+  blockColorChange:
+    clip: {fileID: 8300000, guid: 8aee5c9220d3042cda7d1881506acc47, type: 3}
+    alternateClips: []
+    volume: 0.5
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 2
+    fadeDuration: 0.015
+  floodProgress:
+    clip: {fileID: 8300000, guid: d3e2290fba8994599a725bde31018421, type: 3}
+    alternateClips: []
+    volume: 0.3
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.12
+    maximumInstances: 2
+    fadeDuration: 0.015
+  floodEnd:
+    clip: {fileID: 0}
+    alternateClips: []
+    volume: 0.45
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 2
+    fadeDuration: 0.015
+  largeCapture:
+    clip: {fileID: 8300000, guid: 8aee5c9220d3042cda7d1881506acc47, type: 3}
+    alternateClips: []
+    volume: 0.5
+    pitch: 1.15
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 1
+    fadeDuration: 0.015
+  levelStarted:
+    clip: {fileID: 8300000, guid: 82921726e3cf84d42a8f226a9135324d, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 2
+    fadeDuration: 0.015
+  levelCompleted:
+    clip: {fileID: 8300000, guid: 8aee5c9220d3042cda7d1881506acc47, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1.3
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 1
+    fadeDuration: 0.015
+  levelFailed:
+    clip: {fileID: 8300000, guid: d3e2290fba8994599a725bde31018421, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 0.8
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 1
+    fadeDuration: 0.015
+  outOfMoves:
+    clip: {fileID: 0}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 1
+    fadeDuration: 0.015
+  restartLevel:
+    clip: {fileID: 8300000, guid: 4cfcf4ea58c8049b3825b2c91fcf8e51, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 1
+    fadeDuration: 0.015
+  pauseSound:
+    clip: {fileID: 8300000, guid: 4cfcf4ea58c8049b3825b2c91fcf8e51, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 1
+    fadeDuration: 0.015
+  resumeSound:
+    clip: {fileID: 8300000, guid: 82921726e3cf84d42a8f226a9135324d, type: 3}
+    alternateClips: []
+    volume: 0.65
+    pitch: 1
+    randomPitch: 0.025
+    minimumInterval: 0.08
+    maximumInstances: 1
+    fadeDuration: 0.015
+  minimumCubesForProgress: 12
+  largeCaptureThreshold: 30
+  minimumProgressInterval: 0.12
+  maximumProgressSoundsPerFlood: 4
+  maximumSimultaneousFloodSounds: 2
+  floodProgressVolume: 0.45
+  floodPitchVariation: 0.025
+  floodVolumeScaling: 0.12
+  floodPitchScaling: 0.05

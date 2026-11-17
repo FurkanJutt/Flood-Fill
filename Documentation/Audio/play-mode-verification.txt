@@ -1,0 +1,10 @@
+PASS menu initialization, looping, routing, source count, popup continuity.
+PASS authoritative move thresholds, hard priority, dynamic refresh, no repeated restarts.
+PASS interrupted equal-power fades, live clip assignment, preview safety and refresh idempotence.
+PASS existing settings UI sliders, immediate exposed volumes, independent mute, persistence, throttling, pool refresh.
+PASS accepted-color de-duplication, real flood timing, scaled pause synchronization, unscaled audio, flood caps/reset.
+PASS rapid real level restarts and recalculated authoritative music budget.
+PASS free-flood outside-component merge metadata and actual animated-wave bounds.
+PASS single result cues, pause/resume guard, missing clips, alternate-only sound configuration.
+PASS scene persistence, duplicate prevention, app suspension/resume, startup persistence and source reuse.
+PASS: 153 assertions; native Play Mode verification complete.

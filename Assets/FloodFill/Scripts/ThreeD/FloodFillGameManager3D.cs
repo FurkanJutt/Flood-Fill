@@ -1,3 +1,4 @@
+using FloodFill.ThreeD.Audio;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
@@ -71,6 +72,7 @@ namespace FloodFill.ThreeD
         private CancellationTokenSource solverCancellation;
         private int solverGenerationId;
         private int currentMoveBudget = 1;
+        private bool audioPaused;
         private bool gameSessionActive;
         private bool isCampaignGame;
         private int activeCampaignLevel = 1;
@@ -104,6 +106,7 @@ namespace FloodFill.ThreeD
                 return;
             }
 
+            FloodAudioSignals.Register(this);
             boardManager.VoxelClicked += HandleVoxelClicked;
             if (boardModeDropdown != null) InitializeBoardModeDropdown();
             if (boardSizeDropdown != null) InitializeBoardSizeDropdown();
@@ -143,6 +146,7 @@ namespace FloodFill.ThreeD
 
         public void RestartCurrentGame()
         {
+            FloodAudioSignals.Restart();
             RestartGame();
         }
 
@@ -190,11 +194,16 @@ namespace FloodFill.ThreeD
         {
             if (State != GameState.Playing) return;
             boardManager.SetInputEnabled(false);
+            if (!audioPaused) { audioPaused = true; FloodAudioSignals.Pause(true); }
         }
 
         public void ResumeGame()
         {
-            if (State == GameState.Playing) boardManager.SetInputEnabled(true);
+            if (State == GameState.Playing)
+            {
+                boardManager.SetInputEnabled(true);
+                if (audioPaused) { audioPaused = false; FloodAudioSignals.Pause(false); }
+            }
         }
 
         public void ContinueSavedGame()
@@ -239,6 +248,7 @@ namespace FloodFill.ThreeD
             }
 
             SelectedColorIndex = colorIndex;
+            FloodAudioSignals.SelectColor();
             RefreshUI();
             SaveSession();
             Debug.Log($"Selected 3D paint color: {colorIndex}. Click a cube to recolor it.", this);
@@ -276,6 +286,8 @@ namespace FloodFill.ThreeD
 
         public void RestartGame()
         {
+            audioPaused = false;
+            FloodAudioSignals.ResetLevel();
             boardManager.RestoreMenuPreview();
             boardManager.SetBoardVisible(true);
             Stopwatch restartWatch = Stopwatch.StartNew();
@@ -919,6 +931,7 @@ namespace FloodFill.ThreeD
         private void ScheduleResult(GameState state)
         {
             State = state;
+            FloodAudioSignals.Result(state == GameState.Won);
             SetColorInputEnabled(false);
             if (state == GameState.Won) AdvanceCampaignAfterWin();
             SaveSession();
@@ -1176,6 +1189,7 @@ namespace FloodFill.ThreeD
 
         private void OnDestroy()
         {
+            FloodAudioSignals.Unregister(this);
             SaveSession();
             if (boardModeDropdown != null)
             {

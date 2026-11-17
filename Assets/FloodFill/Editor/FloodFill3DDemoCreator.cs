@@ -99,6 +99,11 @@ namespace FloodFill.Editor
             EditorUtility.SetDirty(gameManager);
             EditorUtility.SetDirty(mobileUI);
 
+            // Keep the configured audio system when this scene is regenerated.
+            GameObject audioPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                global::FloodFill.EditorTools.FloodAudioSetup.PrefabPath);
+            if (audioPrefab != null) PrefabUtility.InstantiatePrefab(audioPrefab, scene);
+
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene, ScenePath))
             {
