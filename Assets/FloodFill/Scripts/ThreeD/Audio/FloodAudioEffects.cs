@@ -54,7 +54,7 @@ namespace FloodFill.ThreeD.Audio
                 case FloodSound.Slider:return sliderInteraction;case FloodSound.PopupOpen:return popupOpen;case FloodSound.PopupClose:return popupClose;
                 case FloodSound.ColorSelected:return colorSelected;case FloodSound.BlockColorChange:return blockColorChange;case FloodSound.FloodProgress:return floodProgress;
                 case FloodSound.FloodEnd:return floodEnd;case FloodSound.LargeCapture:return largeCapture;case FloodSound.LevelStarted:return levelStarted;
-                case FloodSound.LevelCompleted:return levelCompleted;case FloodSound.LevelFailed:return levelFailed;case FloodSound.OutOfMoves:return outOfMoves;
+                case FloodSound.LevelCompleted:return levelCompleted;case FloodSound.LevelFailed:return levelFailed;
                 case FloodSound.Restart:return restartLevel;case FloodSound.Pause:return pauseSound;case FloodSound.Resume:return resumeSound;default:return null;
             }
         }

@@ -58,7 +58,6 @@ namespace FloodFill.ThreeD.Audio
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings levelStarted=new FloodSoundSettings();
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings levelCompleted=new FloodSoundSettings{maximumInstances=1};
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings levelFailed=new FloodSoundSettings{maximumInstances=1};
-        [Foldout("Gameplay Sound Effects")] public FloodSoundSettings outOfMoves=new FloodSoundSettings{maximumInstances=1};
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings restartLevel=new FloodSoundSettings{maximumInstances=1};
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings pauseSound=new FloodSoundSettings{maximumInstances=1};
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings resumeSound=new FloodSoundSettings{maximumInstances=1};
@@ -177,7 +176,6 @@ namespace FloodFill.ThreeD.Audio
             if(resultHandled)return;resultHandled=true;resultPending=true;resultWon=won;
             resultAt=Time.time+(game!=null&&game.BoardManager!=null?game.BoardManager.LastRecolorAnimationDuration:0f);
             duckTarget=resultMusicDuck;
-            if(!won&&(outOfMoves.clip==null||outOfMoves.clip!=levelFailed.clip))PlaySound(FloodSound.OutOfMoves);
         }
         private void Update()
         {

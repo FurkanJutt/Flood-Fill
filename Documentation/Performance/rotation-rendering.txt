@@ -1,0 +1,8 @@
+GPU: Apple M1 Pro
+512x512 synchronous URP camera render + GPU readback wait, 16 warmup / 32 rotating measured frames per case; not player FPS.
+12^3 (1728 cubes), per-cube color blocks: median 33.87 ms, p95 37.69 ms, mean 34.24 ms; shared materials=1.
+12^3 visual comparison: mean RGB difference 0.000 / 255.
+12^3 (1728 cubes), shared palette materials: median 4.06 ms, p95 4.28 ms, mean 4.07 ms; shared materials=6.
+20^3 (8000 cubes), per-cube color blocks: median 137.66 ms, p95 141.58 ms, mean 137.92 ms; shared materials=1.
+20^3 visual comparison: mean RGB difference 0.000 / 255.
+20^3 (8000 cubes), shared palette materials: median 13.96 ms, p95 14.40 ms, mean 13.78 ms; shared materials=6.

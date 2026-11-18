@@ -10,6 +10,8 @@ namespace FloodFill.ThreeD
     public sealed class OrbitCameraController3D : MonoBehaviour
     {
         private static readonly List<RaycastResult> UiRaycastResults = new List<RaycastResult>();
+        private static EventSystem uiEventSystem;
+        private static PointerEventData uiPointerData;
 
         [Header("Rig")]
         [SerializeField] private Transform cameraPivot;
@@ -221,11 +223,14 @@ namespace FloodFill.ThreeD
             }
 
             Vector2 pointerPosition = mouse.position.ReadValue();
+            float scroll = mouse.scroll.ReadValue().y;
+            bool panPressed = mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame;
+            bool pointerOverUi = (mouse.leftButton.wasPressedThisFrame || panPressed || orbitDragging || panDragging || !Mathf.Approximately(scroll, 0f)) &&
+                IsScreenPositionOverUI(pointerPosition);
             if (mouse.leftButton.wasPressedThisFrame)
             {
-                bool overUiOnPress = IsScreenPositionOverUI(pointerPosition);
-                orbitDragging = !overUiOnPress;
-                BeginMouseTapCandidate(pointerPosition, overUiOnPress);
+                orbitDragging = !pointerOverUi;
+                BeginMouseTapCandidate(pointerPosition, pointerOverUi);
             }
 
 
@@ -241,11 +246,9 @@ namespace FloodFill.ThreeD
                 CompleteMouseTapCandidate(pointerPosition);
             }
 
-            bool panPressed = mouse.rightButton.wasPressedThisFrame ||
-                mouse.middleButton.wasPressedThisFrame;
             if (panPressed)
             {
-                panDragging = !IsScreenPositionOverUI(pointerPosition);
+                panDragging = !pointerOverUi;
             }
 
             if (!mouse.rightButton.isPressed && !mouse.middleButton.isPressed)
@@ -254,7 +257,6 @@ namespace FloodFill.ThreeD
             }
 
             Vector2 delta = mouse.delta.ReadValue();
-            bool pointerOverUi = IsScreenPositionOverUI(pointerPosition);
             if (panDragging && !pointerOverUi)
             {
                 Pan(delta);
@@ -264,7 +266,6 @@ namespace FloodFill.ThreeD
                 Orbit(delta);
             }
 
-            float scroll = mouse.scroll.ReadValue().y;
             if (!Mathf.Approximately(scroll, 0f) && !pointerOverUi)
             {
                 Zoom(scroll / 120f);
@@ -350,11 +351,13 @@ namespace FloodFill.ThreeD
             }
 
             Vector2 pointerPosition = Input.mousePosition;
+            float scroll = Input.mouseScrollDelta.y;
+            bool pointerOverUi = (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1) || Input.GetMouseButtonDown(2) || orbitDragging || panDragging || !Mathf.Approximately(scroll, 0f)) &&
+                IsScreenPositionOverUI(pointerPosition);
             if (Input.GetMouseButtonDown(0))
             {
-                bool overUiOnPress = IsScreenPositionOverUI(pointerPosition);
-                orbitDragging = !overUiOnPress;
-                BeginMouseTapCandidate(pointerPosition, overUiOnPress);
+                orbitDragging = !pointerOverUi;
+                BeginMouseTapCandidate(pointerPosition, pointerOverUi);
             }
 
             if (mouseTapCandidate && Input.GetMouseButton(0) &&
@@ -371,7 +374,7 @@ namespace FloodFill.ThreeD
 
             if (Input.GetMouseButtonDown(1) || Input.GetMouseButtonDown(2))
             {
-                panDragging = !IsScreenPositionOverUI(pointerPosition);
+                panDragging = !pointerOverUi;
             }
 
             if (!Input.GetMouseButton(1) && !Input.GetMouseButton(2))
@@ -380,7 +383,6 @@ namespace FloodFill.ThreeD
             }
 
             Vector2 delta = new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * 12f;
-            bool pointerOverUi = IsScreenPositionOverUI(pointerPosition);
             if (panDragging && !pointerOverUi)
             {
                 Pan(delta);
@@ -390,7 +392,6 @@ namespace FloodFill.ThreeD
                 Orbit(delta);
             }
 
-            float scroll = Input.mouseScrollDelta.y;
             if (!Mathf.Approximately(scroll, 0f) && !pointerOverUi)
             {
                 Zoom(scroll);
@@ -632,12 +633,15 @@ namespace FloodFill.ThreeD
                 return false;
             }
 
-            var pointerData = new PointerEventData(EventSystem.current)
+            if (uiEventSystem != EventSystem.current || uiPointerData == null)
             {
-                position = screenPosition
-            };
+                uiEventSystem = EventSystem.current;
+                uiPointerData = new PointerEventData(uiEventSystem);
+            }
+            uiPointerData.Reset();
+            uiPointerData.position = screenPosition;
             UiRaycastResults.Clear();
-            EventSystem.current.RaycastAll(pointerData, UiRaycastResults);
+            EventSystem.current.RaycastAll(uiPointerData, UiRaycastResults);
             bool overUi = UiRaycastResults.Count > 0;
             UiRaycastResults.Clear();
             return overUi;

@@ -12,6 +12,23 @@ namespace FloodFill.ThreeD
         private static readonly int FlatKitShadedColorId = Shader.PropertyToID("_ColorDim");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
         private static MaterialPropertyBlock sharedPropertyBlock;
+        private static readonly Dictionary<(Material, Color), Material> ColorMaterials = new Dictionary<(Material, Color), Material>();
+        private struct RendererColorBinding
+        {
+            public Material[] SourceMaterials, ColoredMaterials;
+            public int ColorProperty;
+            public bool HasShadedColor;
+        }
+        private RendererColorBinding[] rendererColorBindings;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetColorMaterials()
+        {
+            foreach (Material material in ColorMaterials.Values)
+                if (material != null) Destroy(material);
+            ColorMaterials.Clear();
+            sharedPropertyBlock = null;
+        }
 
         [SerializeField] private Transform visual;
         [SerializeField] private MeshRenderer[] meshRenderers;
@@ -47,6 +64,7 @@ namespace FloodFill.ThreeD
         {
             visual = visualRoot;
             meshRenderers = renderers;
+            rendererColorBindings = null;
         }
 
         public void Initialize(int x, int y, int z, int colorIndex, Color color)
@@ -82,6 +100,9 @@ namespace FloodFill.ThreeD
         public void ResetForPool()
         {
             StopAnimations();
+            EnsureRenderers();
+            for (int i = 0; i < meshRenderers.Length; i++)
+                if (meshRenderers[i] != null) meshRenderers[i].SetPropertyBlock(null);
             IsCaptured = false;
             if (visual != null && hasVisualRestingScale)
             {
@@ -121,8 +142,7 @@ namespace FloodFill.ThreeD
                 visual.localScale = visualRestingScale;
             }
 
-            displayedColor = color;
-            ApplyDisplayColor(color);
+            ApplySteadyColor(color);
         }
 
         public float ColorWaveStartOffset => Mathf.Max(0f, waveAnticipationDuration);
@@ -190,8 +210,7 @@ namespace FloodFill.ThreeD
 
             colorWaveSequence.OnComplete(() =>
             {
-                displayedColor = color;
-                ApplyDisplayColor(color);
+                ApplySteadyColor(color);
                 colorWaveSequence = null;
             });
 
@@ -214,26 +233,48 @@ namespace FloodFill.ThreeD
                     continue;
                 }
 
-                targetRenderer.GetPropertyBlock(sharedPropertyBlock);
-                Material material = targetRenderer.sharedMaterial;
-                if (material != null && material.HasProperty(BaseColorId))
-                {
-                    sharedPropertyBlock.SetColor(BaseColorId, color);
-                    if (material.HasProperty(FlatKitShadedColorId))
-                    {
-                        sharedPropertyBlock.SetColor(
-                            FlatKitShadedColorId,
-                            GetFlatKitShadedColor(color));
-                    }
-                }
-                else
-                {
-                    sharedPropertyBlock.SetColor(ColorId, color);
-                }
+                RendererColorBinding binding = rendererColorBindings[i];
+                sharedPropertyBlock.SetColor(binding.ColorProperty, color);
+                if (binding.HasShadedColor)
+                    sharedPropertyBlock.SetColor(FlatKitShadedColorId, GetFlatKitShadedColor(color));
 
                 targetRenderer.SetPropertyBlock(sharedPropertyBlock);
                 sharedPropertyBlock.Clear();
             }
+        }
+
+        private void ApplySteadyColor(Color color)
+        {
+            displayedColor = color;
+            for (int i = 0; i < meshRenderers.Length; i++)
+            {
+                MeshRenderer renderer = meshRenderers[i];
+                if (renderer == null) continue;
+                RendererColorBinding binding = rendererColorBindings[i];
+                for (int slot = 0; slot < binding.SourceMaterials.Length; slot++)
+                    binding.ColoredMaterials[slot] = GetColorMaterial(binding.SourceMaterials[slot], color);
+                if (binding.ColoredMaterials.Length == 1)
+                    renderer.sharedMaterial = binding.ColoredMaterials[0];
+                else
+                    renderer.sharedMaterials = binding.ColoredMaterials;
+                // Persistent color overrides disable batching with the Flat Kit shader.
+                // Use a shared palette material at rest and overrides only while tweening.
+                renderer.SetPropertyBlock(null);
+            }
+        }
+
+        private static Material GetColorMaterial(Material source, Color color)
+        {
+            if (source == null) return null;
+            if (!source.HasProperty(BaseColorId) && !source.HasProperty(ColorId)) return source;
+            var key = (source, color);
+            if (ColorMaterials.TryGetValue(key, out Material material) && material != null) return material;
+            material = new Material(source) { name = source.name + " (Voxel Palette)", hideFlags = HideFlags.DontSave };
+            material.SetColor(source.HasProperty(BaseColorId) ? BaseColorId : ColorId, color);
+            if (source.HasProperty(FlatKitShadedColorId))
+                material.SetColor(FlatKitShadedColorId, GetFlatKitShadedColor(color));
+            ColorMaterials[key] = material;
+            return material;
         }
 
         private static Color GetFlatKitShadedColor(Color baseColor)
@@ -306,6 +347,21 @@ namespace FloodFill.ThreeD
             {
                 Transform searchRoot = visual != null ? visual : transform;
                 meshRenderers = searchRoot.GetComponentsInChildren<MeshRenderer>(true);
+            }
+            if (rendererColorBindings != null && rendererColorBindings.Length == meshRenderers.Length) return;
+            rendererColorBindings = new RendererColorBinding[meshRenderers.Length];
+            for (int i = 0; i < meshRenderers.Length; i++)
+            {
+                if (meshRenderers[i] == null) continue;
+                Material[] materials = meshRenderers[i].sharedMaterials;
+                Material primary = materials.Length > 0 ? materials[0] : null;
+                rendererColorBindings[i] = new RendererColorBinding
+                {
+                    SourceMaterials = materials,
+                    ColoredMaterials = new Material[materials.Length],
+                    ColorProperty = primary != null && primary.HasProperty(BaseColorId) ? BaseColorId : ColorId,
+                    HasShadedColor = primary != null && primary.HasProperty(FlatKitShadedColorId)
+                };
             }
         }
 

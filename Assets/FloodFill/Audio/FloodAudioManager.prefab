@@ -223,7 +223,7 @@ MonoBehaviour:
     maximumInstances: 1
     fadeDuration: 0.015
   levelStarted:
-    clip: {fileID: 8300000, guid: 82921726e3cf84d42a8f226a9135324d, type: 3}
+    clip: {fileID: 8300000, guid: eb32d46183d2847c994358328bd8f109, type: 3}
     alternateClips: []
     volume: 0.65
     pitch: 1
@@ -232,7 +232,7 @@ MonoBehaviour:
     maximumInstances: 2
     fadeDuration: 0.015
   levelCompleted:
-    clip: {fileID: 8300000, guid: 8aee5c9220d3042cda7d1881506acc47, type: 3}
+    clip: {fileID: 8300000, guid: eb32d46183d2847c994358328bd8f109, type: 3}
     alternateClips: []
     volume: 0.65
     pitch: 1.3
@@ -241,19 +241,10 @@ MonoBehaviour:
     maximumInstances: 1
     fadeDuration: 0.015
   levelFailed:
-    clip: {fileID: 8300000, guid: d3e2290fba8994599a725bde31018421, type: 3}
+    clip: {fileID: 8300000, guid: 6435a7ed6f72d4ec4993adef27c6d005, type: 3}
     alternateClips: []
     volume: 0.65
     pitch: 0.8
-    randomPitch: 0.025
-    minimumInterval: 0.08
-    maximumInstances: 1
-    fadeDuration: 0.015
-  outOfMoves:
-    clip: {fileID: 0}
-    alternateClips: []
-    volume: 0.65
-    pitch: 1
     randomPitch: 0.025
     minimumInterval: 0.08
     maximumInstances: 1
@@ -291,16 +282,16 @@ MonoBehaviour:
   maximumProgressSoundsPerFlood: 4
   maximumSimultaneousFloodSounds: 2
   floodProgressVolume: 0.45
+  floodStartPlaybackSeconds: 0.22
+  floodProgressPlaybackSeconds: 0.14
+  floodProgressClipOffset: 0.025
+  floodPitchVariation: 0.025
+  floodVolumeScaling: 0.12
+  floodPitchScaling: 0.05
+  floodStartClipOffset: 0.105
   spreadLoopSeconds: 0.16
   spreadStartSpeed: 0.8
   spreadEndSpeed: 1.65
   spreadFadeOutSeconds: 0.2
-  floodStartPlaybackSeconds: 0.22
-  floodProgressPlaybackSeconds: 0.14
-  floodStartClipOffset: 0.105
-  floodProgressClipOffset: 0.025
   floodStartOffsetClip: {fileID: 8300000, guid: 8aee5c9220d3042cda7d1881506acc47, type: 3}
   floodProgressOffsetClip: {fileID: 8300000, guid: d3e2290fba8994599a725bde31018421, type: 3}
-  floodPitchVariation: 0.025
-  floodVolumeScaling: 0.12
-  floodPitchScaling: 0.05
