@@ -12,8 +12,12 @@ namespace FloodFill.ThreeD
             if (manager == null || manager.BoardManager == null || manager.BoardManager.VoxelPrefab == null)
                 return;
 
-            FloodFillMobileUI3D ui = manager.GetComponent<FloodFillMobileUI3D>();
-            if (ui == null) ui = manager.gameObject.AddComponent<FloodFillMobileUI3D>();
+            FloodFillMobileUI3D ui = Object.FindAnyObjectByType<FloodFillMobileUI3D>();
+            if (ui == null)
+            {
+                Debug.LogError("The scene needs its authored FloodFillCanvas prefab. Use Tools > Flood Fill > UI > Install Editable UI in Demo Scene.");
+                return;
+            }
             if (ui.IsBuilt) return;
 
             Canvas canvas = Object.FindAnyObjectByType<Canvas>();

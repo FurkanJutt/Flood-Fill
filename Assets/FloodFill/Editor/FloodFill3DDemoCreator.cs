@@ -91,8 +91,7 @@ namespace FloodFill.Editor
                 null,
                 (Color[])Palette.Clone());
 
-            FloodFillMobileUI3D mobileUI = gameManager.gameObject.AddComponent<FloodFillMobileUI3D>();
-            mobileUI.Initialize(gameManager, canvas.transform, voxelPrefab);
+            FloodFillMobileUI3D mobileUI = global::FloodFill.EditorTools.FloodFillUIPrefabSetup.InstallInScene(scene, gameManager, canvas, voxelPrefab);
 
             EditorUtility.SetDirty(boardManager);
             EditorUtility.SetDirty(orbitCamera);

@@ -1,0 +1,1 @@
+PASS: 72 prefab checks, including nested screens, persistent button events, renamed controls, saved layout/text/state edits, single initialization and playable launch.

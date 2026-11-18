@@ -7,10 +7,11 @@ namespace FloodFill.ThreeD
 {
     public sealed partial class FloodFillMobileUI3D
     {
-        private Slider masterAudioSlider,musicAudioSlider,sfxAudioSlider;
-        private Toggle musicAudioToggle,sfxAudioToggle;
-        private TMP_Text masterAudioValue,musicAudioValue,sfxAudioValue;
+        [SerializeField] private Slider masterAudioSlider,musicAudioSlider,sfxAudioSlider;
+        [SerializeField] private Toggle musicAudioToggle,sfxAudioToggle;
+        [SerializeField] private TMP_Text masterAudioValue,musicAudioValue,sfxAudioValue;
         private FloodAudioManager audioSettingsOwner;
+#if UNITY_EDITOR
         private void BuildAudioSettings(Transform parent)
         {
             masterAudioSlider=AudioSlider(parent,"MASTER VOLUME",160,out masterAudioValue);
@@ -28,6 +29,8 @@ namespace FloodFill.ThreeD
             if(audioSettingsOwner!=null)audioSettingsOwner.SettingsChanged+=RefreshAudioControls;
             RefreshAudioControls();
         }
+#endif
+#if UNITY_EDITOR
         private Slider AudioSlider(Transform parent,string label,float y,out TMP_Text value)
         {
             TMP_Text title=AddText(parent,label,27,FontStyles.Bold,new Vector2(-150,y+26),new Vector2(440,46));title.alignment=TextAlignmentOptions.MidlineLeft;
@@ -46,6 +49,8 @@ namespace FloodFill.ThreeD
             FloodAudioManager.Instance?.BindControl(slider,label);
             return slider;
         }
+#endif
+#if UNITY_EDITOR
         private Toggle AudioToggle(Transform parent,string label,float y,bool automaticSound=true)
         {
             var row=MakeRect(label,parent,new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(0,y),new Vector2(700,64));
@@ -58,6 +63,7 @@ namespace FloodFill.ThreeD
             toggle.onValueChanged.AddListener(_ => SkinSwitch(toggle));
             return toggle;
         }
+#endif
         private void RefreshAudioControls()
         {
             var audio=FloodAudioManager.Instance;if(audio==null||masterAudioSlider==null)return;

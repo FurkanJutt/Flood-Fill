@@ -334,14 +334,15 @@ namespace FloodFill.EditorTools
             Check(currentBlock.gameObject.activeInHierarchy,"Show Current Block is present and active in Settings");
             bool savedBlock=currentBlock.isOn;currentBlock.isOn=!savedBlock;
             Check(PlayerPrefs.GetInt("FloodFill3D.ShowCurrentBlock")==(savedBlock?0:1),"Show Current Block still saves its preference");
-            // Simulate an old hidden auto-layout row left by an in-Play script reload.
-            var oldBlockRow=currentBlock.transform.parent.gameObject;
-            oldBlockRow.AddComponent<HorizontalLayoutGroup>();oldBlockRow.SetActive(false);
+            // Authored layout edits stay authoritative when Settings is reopened.
+            var authoredToggle=currentBlock;
+            var blockRect=(RectTransform)currentBlock.transform.parent;
+            Vector2 authoredPosition=blockRect.anchoredPosition+new Vector2(17,-11);
+            blockRect.anchoredPosition=authoredPosition;
             Find<Button>("SETTINGSButton").onClick.Invoke();yield return .1f;
             currentBlock=Find<Toggle>("ShowCurrentBlockToggle");
-            Check(currentBlock.gameObject.activeInHierarchy&&currentBlock.isOn!=savedBlock,"Opening Settings repairs the hidden legacy row and retains its value");
-            var blockRect=(RectTransform)currentBlock.transform.parent;
-            Check(Mathf.Approximately(blockRect.anchoredPosition.y,270)&&blockRect.GetComponent<HorizontalLayoutGroup>()==null,"Current-block row has explicit non-overlapping layout");
+            Check(currentBlock==authoredToggle&&currentBlock.isOn!=savedBlock,"Settings reuses its authored control and retains its value");
+            Check(blockRect.anchoredPosition==authoredPosition,"Opening Settings preserves manually edited layout");
             Find<Button>("SETTINGSButton").onClick.Invoke();Find<Button>("SETTINGSButton").onClick.Invoke();yield return .05f;
             int blockRows=0;foreach(var transform in UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Include))if(transform.name=="ShowCurrentBlockOption")blockRows++;
             Check(blockRows==1,"Repeated Settings visits do not duplicate the current-block option");

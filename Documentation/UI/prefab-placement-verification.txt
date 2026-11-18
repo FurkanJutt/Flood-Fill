@@ -1,0 +1,1 @@
+PASS: All eight authored screens render outside Play Mode; visible button corners fit 1080x1920 and 1536x2048 viewports.

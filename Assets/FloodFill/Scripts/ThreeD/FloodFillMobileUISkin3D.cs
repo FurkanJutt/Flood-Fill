@@ -6,9 +6,10 @@ namespace FloodFill.ThreeD
 {
     public sealed partial class FloodFillMobileUI3D
     {
-        private FloodUISkin uiSkin;
-        private GameObject victoryCrown;
+        [SerializeField] private FloodUISkin uiSkin;
+        [SerializeField] private GameObject victoryCrown;
 
+#if UNITY_EDITOR
         private bool SkinImage(Image image, string key, bool sliced = true)
         {
             Sprite sprite = uiSkin != null ? uiSkin.Find(key) : null;
@@ -24,7 +25,9 @@ namespace FloodFill.ThreeD
                 image.pixelsPerUnitMultiplier = Mathf.Max(image.pixelsPerUnitMultiplier, sprite.rect.width / Mathf.Max(1f, image.rectTransform.sizeDelta.x));
             return true;
         }
+#endif
 
+#if UNITY_EDITOR
         private void SkinDecoration(string name, Transform parent, string key, Vector2 position, Vector2 size)
         {
             if (uiSkin == null || uiSkin.Find(key) == null) return;
@@ -32,7 +35,9 @@ namespace FloodFill.ThreeD
             SkinImage(image, key, false);
             image.raycastTarget = false;
         }
+#endif
 
+#if UNITY_EDITOR
         private void SkinButton(Button button, string label, Color originalColor)
         {
             string parent = button.transform.parent.name;
@@ -85,23 +90,18 @@ namespace FloodFill.ThreeD
                 labelLayout.flexibleWidth = 0;
             }
         }
+#endif
 
         private void SkinChoice(Button button, bool selected)
         {
-            string key = sizeButtons.Contains(button) ? (selected ? "SelectedTile" : "Tile") : (selected ? "Primary" : "Secondary");
-            if (!SkinImage(button.image, key))
-                button.image.color = selected ? Accent : Panel;
+            var state = button.GetComponent<FloodFillUIState3D>();
+            if (state != null) state.Apply(selected);
         }
 
         private void SkinSwitch(Toggle toggle)
         {
-            if (uiSkin == null) return;
-            Image image = toggle.targetGraphic as Image;
-            if (image == null || !SkinImage(image, toggle.isOn ? "SwitchOn" : "SwitchOff", false)) return;
-            image.rectTransform.sizeDelta = new Vector2(104, 57);
-            if (toggle.graphic != null) toggle.graphic.gameObject.SetActive(false);
-            toggle.graphic = null;
-            // SetIsOnWithoutNotify is used when opening settings; refresh those explicitly too.
+            var state = toggle.GetComponent<FloodFillUIState3D>();
+            if (state != null) state.Apply(toggle.isOn);
         }
     }
 }

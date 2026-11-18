@@ -1,0 +1,48 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace FloodFill.ThreeD
+{
+    /// <summary>Authored state visuals with optional per-state dimensions.</summary>
+    [RequireComponent(typeof(Image))]
+    public sealed class FloodFillUIState3D : MonoBehaviour
+    {
+        public Sprite normalSprite;
+        public bool normalOverrideSize;
+        public Vector2 normalSize = new Vector2(100, 100);
+        public Sprite selectedSprite;
+        public bool selectedOverrideSize;
+        public Vector2 selectedSize = new Vector2(100, 100);
+        public Color normalColor = Color.white;
+        public Color selectedColor = Color.white;
+        private bool sizeOverridden;
+        private Vector2 originalSizeDelta;
+
+        private void Reset()
+        {
+            var rect = (RectTransform)transform;
+            normalSize = selectedSize = rect.rect.size;
+        }
+
+        public void Apply(bool selected)
+        {
+            Image image = GetComponent<Image>();
+            image.sprite = selected ? selectedSprite : normalSprite;
+            image.color = selected ? selectedColor : normalColor;
+            var rect = image.rectTransform;
+            if (selected ? selectedOverrideSize : normalOverrideSize)
+            {
+                if (!sizeOverridden) originalSizeDelta = rect.sizeDelta;
+                sizeOverridden = true;
+                Vector2 size = selected ? selectedSize : normalSize;
+                rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, Mathf.Max(0, size.x));
+                rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Mathf.Max(0, size.y));
+            }
+            else if (sizeOverridden)
+            {
+                rect.sizeDelta = originalSizeDelta;
+                sizeOverridden = false;
+            }
+        }
+    }
+}

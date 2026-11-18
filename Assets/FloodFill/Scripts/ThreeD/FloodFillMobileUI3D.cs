@@ -25,10 +25,10 @@ namespace FloodFill.ThreeD
         private const string SetupDifficultyKey = "FloodFill3D.SetupDifficulty";
         private const string SetupFruitKey = "FloodFill3D.SetupFruit";
         private const string ShowCurrentBlockKey = "FloodFill3D.ShowCurrentBlock";
-        private readonly List<Button> modeButtons = new List<Button>();
-        private readonly List<Button> sizeButtons = new List<Button>();
-        private readonly List<Button> difficultyButtons = new List<Button>();
-        private readonly List<Button> colorButtons = new List<Button>();
+        [SerializeField] private List<Button> modeButtons = new List<Button>();
+        [SerializeField] private List<Button> sizeButtons = new List<Button>();
+        [SerializeField] private List<Button> difficultyButtons = new List<Button>();
+        [SerializeField] private List<Button> colorButtons = new List<Button>();
         private readonly List<RectTransform> menuButtonRects = new List<RectTransform>();
         private readonly List<float> menuButtonPreferredWidths = new List<float>();
         private readonly int[] sizes = { 6, 8, 10, 12, 15, 18, 20 };
@@ -37,27 +37,27 @@ namespace FloodFill.ThreeD
         [SerializeField] private VoxelCell3D menuVoxelPrefab;
         [Header("Menu Decoration")]
         [SerializeField, Min(0f)] private float decorativeGap = 0.3f;
-        private Transform safeRoot;
-        private GameObject menu, setup, howTo, settings, hud, pause, results, loading;
-        private TMP_Text loadingTitle, loadingStatus;
-        private RectTransform loadingIndicator;
-        private GameObject loadingRetry;
+        [SerializeField] private Transform safeRoot;
+        [SerializeField] private GameObject menu, setup, howTo, settings, hud, pause, results, loading;
+        [SerializeField] private TMP_Text loadingTitle, loadingStatus;
+        [SerializeField] private RectTransform loadingIndicator;
+        [SerializeField] private GameObject loadingRetry;
         private bool loadingHudPrepared;
-        private GameObject continueButton;
-        private RectTransform menuButtonsRoot;
-        private GameObject sizeLabel, fruitLabel, fruitDropdownMenu;
-        private Button fruitDropdownButton;
-        private TMP_Text fruitDropdownText;
-        private TMP_Text fruitComingSoon;
-        private Toggle showCurrentBlockToggle;
-        private TMP_Text moves, captured, score, resultTitle, resultDetails, resultActionLabel, gameTitle;
-        private Image progress;
+        [SerializeField] private GameObject continueButton;
+        [SerializeField] private RectTransform menuButtonsRoot;
+        [SerializeField] private GameObject sizeLabel, fruitLabel, fruitDropdownMenu;
+        [SerializeField] private Button fruitDropdownButton;
+        [SerializeField] private TMP_Text fruitDropdownText;
+        [SerializeField] private TMP_Text fruitComingSoon;
+        [SerializeField] private Toggle showCurrentBlockToggle;
+        [SerializeField] private TMP_Text moves, captured, score, resultTitle, resultDetails, resultActionLabel, gameTitle;
+        [SerializeField] private Image progress;
         private int modeIndex, sizeIndex, difficultyIndex = 1, fruitIndex;
         private static readonly string[] FruitNames = { "RANDOM FRUIT", "APPLE", "BANANA", "ORANGE", "PEAR", "STRAWBERRY", "GRAPES", "PINEAPPLE", "LEMON", "MANGO" };
         private bool started;
         private GameObject cubeCluster;
+        [SerializeField] private TMP_Text fpsLabel;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        private TMP_Text fpsLabel;
         private float fpsElapsed;
         private int fpsFrames;
 #endif
@@ -72,24 +72,28 @@ namespace FloodFill.ThreeD
 
         private void Awake()
         {
-            if (manager != null && canvasRoot != null) BuildUI();
+            if (canvasRoot == null) canvasRoot = transform;
+            BuildUI();
         }
 
         private bool built;
-        private Vector2 lastMenuLayoutSize;
         public bool IsBuilt => built;
 
         private void BuildUI()
         {
-            if (built) return;
+            if (built || !Application.isPlaying) return;
+            if (manager == null) manager = FindAnyObjectByType<FloodFillGameManager3D>();
+            if (manager == null || safeRoot == null || menu == null)
+            {
+                Debug.LogError("Flood Fill UI needs the authored FloodFillCanvas prefab. Install it with Tools > Flood Fill > UI > Install Editable UI in Demo Scene.", this);
+                return;
+            }
             built = true;
-            HideLegacyUI(canvasRoot);
-            safeRoot = MakeRect("SafeArea", canvasRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, Vector2.zero).transform;
-            safeRoot.gameObject.AddComponent<FloodFillSafeArea3D>();
-            uiSkin = Resources.Load<FloodUISkin>("FloodUISkin");
-            BuildScreens();
+            BindAuthoredControls();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            BuildFpsCounter();
+            if (fpsLabel != null) fpsLabel.transform.parent.gameObject.SetActive(true);
+#else
+            if (fpsLabel != null) fpsLabel.transform.parent.gameObject.SetActive(false);
 #endif
             modeIndex = manager.SelectedBoardMode == VoxelBoardManager3D.VoxelVolumeMode.HollowCube ? 1 : 0;
             sizeIndex = System.Array.IndexOf(sizes, manager.SelectedBoardSize);
@@ -101,8 +105,9 @@ namespace FloodFill.ThreeD
             Refresh();
         }
 
-        private void Start() => RefreshContinue();
+        private void Start() { if (!built) BuildUI(); BindAuthoredControls(); RefreshContinue(); }
 
+#if UNITY_EDITOR
         private void BuildScreens()
         {
             menu = Screen("MainMenu");
@@ -152,7 +157,7 @@ namespace FloodFill.ThreeD
             RegisterMenuButton(AddButton(menuButtons.transform, "SETTINGS", Vector2.zero, new Vector2(700, 82), Panel, OpenSettings, 30));
             if (Application.platform != RuntimePlatform.Android && Application.platform != RuntimePlatform.IPhonePlayer)
                 RegisterMenuButton(AddButton(menuButtons.transform, "QUIT", Vector2.zero, new Vector2(500, 68), Panel, Application.Quit, 25));
-            RefreshMenuLayout(true);
+
 
             setup = Screen("GameSetup");
             AddText(setup.transform, "GAME SETUP", 58, FontStyles.Bold, new Vector2(0, 690), new Vector2(850, 90));
@@ -230,7 +235,9 @@ namespace FloodFill.ThreeD
             resultTitle.transform.SetAsLastSibling();
             HideAll();
         }
+#endif
 
+#if UNITY_EDITOR
         private void BuildPalette(Transform parent)
         {
             GameObject dock = MakeRect("ColorDock", parent, new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, 150), new Vector2(850, 150));
@@ -244,7 +251,9 @@ namespace FloodFill.ThreeD
                 Button b = item.GetComponent<Button>(); b.onClick.AddListener(() => manager.SelectColor(index)); colorButtons.Add(b);
             }
         }
+#endif
 
+#if UNITY_EDITOR
         private void BuildFruitDropdown(Transform parent)
         {
             fruitDropdownMenu = MakeImage("FruitDropdownMenu", parent, new Vector2(0, -140), new Vector2(620, 590), Navy);
@@ -256,6 +265,7 @@ namespace FloodFill.ThreeD
             fruitDropdownMenu.SetActive(false);
             RefreshFruitSelection();
         }
+#endif
 
         private void ToggleFruitDropdown()
         {
@@ -290,6 +300,7 @@ namespace FloodFill.ThreeD
             if (!fruitsMode && fruitDropdownMenu != null) fruitDropdownMenu.SetActive(false);
         }
 
+#if UNITY_EDITOR
         private void BuildCurrentBlockToggle(Transform parent)
         {
             if (showCurrentBlockToggle != null)
@@ -313,6 +324,7 @@ namespace FloodFill.ThreeD
             showCurrentBlockToggle.onValueChanged.AddListener(SetShowCurrentBlock);
             RefreshShowCurrentBlockToggle();
         }
+#endif
 
         private void RefreshShowCurrentBlockToggle()
         {
@@ -381,6 +393,7 @@ namespace FloodFill.ThreeD
                    !(x == 0 && y == -1 && z == -1);
         }
 
+#if UNITY_EDITOR
         private void BuildStat(Transform parent, string label, Vector2 position, out TMP_Text value)
         {
             GameObject card = MakeImage(label + "Card", parent, position, new Vector2(265, 132), Panel);
@@ -389,17 +402,20 @@ namespace FloodFill.ThreeD
             AddText(card.transform, label, 22, FontStyles.Bold, new Vector2(0, 30), new Vector2(245, 36), Muted);
             value = AddText(card.transform, "0", 34, FontStyles.Bold, new Vector2(0, -18), new Vector2(245, 54));
         }
+#endif
 
+#if UNITY_EDITOR
         private void RegisterMenuButton(Button button)
         {
             RectTransform rect = button.GetComponent<RectTransform>();
             menuButtonRects.Add(rect);
             menuButtonPreferredWidths.Add(rect.sizeDelta.x);
         }
+#endif
 
         private void LateUpdate()
         {
-            RefreshMenuLayout(false);
+
             if (loading != null && loading.activeSelf && manager.IsLoading)
                 loadingIndicator.anchoredPosition = new Vector2(Mathf.PingPong(Time.unscaledTime * 240f, 360f) - 180f, -45f);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -415,7 +431,7 @@ namespace FloodFill.ThreeD
 #endif
         }
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+#if UNITY_EDITOR
         private void BuildFpsCounter()
         {
             GameObject counter = MakeImage("Development FPS", safeRoot, new Vector2(20, -16), new Vector2(200, 52), new Color(0, 0, 0, .75f));
@@ -431,43 +447,16 @@ namespace FloodFill.ThreeD
         }
 #endif
 
-        private void RefreshMenuLayout(bool force)
-        {
-            if (safeRoot == null || menuButtonsRoot == null) return;
-            Vector2 safeSize = safeRoot.GetComponent<RectTransform>().rect.size;
-            if (!force && safeSize == lastMenuLayoutSize) return;
-            lastMenuLayoutSize = safeSize;
-
-            float buttonWidth = Mathf.Max(0f, safeSize.x - 48f);
-            for (int i = 0; i < menuButtonRects.Count; i++)
-            {
-                RectTransform button = menuButtonRects[i];
-                Vector2 size = button.sizeDelta;
-                size.x = Mathf.Min(menuButtonPreferredWidths[i], buttonWidth);
-                button.sizeDelta = size;
-                RectTransform label = button.childCount > 0 ? button.GetChild(0) as RectTransform : null;
-                if (label != null)
-                {
-                    Vector2 labelSize = label.sizeDelta;
-                    labelSize.x = Mathf.Max(0f, size.x - 20f);
-                    label.sizeDelta = labelSize;
-                }
-            }
-
-            VerticalLayoutGroup layout = menuButtonsRoot.GetComponent<VerticalLayoutGroup>();
-            float desiredHeight = layout != null ? layout.preferredHeight : 0f;
-            float availableHeight = Mathf.Max(0f, safeSize.y - 250f);
-            float scale = desiredHeight > 0f ? Mathf.Min(1f, availableHeight / desiredHeight) : 1f;
-            menuButtonsRoot.localScale = Vector3.one * scale;
-        }
-
+#if UNITY_EDITOR
         private GameObject Screen(string name)
         {
             GameObject screen = MakeImage(name, safeRoot, Vector2.zero, Vector2.zero, Navy);
             Stretch(screen.GetComponent<RectTransform>()); screen.GetComponent<Image>().raycastTarget = true;
             return screen;
         }
+#endif
 
+#if UNITY_EDITOR
         private GameObject ModalScreen(string name)
         {
             GameObject screen = Screen(name); screen.GetComponent<Image>().color = new Color(.015f, .025f, .055f, .96f);
@@ -476,7 +465,9 @@ namespace FloodFill.ThreeD
             card.GetComponent<Image>().raycastTarget = false;
             return screen;
         }
+#endif
 
+#if UNITY_EDITOR
         private void AddChoiceRow(Transform parent, List<Button> collection, string[] labels, Vector2 center, Vector2 size, System.Action<int> onChoose)
         {
             float gap = 14f, total = labels.Length * size.x + (labels.Length - 1) * gap;
@@ -486,6 +477,7 @@ namespace FloodFill.ThreeD
                 collection.Add(AddButton(parent, labels[i], new Vector2(x, center.y), size, Panel, () => onChoose(index), 25));
             }
         }
+#endif
 
         private void SetMode(int value) { modeIndex = value; SaveSetupSelections(); RefreshChoices(); }
         private void SetSize(int value) { sizeIndex = value; SaveSetupSelections(); RefreshChoices(); }
@@ -549,7 +541,7 @@ namespace FloodFill.ThreeD
         {
             if (manager == null) return;
             if (continueButton != null) continueButton.SetActive(manager.HasSavedSession);
-            RefreshMenuLayout(true);
+
             if (!PlayerPrefs.HasKey(SetupModeKey))
             {
                 modeIndex = manager.SelectedBoardMode == VoxelBoardManager3D.VoxelVolumeMode.HollowCube ? 1 : 0;
@@ -563,7 +555,6 @@ namespace FloodFill.ThreeD
         private void OpenPause() { if (manager.State == FloodFillGameManager3D.GameState.Playing) { manager.PauseGame(); Show(pause); } }
         private void OpenSettings()
         {
-            BuildCurrentBlockToggle(settings.transform);
             RefreshShowCurrentBlockToggle();
             RefreshAudioControls();
             Show(settings);
@@ -631,7 +622,7 @@ namespace FloodFill.ThreeD
                 {
                     resultActionLabel.text = won ? "NEXT LEVEL" : "PLAY AGAIN";
                     Transform icon = resultActionLabel.transform.parent.Find("Icon");
-                    if (icon != null) SkinImage(icon.GetComponent<Image>(), won ? "Play" : "Restart", false);
+                    if (icon != null) icon.GetComponent<FloodFillUIState3D>()?.Apply(won);
                 }
                 string levelDetails = manager.IsCampaignGame ? "Level: " + manager.ActiveCampaignLevel + "\n" : string.Empty;
                 resultDetails.text = levelDetails + "Final score: " + manager.Score.ToString("N0") + "\nMoves used: " + manager.MoveCount + "\nCaptured: " + Mathf.RoundToInt(manager.CapturedPercentage) + "%";
@@ -710,41 +701,53 @@ namespace FloodFill.ThreeD
         }
         private void HideAll() { menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
 
+#if UNITY_EDITOR
         private void HideLegacyUI(Transform canvas)
         {
             string[] legacy = { "Title", "MovesText", "CapturedText", "ScoreText", "InstructionsText", "RestartButton", "BoardModeDropdown", "BoardSizeDropdown", "DifficultyDropdown", "ColorControls", "ResultPanel" };
             foreach (string name in legacy) { Transform child = canvas.Find(name); if (child != null) child.gameObject.SetActive(false); }
         }
+#endif
 
+#if UNITY_EDITOR
         private TMP_Text AddText(Transform parent, string value, float size, FontStyles style, Vector2 position, Vector2 dimensions, Color? color = null, bool wrap = false)
         {
-            GameObject go = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI)); go.transform.SetParent(parent, false); RectTransform rect = go.GetComponent<RectTransform>(); rect.anchorMin = rect.anchorMax = new Vector2(.5f, .5f); rect.anchoredPosition = position; rect.sizeDelta = dimensions;
+            GameObject go = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI)); go.transform.SetParent(parent, false); go.layer = 5; RectTransform rect = go.GetComponent<RectTransform>(); rect.anchorMin = rect.anchorMax = new Vector2(.5f, .5f); rect.anchoredPosition = position; rect.sizeDelta = dimensions;
             TMP_Text text = go.GetComponent<TMP_Text>(); text.text = value; text.fontSize = size; text.fontStyle = style; text.color = color ?? Color.white; text.alignment = TextAlignmentOptions.Center; text.textWrappingMode = wrap ? TextWrappingModes.Normal : TextWrappingModes.NoWrap; text.raycastTarget = false; return text;
         }
+#endif
 
+#if UNITY_EDITOR
         private Button AddButton(Transform parent, string label, Vector2 position, Vector2 dimensions, Color color, UnityEngine.Events.UnityAction action, float fontSize)
         {
             GameObject go = MakeImage(label + "Button", parent, position, dimensions, color); Button button = go.AddComponent<Button>(); button.targetGraphic = go.GetComponent<Image>(); button.onClick.AddListener(action); button.navigation = new Navigation { mode = Navigation.Mode.None };
             FloodAudioManager.Instance?.BindControl(button, label);
             AddText(go.transform, label, fontSize, FontStyles.Bold, Vector2.zero, dimensions - new Vector2(20, 12)); SkinButton(button, label, color); button.transform.localScale = Vector3.one; button.onClick.AddListener(() => button.transform.DOPunchScale(Vector3.one * .045f, .18f, 6)); return button;
         }
+#endif
 
+#if UNITY_EDITOR
         private GameObject MakeImage(string name, Transform parent, Vector2 position, Vector2 dimensions, Color color)
         {
-            GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image)); go.transform.SetParent(parent, false); RectTransform rect = go.GetComponent<RectTransform>(); rect.anchorMin = rect.anchorMax = new Vector2(.5f, .5f); rect.anchoredPosition = position; rect.sizeDelta = dimensions; Image image = go.GetComponent<Image>(); image.color = color;
+            GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image)); go.transform.SetParent(parent, false); go.layer = 5; RectTransform rect = go.GetComponent<RectTransform>(); rect.anchorMin = rect.anchorMax = new Vector2(.5f, .5f); rect.anchoredPosition = position; rect.sizeDelta = dimensions; Image image = go.GetComponent<Image>(); image.color = color;
             if (name == "ProgressTrack" || name == "ProgressFill") SkinImage(image, name);
             else if (name == "Track") SkinImage(image, "SettingsTrack");
             else if (name == "Fill") SkinImage(image, "SettingsFill");
             else if (name == "Handle") SkinImage(image, "Handle", false);
             return go;
         }
+#endif
 
+#if UNITY_EDITOR
         private GameObject MakeRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 position, Vector2 dimensions)
         {
-            GameObject go = new GameObject(name, typeof(RectTransform)); go.transform.SetParent(parent, false); RectTransform rect = go.GetComponent<RectTransform>(); rect.anchorMin = anchorMin; rect.anchorMax = anchorMax; rect.anchoredPosition = position; rect.sizeDelta = dimensions; return go;
+            GameObject go = new GameObject(name, typeof(RectTransform)); go.transform.SetParent(parent, false); go.layer = 5; RectTransform rect = go.GetComponent<RectTransform>(); rect.anchorMin = anchorMin; rect.anchorMax = anchorMax; rect.anchoredPosition = position; rect.sizeDelta = dimensions; return go;
         }
+#endif
 
+#if UNITY_EDITOR
         private static void Stretch(RectTransform rect) { rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero; }
+#endif
 
         private void OnDestroy() { UnbindAudioControls(); if (manager != null) { manager.UIChanged -= Refresh; manager.ManagerReady -= RefreshContinue; } }
     }
