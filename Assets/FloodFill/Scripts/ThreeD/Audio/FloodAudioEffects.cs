@@ -100,7 +100,7 @@ namespace FloodFill.ThreeD.Audio
             voice.Source.Play();
             if(voice.MaximumAge>0)voice.Source.SetScheduledEndTime(AudioSettings.dspTime+voice.MaximumAge);
             lastSoundAt[(int)kind]=now;
-            if(kind==FloodSound.ButtonConfirm&&!menuContext&&!levelHasStarted&&game!=null&&game.State==FloodFillGameManager3D.GameState.Calculating)
+            if(kind==FloodSound.ButtonConfirm&&!levelHasStarted&&game!=null&&(game.IsLoading||!menuContext&&game.State==FloodFillGameManager3D.GameState.Calculating))
                 levelStartConfirmationClip=clip;
             TotalSoundStarts++;soundStartCounts[(int)kind]++;
             return true;

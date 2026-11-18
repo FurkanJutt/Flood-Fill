@@ -1,5 +1,6 @@
 using FloodFill.ThreeD.Audio;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using DG.Tweening;
 using FloodFill.ThreeD.Solver;
@@ -93,6 +94,10 @@ namespace FloodFill.ThreeD
         private Vector3 menuPreviewOriginalScale;
         private DecorativeRotation3D menuPreviewRotation;
         private bool ownsMenuPreviewRotation;
+        [SerializeField, Min(.1f)] private float startAnimationDuration = .55f;
+        private Sequence startSequence;
+        public bool IsStartAnimationPlaying { get; private set; }
+        public event Action StartAnimationChanged;
         private Sequence winIntroSequence;
         private Tween winRotationTween;
 
@@ -147,14 +152,27 @@ namespace FloodFill.ThreeD
 
         public bool GenerateBoard(Color[] colors)
         {
-            ReleaseActiveVoxels();
+            bool success = false;
+            var routine = GenerateBoardRoutine(colors, value => success = value, false);
+            while (routine.MoveNext()) { }
+            return success;
+        }
+
+        public IEnumerator GenerateBoardAsync(Color[] colors, Action<bool> completed)
+            => GenerateBoardRoutine(colors, completed, true);
+
+        private IEnumerator GenerateBoardRoutine(Color[] colors, Action<bool> completed, bool incremental)
+        {
+            var release = ReleaseActiveVoxelsRoutine(incremental);
+            while (release.MoveNext()) yield return release.Current;
+            var slice = Stopwatch.StartNew();
             ResetLogicalBoardState();
             if (boardRoot == null || voxelPrefab == null || colors == null || colors.Length < 2)
             {
                 Debug.LogError(
                     "3D Flood Fill board needs a Board Root, VoxelCell3D prefab, and at least two colors.",
                     this);
-                return false;
+                completed(false); yield break;
             }
 
             CacheBoardRestingTransform();
@@ -166,7 +184,7 @@ namespace FloodFill.ThreeD
             voxelGap = Mathf.Max(0f, voxelGap);
             if (!TryCreateActiveMask())
             {
-                return false;
+                completed(false); yield break;
             }
 
             palette = (Color[])colors.Clone();
@@ -214,6 +232,10 @@ namespace FloodFill.ThreeD
                         cells[x, y, z] = voxel;
                         initialColorIndices[allVoxels.Count] = colorIndex;
                         allVoxels.Add(voxel);
+                        if (incremental && slice.Elapsed.TotalMilliseconds >= 4)
+                        {
+                            setupWatch.Stop(); yield return null; setupWatch.Start(); slice.Restart();
+                        }
                     }
                 }
             }
@@ -225,6 +247,10 @@ namespace FloodFill.ThreeD
             {
                 int colorIndex = initialColorIndices[i];
                 allVoxels[i].SetColor(colorIndex, palette[colorIndex]);
+                if (incremental && slice.Elapsed.TotalMilliseconds >= 4)
+                {
+                    colorWatch.Stop(); yield return null; colorWatch.Start(); slice.Restart();
+                }
             }
             colorWatch.Stop();
             LastVoxelColorMilliseconds = colorWatch.Elapsed.TotalMilliseconds;
@@ -234,7 +260,7 @@ namespace FloodFill.ThreeD
             {
                 Debug.LogError("3D Flood Fill could not find an active starting voxel.", this);
                 ClearBoard();
-                return false;
+                completed(false); yield break;
             }
 
             ResetAudioWaveBounds();
@@ -246,7 +272,7 @@ namespace FloodFill.ThreeD
                 $"({StartingVoxel.X},{StartingVoxel.Y},{StartingVoxel.Z}). " +
                 $"Seed: {LastGenerationSeed}. Attempt: {LastGenerationAttempt}.",
                 this);
-            return true;
+            completed(true);
         }
 
         public bool TryCapturePersistentState(out VoxelBoardSaveData3D state)
@@ -609,10 +635,35 @@ namespace FloodFill.ThreeD
             if (boardRoot == null) return;
             CacheBoardRestingTransform();
             boardRoot.DOKill();
-            boardRoot.localScale = boardRestingScale * 0.82f;
-            boardRoot.DOScale(boardRestingScale, 0.42f)
-                .SetEase(Ease.OutBack)
-                .SetUpdate(true);
+            boardRoot.localScale = boardRestingScale * .82f;
+            boardRoot.localRotation = boardRestingRotation;
+            SetInputEnabled(false);
+            SetStartAnimationPlaying(true);
+            float duration = Mathf.Max(.1f, startAnimationDuration);
+            startSequence = DOTween.Sequence().SetTarget(boardRoot).SetUpdate(true);
+            startSequence.Append(boardRoot.DOScale(boardRestingScale, duration).SetEase(Ease.OutBack));
+            startSequence.Join(boardRoot.DOLocalRotate(
+                boardRestingRotation.eulerAngles + new Vector3(0, 360, 0), duration,
+                RotateMode.FastBeyond360).SetEase(Ease.OutCubic));
+            startSequence.OnComplete(() =>
+            {
+                boardRoot.localScale = boardRestingScale;
+                boardRoot.localRotation = boardRestingRotation;
+                startSequence = null;
+                SetStartAnimationPlaying(false);
+            });
+            startSequence.OnKill(() =>
+            {
+                startSequence = null;
+                SetStartAnimationPlaying(false);
+            });
+        }
+
+        private void SetStartAnimationPlaying(bool value)
+        {
+            if (IsStartAnimationPlaying == value) return;
+            IsStartAnimationPlaying = value;
+            StartAnimationChanged?.Invoke();
         }
 
         public bool TrySelectVoxelAtScreenPosition(Vector2 screenPosition)
@@ -752,6 +803,13 @@ namespace FloodFill.ThreeD
 
         private void ReleaseActiveVoxels()
         {
+            var routine = ReleaseActiveVoxelsRoutine(false);
+            while (routine.MoveNext()) { }
+        }
+
+        private IEnumerator ReleaseActiveVoxelsRoutine(bool incremental)
+        {
+            var slice = Stopwatch.StartNew();
             CancelPointerGesture();
             StopWinCelebration(true);
             for (int i = 0; i < allVoxels.Count; i++)
@@ -761,6 +819,8 @@ namespace FloodFill.ThreeD
                 {
                     voxel.ResetForPool();
                     voxel.gameObject.SetActive(false);
+                    if (incremental && slice.Elapsed.TotalMilliseconds >= 4)
+                    { yield return null; slice.Restart(); }
                 }
             }
 

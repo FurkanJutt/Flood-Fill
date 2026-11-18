@@ -6,8 +6,8 @@ namespace FloodFill.ThreeD.Solver
     // Compatibility facade: runtime and Editor callers share exactly the same engine.
     public static class FloodFillMoveSolver3D
     {
-        public static FloodFillSolverResult SolveGuaranteedFallback(FloodFillRegionGraph3D graph, MoveSolverSettings settings)
-            => SolveCore(graph, settings, false, CancellationToken.None, true);
+        public static FloodFillSolverResult SolveGuaranteedFallback(FloodFillRegionGraph3D graph, MoveSolverSettings settings, CancellationToken cancellationToken = default)
+            => SolveCore(graph, settings, false, cancellationToken, true);
         public static FloodFillSolverResult Solve(FloodFillRegionGraph3D graph, MoveSolverSettings settings,
             bool useDevelopmentBudget, CancellationToken cancellationToken = default)
             => SolveCore(graph, settings, useDevelopmentBudget, cancellationToken, false);

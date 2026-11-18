@@ -150,7 +150,7 @@ namespace FloodFill.ThreeD.Audio
         private void OnGameChanged()
         {
             if(game==null)return;
-            if(!menuContext&&game.State==FloodFillGameManager3D.GameState.Playing&&!levelHasStarted)
+            if(!menuContext&&!levelHasStarted&&(game.State==FloodFillGameManager3D.GameState.Playing||game.BoardManager!=null&&game.BoardManager.IsStartAnimationPlaying))
             {levelHasStarted=true;PlaySound(FloodSound.LevelStarted);levelStartConfirmationClip=null;}
             if(!menuContext&&(game.State==FloodFillGameManager3D.GameState.Won||game.State==FloodFillGameManager3D.GameState.Lost))
                 OnResult(game.State==FloodFillGameManager3D.GameState.Won);

@@ -52,6 +52,7 @@ namespace FloodFill.ThreeD
         private float zoomResetStartDistance;
         private float zoomResetElapsed;
         private bool zoomResetAnimating;
+        private bool inputEnabled = true;
         private bool orbitDragging;
         private bool panDragging;
         private bool mouseTapCandidate;
@@ -167,8 +168,20 @@ namespace FloodFill.ThreeD
             return true;
         }
 
+        public void SetInputEnabled(bool value)
+        {
+            inputEnabled = value;
+            if (value) return;
+            orbitDragging = panDragging = mouseTapCandidate = touchTapCandidate = false;
+            zoomResetAnimating = false;
+            activeTouchCount = 0;
+            touchGestureBlocked = false;
+            lastTapTime = -10f;
+        }
+
         public void ResetZoom()
         {
+            if (!inputEnabled) return;
             float targetDistance = Mathf.Clamp(
                 defaultDistance, minimumDistance, maximumDistance);
             if (zoomResetDuration <= 0f || Mathf.Approximately(distance, targetDistance))
@@ -197,6 +210,7 @@ namespace FloodFill.ThreeD
 
         private void Update()
         {
+            if (!inputEnabled) return;
 #if ENABLE_INPUT_SYSTEM
             HandleNewInputSystem();
 #elif ENABLE_LEGACY_INPUT_MANAGER
@@ -445,6 +459,7 @@ namespace FloodFill.ThreeD
 
         private void Orbit(Vector2 delta)
         {
+            if (!inputEnabled) return;
             yaw += delta.x * orbitSensitivity;
             pitch = Mathf.Clamp(
                 pitch - delta.y * orbitSensitivity,
@@ -454,6 +469,7 @@ namespace FloodFill.ThreeD
 
         private void Pan(Vector2 delta)
         {
+            if (!inputEnabled) return;
             if (targetCamera == null)
             {
                 return;
@@ -466,6 +482,7 @@ namespace FloodFill.ThreeD
 
         private void Zoom(float amount)
         {
+            if (!inputEnabled) return;
             zoomResetAnimating = false;
             float outsideDistance = GetMinimumOutsideDistance();
             maximumDistance = Mathf.Max(maximumDistance, outsideDistance);

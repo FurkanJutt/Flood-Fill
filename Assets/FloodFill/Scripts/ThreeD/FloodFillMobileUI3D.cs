@@ -38,7 +38,11 @@ namespace FloodFill.ThreeD
         [Header("Menu Decoration")]
         [SerializeField, Min(0f)] private float decorativeGap = 0.3f;
         private Transform safeRoot;
-        private GameObject menu, setup, howTo, settings, hud, pause, results;
+        private GameObject menu, setup, howTo, settings, hud, pause, results, loading;
+        private TMP_Text loadingTitle, loadingStatus;
+        private RectTransform loadingIndicator;
+        private GameObject loadingRetry;
+        private bool loadingHudPrepared;
         private GameObject continueButton;
         private RectTransform menuButtonsRoot;
         private GameObject sizeLabel, fruitLabel, fruitDropdownMenu;
@@ -209,6 +213,15 @@ namespace FloodFill.ThreeD
             Button resultAction = AddButton(results.transform, "PLAY AGAIN", new Vector2(0, -90), new Vector2(580, 92), Accent, OnResultAction, 34).GetComponent<Button>();
             resultActionLabel = resultAction.GetComponentInChildren<TMP_Text>();
             AddButton(results.transform, "MAIN MENU", new Vector2(0, -210), new Vector2(580, 92), Panel, BackToMenu, 34);
+            loading = Screen("LoadingScreen");
+            loadingTitle = AddText(loading.transform, "LOADING", 54, FontStyles.Bold, new Vector2(0, 170), new Vector2(850, 90));
+            loadingStatus = AddText(loading.transform, "Preparing your level…", 30, FontStyles.Normal, new Vector2(0, 65), new Vector2(800, 100), Muted, true);
+            MakeImage("LoadingTrack", loading.transform, new Vector2(0, -45), new Vector2(480, 10), Panel).GetComponent<Image>().raycastTarget = false;
+            loadingIndicator = MakeImage("LoadingIndicator", loading.transform, new Vector2(-180, -45), new Vector2(120, 10), Accent).GetComponent<RectTransform>();
+            loadingIndicator.GetComponent<Image>().raycastTarget = false;
+            loadingRetry = AddButton(loading.transform, "TRY AGAIN", new Vector2(0, -170), new Vector2(580, 86), Accent, Restart, 30).gameObject;
+            loadingRetry.SetActive(false);
+            AddButton(loading.transform, "BACK", new Vector2(0, -290), new Vector2(500, 80), Panel, BackToMenu, 28);
             HideAll();
         }
 
@@ -375,6 +388,8 @@ namespace FloodFill.ThreeD
         private void LateUpdate()
         {
             RefreshMenuLayout(false);
+            if (loading != null && loading.activeSelf && manager.IsLoading)
+                loadingIndicator.anchoredPosition = new Vector2(Mathf.PingPong(Time.unscaledTime * 240f, 360f) - 180f, -45f);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (fpsLabel == null) return;
             fpsElapsed += Time.unscaledDeltaTime;
@@ -562,6 +577,15 @@ namespace FloodFill.ThreeD
         private void Refresh()
         {
             if (!started || moves == null) return;
+            if (manager.IsLoading || !string.IsNullOrEmpty(manager.LoadingError))
+            {
+                if (!loading.activeSelf) Show(loading);
+                loadingTitle.text = manager.IsLoading ? "LOADING" : "PLEASE TRY AGAIN";
+                loadingStatus.text = manager.IsLoading ? manager.LoadingStatus : manager.LoadingError;
+                loadingRetry.SetActive(!manager.IsLoading);
+                loadingIndicator.gameObject.SetActive(manager.IsLoading);
+            }
+            else if (loading.activeSelf && manager.State == FloodFillGameManager3D.GameState.Playing) Show(hud);
             if (gameTitle != null)
                 gameTitle.text = manager.IsCampaignGame
                     ? "LEVEL " + manager.ActiveCampaignLevel
@@ -572,8 +596,17 @@ namespace FloodFill.ThreeD
             progress.DOKill(); progress.DOFillAmount(manager.CapturedPercentage / 100f, .25f);
             for (int i = 0; i < colorButtons.Count; i++)
             {
-                colorButtons[i].interactable = manager.State == FloodFillGameManager3D.GameState.Playing && i != manager.SelectedColorIndex;
+                colorButtons[i].interactable = manager.CanInteract && i != manager.SelectedColorIndex;
                 colorButtons[i].transform.DOScale(i == manager.SelectedColorIndex ? 1.12f : 1f, .16f).SetEase(Ease.OutSine);
+            }
+            if (manager.IsLoading || !string.IsNullOrEmpty(manager.LoadingError))
+            {
+                if (!loadingHudPrepared && manager.State == FloodFillGameManager3D.GameState.Playing)
+                {
+                    foreach (TMP_Text text in hud.GetComponentsInChildren<TMP_Text>(true)) text.ForceMeshUpdate(true, true);
+                    loadingHudPrepared = true;
+                }
+                return;
             }
             if (manager.State == FloodFillGameManager3D.GameState.Won || manager.State == FloodFillGameManager3D.GameState.Lost)
             {
@@ -593,6 +626,9 @@ namespace FloodFill.ThreeD
         private GameObject audioScreen;
         private void Show(GameObject target)
         {
+            if (target == hud && (manager.IsLoading || !string.IsNullOrEmpty(manager.LoadingError))) target = loading;
+            if (target == loading && loading.activeSelf) return;
+            if (target == loading) loadingHudPrepared = false;
             if (settings != null && settings.activeSelf && target != settings) FloodAudioManager.Instance?.SaveSettings();
             if (audioScreen != target)
             {
@@ -652,7 +688,7 @@ namespace FloodFill.ThreeD
             }
             BuildCubeCluster(menu.transform);
         }
-        private void HideAll() { menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); }
+        private void HideAll() { menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
 
         private void HideLegacyUI(Transform canvas)
         {

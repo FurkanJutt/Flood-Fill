@@ -1,0 +1,10 @@
+PASS 60 reference-equivalent region graphs across full/shell boards, plus cancellation and validated solver results. .NET benchmark, not Unity frame timings.
+6^3 graph: original 0.052 ms / 30136 B; improved 0.049 ms / 28727 B per build.
+6^3 gameplay solve: 164.8 ms; moves=10, validated=True.
+6^3 analysis solve: 554.2 ms; moves=10, validated=True.
+12^3 graph: original 0.705 ms / 259408 B; improved 0.589 ms / 248881 B per build.
+12^3 gameplay solve: 440.1 ms; moves=17, validated=True.
+12^3 analysis solve: 948.3 ms; moves=16, validated=True.
+20^3 graph: original 7.988 ms / 1229224 B; improved 6.263 ms / 1181069 B per build.
+20^3 gameplay solve: 814.5 ms; moves=24, validated=True.
+20^3 analysis solve: 1690.8 ms; moves=21, validated=True.

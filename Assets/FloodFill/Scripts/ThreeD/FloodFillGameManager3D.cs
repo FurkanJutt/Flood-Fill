@@ -69,6 +69,19 @@ namespace FloodFill.ThreeD
 
         private Coroutine resultCoroutine;
         private Coroutine solverCoroutine;
+        private Coroutine loadingCoroutine;
+        private bool loadingSavedSession;
+        private int solverWorkerThreadId;
+        private static readonly SemaphoreSlim SolverWorkerGate = new SemaphoreSlim(1, 1);
+        public bool IsLoading { get; private set; }
+        public string LoadingStatus { get; private set; } = "Preparing your level…";
+        public string LoadingError { get; private set; }
+        private sealed class SolverPreparation
+        {
+            public FloodFillSolverResult Result;
+            public System.Exception Error;
+            public int WorkerThreadId = Thread.CurrentThread.ManagedThreadId;
+        }
         private CancellationTokenSource solverCancellation;
         private int solverGenerationId;
         private int currentMoveBudget = 1;
@@ -77,6 +90,7 @@ namespace FloodFill.ThreeD
         private bool isCampaignGame;
         private int activeCampaignLevel = 1;
 
+        public bool CanInteract => !IsLoading && string.IsNullOrEmpty(LoadingError) && State == GameState.Playing && !audioPaused && boardManager != null && !boardManager.IsStartAnimationPlaying;
         public int MoveCount { get; private set; }
         public int Score { get; private set; }
         public GameState State { get; private set; }
@@ -108,6 +122,7 @@ namespace FloodFill.ThreeD
 
             FloodAudioSignals.Register(this);
             boardManager.VoxelClicked += HandleVoxelClicked;
+            boardManager.StartAnimationChanged += RefreshUI;
             if (boardModeDropdown != null) InitializeBoardModeDropdown();
             if (boardSizeDropdown != null) InitializeBoardSizeDropdown();
             if (difficultyDropdown != null) InitializeDifficultyDropdown();
@@ -193,16 +208,16 @@ namespace FloodFill.ThreeD
         public void PauseGame()
         {
             if (State != GameState.Playing) return;
-            boardManager.SetInputEnabled(false);
             if (!audioPaused) { audioPaused = true; FloodAudioSignals.Pause(true); }
+            RefreshUI();
         }
 
         public void ResumeGame()
         {
             if (State == GameState.Playing)
             {
-                boardManager.SetInputEnabled(true);
                 if (audioPaused) { audioPaused = false; FloodAudioSignals.Pause(false); }
+                RefreshUI();
             }
         }
 
@@ -210,16 +225,32 @@ namespace FloodFill.ThreeD
         {
             if (!HasSavedSession) return;
             boardManager.RestoreMenuPreview();
-            boardManager.SetBoardVisible(true);
-            if (State == GameState.Playing)
+            if (State == GameState.Playing || State == GameState.Calculating)
             {
-                boardManager.PlayStartAnimation();
-                boardManager.SetInputEnabled(true);
+                IsLoading = true;
+                loadingSavedSession = true;
+                LoadingError = null;
+                LoadingStatus = "Getting everything ready…";
+                if (State == GameState.Calculating && solverCoroutine == null) BeginMoveBudgetCalculation(solverGenerationId);
+                boardManager.SetBoardVisible(false);
+                RefreshUI();
+                if (loadingCoroutine != null) StopCoroutine(loadingCoroutine);
+                loadingCoroutine = StartCoroutine(PresentPreparedLevel(solverGenerationId));
             }
+            else boardManager.SetBoardVisible(true);
         }
 
         public void ReturnToMenu()
         {
+            if (IsLoading || !string.IsNullOrEmpty(LoadingError))
+            {
+                CancelPendingSolver(); solverGenerationId++;
+                IsLoading = false; LoadingError = null;
+                gameSessionActive = loadingSavedSession; HasSavedSession = loadingSavedSession;
+                if (!loadingSavedSession) boardManager.ClearBoard();
+                boardManager.SetBoardVisible(false);
+                return;
+            }
             boardManager.SetInputEnabled(false);
             boardManager.SetBoardVisible(false);
             bool completed = State == GameState.Won || State == GameState.Lost;
@@ -240,7 +271,7 @@ namespace FloodFill.ThreeD
 
         public void SelectColor(int colorIndex)
         {
-            if (State != GameState.Playing || boardManager == null ||
+            if (!CanInteract ||
                 colorIndex < 0 || colors == null || colorIndex >= colors.Length ||
                 colorIndex == SelectedColorIndex)
             {
@@ -256,7 +287,7 @@ namespace FloodFill.ThreeD
 
         private void HandleVoxelClicked(VoxelCell3D voxel)
         {
-            if (State != GameState.Playing || boardManager == null ||
+            if (!CanInteract ||
                 SelectedColorIndex < 0)
             {
                 return;
@@ -286,23 +317,20 @@ namespace FloodFill.ThreeD
 
         public void RestartGame()
         {
+            CancelPendingSolver();
+            solverGenerationId++;
+            IsLoading = true;
+            loadingSavedSession = false;
+            LoadingError = null;
+            LoadingStatus = "Building your cube…";
+            State = GameState.Calculating;
             audioPaused = false;
             FloodAudioSignals.ResetLevel();
             boardManager.RestoreMenuPreview();
-            boardManager.SetBoardVisible(true);
-            Stopwatch restartWatch = Stopwatch.StartNew();
-            FloodFillSessionPersistence3D.Delete();
-            CancelPendingSolver();
-            solverGenerationId++;
-            if (resultCoroutine != null)
-            {
-                StopCoroutine(resultCoroutine);
-                resultCoroutine = null;
-            }
-
+            boardManager.SetBoardVisible(false);
+            if (resultCoroutine != null) { StopCoroutine(resultCoroutine); resultCoroutine = null; }
             MoveCount = 0;
             Score = 0;
-            State = GameState.Calculating;
             SelectedColorIndex = -1;
             LastSolverResult = null;
             CurrentMoveBudgetProfile = default;
@@ -311,44 +339,61 @@ namespace FloodFill.ThreeD
             SyncBoardSizeFromDropdown();
             boardManager.SetVolumeMode(SelectedBoardMode);
             boardManager.SetDimensions(SelectedBoardSize);
-            if (resultPanel != null)
-            {
-                resultPanel.SetActive(false);
-            }
+            if (resultPanel != null) resultPanel.SetActive(false);
+            RefreshUI();
+            loadingCoroutine = StartCoroutine(LoadLevel(solverGenerationId));
+        }
 
-            if (!boardManager.GenerateBoard(colors))
-            {
-                SetColorInputEnabled(false);
-                restartWatch.Stop();
-                boardManager.LogLastGenerationPerformance(0d, restartWatch.Elapsed.TotalMilliseconds);
-                return;
-            }
-
-            double cameraFramingMilliseconds = 0d;
+        private IEnumerator LoadLevel(int generationId)
+        {
+            // Let the loading screen render before any board setup or disk work.
+            yield return null;
+            FloodFillSessionPersistence3D.Delete();
+            var watch = Stopwatch.StartNew();
+            bool generated = false;
+            yield return boardManager.GenerateBoardAsync(colors, value => generated = value);
+            if (generationId != solverGenerationId) yield break;
+            if (!generated) { FailLoading("Your level could not be prepared. Please try again."); yield break; }
+            double framingMs = 0;
             if (boardManager.TryGetWorldBounds(out Bounds bounds))
             {
-                Stopwatch cameraWatch = Stopwatch.StartNew();
+                var framing = Stopwatch.StartNew();
                 orbitCamera.FrameBounds(bounds);
-                cameraWatch.Stop();
-                cameraFramingMilliseconds = cameraWatch.Elapsed.TotalMilliseconds;
+                framingMs = framing.Elapsed.TotalMilliseconds;
             }
-
-            boardManager.PlayStartAnimation();
-
+            boardManager.LogLastGenerationPerformance(framingMs, watch.Elapsed.TotalMilliseconds);
+            LoadingStatus = "Preparing your challenge…";
             RefreshUI();
-            if (boardManager.IsFullyCaptured)
-            {
-                ScheduleResult(GameState.Won);
-            }
-            else
-            {
-                BeginMoveBudgetCalculation(solverGenerationId);
-            }
+            yield return null;
+            BeginMoveBudgetCalculation(generationId);
+            yield return PresentPreparedLevel(generationId);
+        }
 
-            restartWatch.Stop();
-            boardManager.LogLastGenerationPerformance(
-                cameraFramingMilliseconds,
-                restartWatch.Elapsed.TotalMilliseconds);
+        private IEnumerator PresentPreparedLevel(int generationId)
+        {
+            while (generationId == solverGenerationId && State == GameState.Calculating) yield return null;
+            if (generationId != solverGenerationId) yield break;
+            LoadingStatus = "Getting everything ready…";
+            RefreshUI();
+            boardManager.SetBoardVisible(true);
+            Physics.SyncTransforms();
+            // Render/warm the completed board behind the opaque loading screen.
+            yield return null;
+            if (generationId != solverGenerationId) yield break;
+            IsLoading = false;
+            loadingCoroutine = null;
+            boardManager.PlayStartAnimation();
+            RefreshUI();
+            if (boardManager.IsFullyCaptured) ScheduleResult(GameState.Won);
+        }
+
+        private void FailLoading(string message)
+        {
+            loadingCoroutine = null;
+            IsLoading = false;
+            LoadingError = message;
+            boardManager.SetBoardVisible(false);
+            RefreshUI();
         }
 
         public void Configure(
@@ -722,72 +767,63 @@ namespace FloodFill.ThreeD
         private void BeginMoveBudgetCalculation(int generationId)
         {
             SetColorInputEnabled(false);
-            SaveSession();
-            if (!boardManager.TryCreateSolverSnapshot(out FloodFillBoardSnapshot3D snapshot) ||
-                !FloodFillRegionGraph3D.TryBuild(snapshot, out FloodFillRegionGraph3D graph))
+            if (!boardManager.TryCreateSolverSnapshot(out FloodFillBoardSnapshot3D snapshot))
             {
-                Debug.LogError("Could not build the logical move-solver graph.", this);
-                ApplyEmergencyMoveBudget(snapshot?.VoxelCount ?? boardManager.TotalVoxelCount);
+                ApplyEmergencyMoveBudget(boardManager.TotalVoxelCount);
                 return;
             }
-
-            bool developmentBudget = Application.isEditor || Debug.isDebugBuild;
             solverCancellation = new CancellationTokenSource();
             CancellationToken token = solverCancellation.Token;
             MoveSolverSettings settingsCopy = CopySolverSettings(solverSettings);
-            Task<FloodFillSolverResult> task = Task.Run(
-                () => FloodFillMoveSolver3D.Solve(
-                    graph, settingsCopy, developmentBudget, token),
-                token);
-            solverCoroutine = StartCoroutine(WaitForSolver(
-                task, graph, generationId, token));
+            Task<SolverPreparation> task = Task.Run(() => PrepareSolver(snapshot, settingsCopy, token), token);
+            solverCoroutine = StartCoroutine(WaitForSolver(task, snapshot.VoxelCount, generationId, token));
         }
 
-        private IEnumerator WaitForSolver(
-            Task<FloodFillSolverResult> task,
-            FloodFillRegionGraph3D graph,
-            int generationId,
-            CancellationToken token)
+        private static SolverPreparation PrepareSolver(FloodFillBoardSnapshot3D snapshot, MoveSolverSettings settings, CancellationToken token)
         {
-            while (!task.IsCompleted)
-            {
-                yield return null;
-            }
-
-            solverCoroutine = null;
-            if (token.IsCancellationRequested || generationId != solverGenerationId)
-            {
-                yield break;
-            }
-            if (task.IsCanceled)
-            {
-                yield break;
-            }
-            if (task.IsFaulted)
-            {
-                Debug.LogException(task.Exception?.GetBaseException() ?? task.Exception, this);
-                ApplyGuaranteedFallback(graph, generationId, true);
-                yield break;
-            }
-            ApplySolverResult(task.Result, generationId, true);
-        }
-
-        private void ApplyGuaranteedFallback(
-            FloodFillRegionGraph3D graph,
-            int generationId,
-            bool asynchronous)
-        {
+            // Rapid restarts must not leave multiple searches competing for CPU/GC.
+            SolverWorkerGate.Wait(token);
             try
             {
-                FloodFillSolverResult fallback =
-                    FloodFillMoveSolver3D.SolveGuaranteedFallback(graph, solverSettings);
-                ApplySolverResult(fallback, generationId, asynchronous);
+                if (!FloodFillRegionGraph3D.TryBuild(snapshot, out var graph, token))
+                    return new SolverPreparation { Error = new System.InvalidOperationException("Invalid move-solver snapshot.") };
+                try
+                {
+                    // Normal play uses bounded runtime budgets, including development
+                    // builds. Editor analysis tools retain their explicit larger budgets.
+                    return new SolverPreparation { Result = FloodFillMoveSolver3D.Solve(graph, settings, false, token) };
+                }
+                catch (System.OperationCanceledException) { throw; }
+                catch (System.Exception)
+                {
+                    token.ThrowIfCancellationRequested();
+                    return new SolverPreparation { Result = FloodFillMoveSolver3D.SolveGuaranteedFallback(graph, settings, token) };
+                }
             }
-            catch (System.Exception exception)
+            catch (System.OperationCanceledException) { throw; }
+            catch (System.Exception error) { return new SolverPreparation { Error = error }; }
+            finally { SolverWorkerGate.Release(); }
+        }
+
+        private IEnumerator WaitForSolver(Task<SolverPreparation> task, int voxelCount, int generationId, CancellationToken token)
+        {
+            while (!task.IsCompleted) yield return null;
+            solverCoroutine = null;
+            if (token.IsCancellationRequested || generationId != solverGenerationId || task.IsCanceled) yield break;
+            if (task.IsFaulted)
             {
-                Debug.LogException(exception, this);
-                ApplyEmergencyMoveBudget(graph.RegionCount);
+                Debug.LogException(task.Exception.GetBaseException(), this);
+                ApplyEmergencyMoveBudget(voxelCount);
+                yield break;
             }
+            if (task.Result.Error != null || task.Result.Result == null || !task.Result.Result.SolutionValidated)
+            {
+                if (task.Result.Error != null) Debug.LogException(task.Result.Error, this);
+                ApplyEmergencyMoveBudget(voxelCount);
+                yield break;
+            }
+            solverWorkerThreadId = task.Result.WorkerThreadId;
+            ApplySolverResult(task.Result.Result, generationId, true);
         }
 
         private void ApplySolverResult(
@@ -893,6 +929,7 @@ namespace FloodFill.ThreeD
 
         private void CancelPendingSolver()
         {
+            if (loadingCoroutine != null) { StopCoroutine(loadingCoroutine); loadingCoroutine = null; }
             solverCancellation?.Cancel();
             solverCancellation?.Dispose();
             solverCancellation = null;
@@ -975,7 +1012,8 @@ namespace FloodFill.ThreeD
                 : Mathf.RoundToInt(boardManager.CapturedPercentage);
             if (capturedText != null) capturedText.text = $"Captured: {displayedPercentage}%";
             if (scoreText != null) scoreText.text = $"Score: {Score:N0}";
-            SetColorInputEnabled(State == GameState.Playing);
+            SetColorInputEnabled(CanInteract);
+            orbitCamera?.SetInputEnabled(!IsLoading && string.IsNullOrEmpty(LoadingError) && !boardManager.IsStartAnimationPlaying && !audioPaused);
             if (difficultyDropdown != null)
             {
                 difficultyDropdown.interactable = State == GameState.Playing &&
@@ -1099,7 +1137,7 @@ namespace FloodFill.ThreeD
 
         private void SaveSession()
         {
-            if (!gameSessionActive || boardManager == null || orbitCamera == null || colors == null ||
+            if (!gameSessionActive || !string.IsNullOrEmpty(LoadingError) || (IsLoading && State == GameState.Calculating) || boardManager == null || orbitCamera == null || colors == null ||
                 !boardManager.TryCapturePersistentState(out VoxelBoardSaveData3D boardState))
             {
                 return;
@@ -1189,6 +1227,11 @@ namespace FloodFill.ThreeD
 
         private void OnDestroy()
         {
+            if (boardManager != null)
+            {
+                boardManager.VoxelClicked -= HandleVoxelClicked;
+                boardManager.StartAnimationChanged -= RefreshUI;
+            }
             FloodAudioSignals.Unregister(this);
             SaveSession();
             if (boardModeDropdown != null)

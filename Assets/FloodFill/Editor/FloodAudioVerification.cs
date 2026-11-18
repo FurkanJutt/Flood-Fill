@@ -195,8 +195,41 @@ namespace FloodFill.EditorTools
             var play=Find<Button>("PLAYButton");audio.BindControl(play,"PLAY");audio.BindControl(play,"PLAY");
             int confirms=audio.SoundStartCount(FloodSound.ButtonConfirm),levelStarts=audio.SoundStartCount(FloodSound.LevelStarted);
             int generation=(int)Get(game,"solverGenerationId");play.onClick.Invoke();
-            for(int i=0;i<200&&game.State!=FloodFillGameManager3D.GameState.Playing;i++)yield return .05f;
+            var entranceBoard=game.BoardManager;
+            var entranceRoot=(Transform)Get(entranceBoard,"boardRoot");
+            var entranceCamera=(OrbitCameraController3D)Get(game,"orbitCamera");
+            var launchUi=UnityEngine.Object.FindAnyObjectByType<FloodFillMobileUI3D>();
+            var loadingScreen=(GameObject)Get(launchUi,"loading");var gameplayScreen=(GameObject)Get(launchUi,"hud");
+            Check(game.IsLoading&&loadingScreen.activeSelf&&!gameplayScreen.activeSelf,"Loading screen appears immediately before board work");
+            Check(!entranceRoot.gameObject.activeSelf&&!entranceBoard.IsStartAnimationPlaying,"Board and entrance stay hidden until ready");
+            Check(!game.CanInteract&&!(bool)Get(entranceCamera,"inputEnabled"),"Loading locks camera and gameplay input");
+            Check(audio.SoundStartCount(FloodSound.LevelStarted)==levelStarts,"Intro sound waits for the prepared level");
+            int loadingFrames=0;
+            while(game.IsLoading&&loadingFrames++<500)
+            {
+                Check(loadingScreen.activeSelf&&!gameplayScreen.activeSelf&&!entranceBoard.IsStartAnimationPlaying,"Gameplay never opens during board/solver preparation");
+                yield return .02f;
+            }
+            Check(!game.IsLoading&&game.LastSolverResult!=null&&game.LastSolverResult.SolutionValidated,"Only a completed validated move budget releases loading");
+            Check(!loadingScreen.activeSelf&&gameplayScreen.activeSelf,"Prepared gameplay replaces loading");
+            var cameraBefore=entranceCamera.CapturePersistentState();
+            Check(entranceBoard.IsStartAnimationPlaying&&!game.CanInteract,"Entrance immediately locks gameplay");
+            Check(!(bool)Get(entranceCamera,"inputEnabled")&&!(bool)Get(entranceBoard,"inputEnabled"),"Camera and cube input lock together");
+            int selectedBefore=game.SelectedColorIndex,movesBefore=game.MoveCount;
+            game.SelectColor(2);Call(game,"HandleVoxelClicked",entranceBoard.StartingVoxel);
+            Call(entranceCamera,"Orbit",new Vector2(1000,1000));Call(entranceCamera,"Pan",new Vector2(1000,1000));Call(entranceCamera,"Zoom",10f);
+            var cameraBlocked=entranceCamera.CapturePersistentState();
+            Check(game.SelectedColorIndex==selectedBefore&&game.MoveCount==movesBefore,"Direct color/cube input cannot bypass the entrance lock");
+            Check(cameraBlocked.yaw==cameraBefore.yaw&&cameraBlocked.pitch==cameraBefore.pitch&&cameraBlocked.distance==cameraBefore.distance&&cameraBlocked.targetPosition==cameraBefore.targetPosition,"Orbit, pan and zoom stay frozen during the entrance");
+            Check(audio.SoundStartCount(FloodSound.ButtonConfirm)-confirms+audio.SoundStartCount(FloodSound.LevelStarted)-levelStarts==1,"Shared launch confirmation is not replayed after loading");
+            yield return .12f;
+            Check(Quaternion.Angle(entranceRoot.localRotation,(Quaternion)Get(entranceBoard,"boardRestingRotation"))>5,"Board rotates during the pop entrance");
+            for(int i=0;i<200&&(game.IsLoading||game.State!=FloodFillGameManager3D.GameState.Playing||game.BoardManager.IsStartAnimationPlaying);i++)yield return .05f;
             Check(game.State==FloodFillGameManager3D.GameState.Playing,"Generated level becomes playable");
+            Check(game.CanInteract&&(bool)Get(entranceCamera,"inputEnabled")&&(bool)Get(entranceBoard,"inputEnabled"),"Inputs unlock after the solver and entrance finish");
+            Check(Quaternion.Angle(entranceRoot.localRotation,(Quaternion)Get(entranceBoard,"boardRestingRotation"))<.01f&&Vector3.Distance(entranceRoot.localScale,(Vector3)Get(entranceBoard,"boardRestingScale"))<.001f,"Entrance lands at the exact resting rotation and scale");
+            foreach(var button in Find<Button>("Color_2").transform.parent.GetComponentsInChildren<Button>())
+                if(button.name.StartsWith("Color_"))Check(button.interactable,"Palette buttons unlock after the entrance");
             Check((int)Get(game,"solverGenerationId")==generation+1,"One Play click initializes exactly one board/solver generation");
             Check(audio.SoundStartCount(FloodSound.ButtonConfirm)-confirms+audio.SoundStartCount(FloodSound.LevelStarted)-levelStarts==1,"Shared Play confirmation/start clip plays once across asynchronous level loading");
             Check(UnityEngine.Object.FindObjectsByType<FloodFillGameManager3D>(FindObjectsInactive.Include).Length==1,"Exactly one game manager initialized");
@@ -206,16 +239,45 @@ namespace FloodFill.EditorTools
             // A new level without a UI confirmation must still play its own start cue.
             levelStarts=audio.SoundStartCount(FloodSound.LevelStarted);generation=(int)Get(game,"solverGenerationId");
             game.StartConfiguredGame(1,0,1);
-            for(int i=0;i<200&&game.State!=FloodFillGameManager3D.GameState.Playing;i++)yield return .05f;
+            Check(game.IsLoading&&audio.SoundStartCount(FloodSound.LevelStarted)==levelStarts,"Direct launch also defers its start cue until ready");
+            for(int i=0;i<200&&(game.IsLoading||game.State!=FloodFillGameManager3D.GameState.Playing||game.BoardManager.IsStartAnimationPlaying);i++)yield return .05f;
             Check(game.State==FloodFillGameManager3D.GameState.Playing&&(int)Get(game,"solverGenerationId")==generation+1,"Direct launch generates one playable board");
             Check(audio.SoundStartCount(FloodSound.LevelStarted)==levelStarts+1,"New level resets confirmation tracking and plays its standalone start cue");
             var launchUI=UnityEngine.Object.FindAnyObjectByType<FloodFillMobileUI3D>();
             Call(launchUI,"BackToMenu");Call(launchUI,"Show",Get(launchUI,"setup"));
             confirms=audio.SoundStartCount(FloodSound.ButtonConfirm);levelStarts=audio.SoundStartCount(FloodSound.LevelStarted);generation=(int)Get(game,"solverGenerationId");
             Find<Button>("START GAMEButton").onClick.Invoke();
-            for(int i=0;i<200&&game.State!=FloodFillGameManager3D.GameState.Playing;i++)yield return .05f;
+            for(int i=0;i<200&&(game.IsLoading||game.State!=FloodFillGameManager3D.GameState.Playing||game.BoardManager.IsStartAnimationPlaying);i++)yield return .05f;
             Check(game.State==FloodFillGameManager3D.GameState.Playing&&(int)Get(game,"solverGenerationId")==generation+1,"Custom Start button initializes one playable board");
             Check(audio.SoundStartCount(FloodSound.ButtonConfirm)-confirms+audio.SoundStartCount(FloodSound.LevelStarted)-levelStarts==1,"Custom Start also emits one shared launch sound");
+            // The largest shell board must assemble across multiple frames, with
+            // graph construction/search completing on a different managed thread.
+            game.StartConfiguredGame(1,6,1);int largeLoadingFrames=0;
+            while(game.IsLoading&&largeLoadingFrames++<2000)
+            {
+                Check(loadingScreen.activeSelf&&!gameplayScreen.activeSelf&&!game.CanInteract,"Large-board setup remains behind loading");
+                yield return .01f;
+            }
+            Check(!game.IsLoading&&largeLoadingFrames>3&&game.BoardManager.TotalVoxelCount>1000,"Large cube creation yields across frames and finishes");
+            Check(game.LastSolverResult!=null&&game.LastSolverResult.SolutionValidated&&(int)Get(game,"solverWorkerThreadId")!=System.Threading.Thread.CurrentThread.ManagedThreadId,"Large-board graph/search completes on a worker with a validated move sequence");
+            while(game.BoardManager.IsStartAnimationPlaying)yield return .02f;
+            Call(launchUI,"BackToMenu");int savedBudget=game.CurrentMoveBudget;
+            Check(game.HasSavedSession,"Prepared game remains resumable");
+            var continueControl=Find<Button>("CONTINUEButton");continueControl.onClick.Invoke();
+            Check(game.IsLoading&&!gameplayScreen.activeSelf,"Continue waits behind loading too");
+            Call(launchUI,"BackToMenu");
+            Check(game.HasSavedSession&&!game.IsLoading,"Cancelling Continue preserves the saved level");
+            continueControl.onClick.Invoke();
+            for(int i=0;i<200&&(game.IsLoading||game.BoardManager.IsStartAnimationPlaying);i++)yield return .02f;
+            Check(game.CanInteract&&game.CurrentMoveBudget==savedBudget&&game.BoardManager.TotalVoxelCount>1000,"Continue after cancellation restores the prepared board and budget");
+            game.RestartCurrentGame();Check(game.IsLoading,"Restart enters loading");
+            Call(launchUI,"BackToMenu");yield return .15f;
+            Check(!game.IsLoading&&((GameObject)Get(launchUI,"menu")).activeSelf&&!gameplayScreen.activeSelf,"Back cancels loading and stale results cannot open gameplay");
+            play.onClick.Invoke();
+            for(int i=0;i<200&&(game.IsLoading||game.State!=FloodFillGameManager3D.GameState.Playing||game.BoardManager.IsStartAnimationPlaying);i++)yield return .05f;
+            Check(game.CanInteract,"A new launch after cancellation completes normally");
+            report.Add("PASS loading screen hides board/gameplay until validated moves and final preparation, deferred entrance audio, cancellation, and relaunch.");
+            report.Add("PASS spinning pop entrance, start-sound synchronization, locked camera/color/cube input, exact final transform, and completion/restart unlock.");
             report.Add("PASS Play/custom Start emit one shared launch clip, one board generation, single managers, repeated notification guards, and standalone start after reset.");
             Counter(game,35,0);audio.ReturnToGameMusic();yield return .35f;
             Check(audio.CurrentMusicState==FloodMusicState.Normal,"35 remaining is normal");
@@ -384,7 +446,7 @@ namespace FloodFill.EditorTools
             audio.StopAllAudio();yield return .1f;audio.ReturnToGameMusic();
             int sourceCount=audio.GetComponents<AudioSource>().Length;
             game.RestartCurrentGame();game.RestartCurrentGame();
-            for(int i=0;i<200&&game.State!=FloodFillGameManager3D.GameState.Playing;i++)yield return .05f;
+            for(int i=0;i<200&&(game.IsLoading||game.State!=FloodFillGameManager3D.GameState.Playing||game.BoardManager.IsStartAnimationPlaying);i++)yield return .05f;
             Check(game.State==FloodFillGameManager3D.GameState.Playing&&game.MoveCount==0,"Rapid restarts complete safely");
             Check(audio.GetComponents<AudioSource>().Length==sourceCount&&audio.StartingMoveBudget==game.CurrentMoveBudget&&audio.RemainingMoves==game.CurrentMoveBudget,"Restart uses restored authoritative budget without extra sources");
             report.Add("PASS rapid real level restarts and recalculated authoritative music budget.");

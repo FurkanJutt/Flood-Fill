@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 
 namespace FloodFill.ThreeD.Solver
 {
@@ -29,12 +30,15 @@ namespace FloodFill.ThreeD.Solver
 
         public static bool TryBuild(
             FloodFillBoardSnapshot3D snapshot,
-            out FloodFillRegionGraph3D graph)
+            out FloodFillRegionGraph3D graph, CancellationToken cancellationToken = default)
         {
             graph = null;
-            if (snapshot == null || snapshot.Width < 1 || snapshot.Height < 1 ||
+            if (snapshot == null) return false;
+            byte[] voxelColors = snapshot.Colors;
+            int[] logicalIndices = snapshot.LogicalIndices;
+            if ( snapshot.Width < 1 || snapshot.Height < 1 ||
                 snapshot.Depth < 1 || snapshot.ColorCount < 1 || snapshot.ColorCount > 256 || snapshot.VoxelCount < 1 ||
-                snapshot.Colors == null || snapshot.Colors.Length != snapshot.VoxelCount ||
+                voxelColors == null || voxelColors.Length != snapshot.VoxelCount ||
                 snapshot.StartingVoxel < 0 || snapshot.StartingVoxel >= snapshot.VoxelCount)
             {
                 return false;
@@ -44,8 +48,6 @@ namespace FloodFill.ThreeD.Solver
             if ((long)snapshot.Width * snapshot.Height > int.MaxValue ||
                 (long)snapshot.Width * snapshot.Height * snapshot.Depth > int.MaxValue) return false;
             int volume = snapshot.Width * snapshot.Height * snapshot.Depth;
-            int[] logicalIndices = snapshot.LogicalIndices;
-            byte[] voxelColors = snapshot.Colors;
             if (logicalIndices == null || logicalIndices.Length != snapshot.VoxelCount) return false;
             var voxelAtLogicalIndex = new int[volume];
             var voxelRegion = new int[snapshot.VoxelCount];
@@ -67,13 +69,13 @@ namespace FloodFill.ThreeD.Solver
             var counts = new List<int>();
             var representatives = new List<int>();
             var queue = new int[snapshot.VoxelCount];
-            var order = new int[snapshot.VoxelCount];
-            for (int i = 0; i < order.Length; i++) order[i] = i;
-            Array.Sort(order, (a, b) => logicalIndices[a].CompareTo(logicalIndices[b]));
-            for (int orderIndex = 0; orderIndex < order.Length; orderIndex++)
+            // Logical order preserves deterministic region IDs without sorting or
+            // allocating a voxel-order array. The occupancy map is already built.
+            for (int logical = 0; logical < volume; logical++)
             {
-                int startVoxel = order[orderIndex];
-                if (voxelRegion[startVoxel] >= 0)
+                if ((logical & 255) == 0) cancellationToken.ThrowIfCancellationRequested();
+                int startVoxel = voxelAtLogicalIndex[logical];
+                if (startVoxel < 0 || voxelRegion[startVoxel] >= 0)
                 {
                     continue;
                 }
@@ -87,6 +89,7 @@ namespace FloodFill.ThreeD.Solver
                 voxelRegion[startVoxel] = regionId;
                 while (head < tail)
                 {
+                    if ((head & 255) == 0) cancellationToken.ThrowIfCancellationRequested();
                     int voxel = queue[head++];
                     voxelCount++;
                     int logicalIndex = logicalIndices[voxel];
@@ -124,11 +127,12 @@ namespace FloodFill.ThreeD.Solver
             var degrees = new int[colors.Count];
             for (int voxel = 0; voxel < snapshot.VoxelCount; voxel++)
             {
+                if ((voxel & 255) == 0) cancellationToken.ThrowIfCancellationRequested();
                 int region = voxelRegion[voxel];
                 int logicalIndex = logicalIndices[voxel];
                 FromIndex(logicalIndex, snapshot.Width, snapshot.Height,
                     out int x, out int y, out int z);
-                for (int direction = 0; direction < 6; direction++)
+                for (int direction = 0; direction < 6; direction += 2)
                 {
                     int nx = x + DirectionX[direction];
                     int ny = y + DirectionY[direction];

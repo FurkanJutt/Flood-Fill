@@ -1,14 +1,16 @@
 PASS menu initialization, looping, routing, source count, popup continuity.
+PASS loading screen hides board/gameplay until validated moves and final preparation, deferred entrance audio, cancellation, and relaunch.
+PASS spinning pop entrance, start-sound synchronization, locked camera/color/cube input, exact final transform, and completion/restart unlock.
 PASS Play/custom Start emit one shared launch clip, one board generation, single managers, repeated notification guards, and standalone start after reset.
 PASS authoritative move thresholds, hard priority, dynamic refresh, no repeated restarts.
 PASS interrupted equal-power fades, live clip assignment, preview safety and refresh idempotence.
 PASS current-block Settings row restoration/persistence and shared audible music/SFX toggle confirmations.
 PASS existing settings UI sliders, immediate exposed volumes, independent mute, persistence, throttling, pool refresh.
 PASS accepted-color de-duplication, real flood timing, scaled pause synchronization, unscaled audio, flood caps/reset.
-PROFILE spread start: 0.200 us/call, 0 B/10000 calls; update: 0.298 us/call, 0 B/10000 calls. Headless Editor CPU timing; excludes board/rendering and audio-device latency.
+PROFILE spread start: 0.196 us/call, 0 B/10000 calls; update: 0.285 us/call, 0 B/10000 calls. Headless Editor CPU timing; excludes board/rendering and audio-device latency.
 PASS one native looping spread source, preview/gameplay parity, increasing playback speed, end fade, scaled pause, and no extra layers.
 PASS rapid real level restarts and recalculated authoritative music budget.
 PASS free-flood outside-component merge metadata and actual animated-wave bounds.
 PASS single result cues, pause/resume guard, missing clips, alternate-only sound configuration.
 PASS scene persistence, duplicate prevention, app suspension/resume, startup persistence and source reuse.
-PASS: 507 assertions; native Play Mode verification complete.
+PASS: 643 assertions; native Play Mode verification complete.
