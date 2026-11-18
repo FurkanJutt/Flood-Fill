@@ -125,6 +125,8 @@ namespace FloodFill.ThreeD
             ApplyDisplayColor(color);
         }
 
+        public float ColorWaveStartOffset => Mathf.Max(0f, waveAnticipationDuration);
+
         public float AnimateColor(int colorIndex, Color color, float delay)
         {
             ColorIndex = colorIndex;

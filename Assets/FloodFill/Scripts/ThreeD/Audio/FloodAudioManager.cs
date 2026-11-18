@@ -51,10 +51,10 @@ namespace FloodFill.ThreeD.Audio
         [Foldout("UI Sound Effects")] public FloodSoundSettings popupOpen=new FloodSoundSettings();
         [Foldout("UI Sound Effects")] public FloodSoundSettings popupClose=new FloodSoundSettings();
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings colorSelected=new FloodSoundSettings{maximumInstances=1};
-        [Foldout("Gameplay Sound Effects")] public FloodSoundSettings blockColorChange=new FloodSoundSettings{volume=.5f};
-        [Foldout("Gameplay Sound Effects")] public FloodSoundSettings floodProgress=new FloodSoundSettings{volume=.3f,minimumInterval=.12f,maximumInstances=2};
-        [Foldout("Gameplay Sound Effects")] public FloodSoundSettings floodEnd=new FloodSoundSettings{volume=.45f};
-        [Foldout("Gameplay Sound Effects")] public FloodSoundSettings largeCapture=new FloodSoundSettings{volume=.6f,maximumInstances=1};
+        [Foldout("Gameplay Sound Effects"),InspectorName("Color Spread")] public FloodSoundSettings blockColorChange=new FloodSoundSettings{volume=.5f};
+        [HideInInspector] public FloodSoundSettings floodProgress=new FloodSoundSettings{volume=.3f,minimumInterval=.12f,maximumInstances=2};
+        [HideInInspector] public FloodSoundSettings floodEnd=new FloodSoundSettings{volume=.45f};
+        [HideInInspector] public FloodSoundSettings largeCapture=new FloodSoundSettings{volume=.6f,maximumInstances=1};
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings levelStarted=new FloodSoundSettings();
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings levelCompleted=new FloodSoundSettings{maximumInstances=1};
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings levelFailed=new FloodSoundSettings{maximumInstances=1};
@@ -62,27 +62,47 @@ namespace FloodFill.ThreeD.Audio
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings restartLevel=new FloodSoundSettings{maximumInstances=1};
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings pauseSound=new FloodSoundSettings{maximumInstances=1};
         [Foldout("Gameplay Sound Effects")] public FloodSoundSettings resumeSound=new FloodSoundSettings{maximumInstances=1};
-        [BoxGroup("Flood Wave Tuning"),Min(1)] public int minimumCubesForProgress=12;
-        [BoxGroup("Flood Wave Tuning"),Min(1)] public int largeCaptureThreshold=30;
-        [BoxGroup("Flood Wave Tuning"),Range(.08f,.5f)] public float minimumProgressInterval=.12f;
-        [BoxGroup("Flood Wave Tuning"),Range(0,8)] public int maximumProgressSoundsPerFlood=4;
-        [BoxGroup("Flood Wave Tuning"),Range(1,4)] public int maximumSimultaneousFloodSounds=2;
-        [BoxGroup("Flood Wave Tuning"),Range(0,1)] public float floodProgressVolume=.45f;
-        [BoxGroup("Flood Wave Tuning"),Range(0,.1f)] public float floodPitchVariation=.025f;
-        [BoxGroup("Flood Wave Tuning"),Range(0,.3f)] public float floodVolumeScaling=.12f;
-        [BoxGroup("Flood Wave Tuning"),Range(0,.15f)] public float floodPitchScaling=.05f;
+        // Retain old serialized assignments for existing scenes; gameplay uses only Color Spread.
+        [HideInInspector] public int minimumCubesForProgress=6,largeCaptureThreshold=30;
+        [HideInInspector] public float minimumProgressInterval=.12f;
+        [HideInInspector] public int maximumProgressSoundsPerFlood=4,maximumSimultaneousFloodSounds=2;
+        [HideInInspector] public float floodProgressVolume=.45f,floodStartPlaybackSeconds=.22f,floodProgressPlaybackSeconds=.14f;
+        [HideInInspector] public float floodProgressClipOffset;
+        [HideInInspector] public float floodPitchVariation=.025f,floodVolumeScaling=.12f,floodPitchScaling=.05f;
+        [BoxGroup("Color Spread"),Min(0),Tooltip("Start of the audible section of the primary clip; skip leading silence.")]
+        public float floodStartClipOffset;
+        [BoxGroup("Color Spread"),Range(.04f,.5f),Tooltip("Length of the repeating section, prepared once when settings are applied.")]
+        public float spreadLoopSeconds=.16f;
+        [BoxGroup("Color Spread"),Range(.25f,2f)] public float spreadStartSpeed=.8f;
+        [BoxGroup("Color Spread"),Range(.25f,2f)] public float spreadEndSpeed=1.65f;
+        [BoxGroup("Color Spread"),Range(.02f,.5f)] public float spreadFadeOutSeconds=.2f;
+        [SerializeField,HideInInspector] private AudioClip floodStartOffsetClip;
+        [SerializeField,HideInInspector] private AudioClip floodProgressOffsetClip;
 
         [ShowNativeProperty] public FloodMusicState CurrentMusicState=>requestedMusic;
-        [ShowNativeProperty] public string CurrentMusicClip=>musicSources==null||musicSources[activeMusic].clip==null?"None":musicSources[activeMusic].clip.name;
+        [ShowNativeProperty] public string CurrentMusicClip
+        {
+            get
+            {
+                // NaughtyAttributes reads diagnostics before Awake and during reloads.
+                // An array can exist while its slots/index are not initialized yet.
+                if(musicSources==null||activeMusic<0||activeMusic>=musicSources.Length)return "None";
+                var source=musicSources[activeMusic];
+                var clip=source!=null?source.clip:null;
+                return clip!=null?clip.name:"None";
+            }
+        }
         [ShowNativeProperty] public string CurrentGameState=>game==null?"Main menu":game.State.ToString();
         [ShowNativeProperty] public int RemainingMoves=>game==null?0:Mathf.Max(0,game.CurrentMoveBudget-game.MoveCount);
         [ShowNativeProperty] public int StartingMoveBudget=>game==null?0:game.CurrentMoveBudget;
         [ShowNativeProperty] public float CurrentMusicVolume=>enableMusic?musicVolume:0;
         [ShowNativeProperty] public float CurrentSfxVolume=>enableSoundEffects?soundEffectsVolume:0;
         [ShowNativeProperty] public bool IsCrossfading=>crossfading;
+        [ShowNativeProperty] public bool IsColorSpreadPlaying=>spreadVoice!=null&&spreadVoice.Source.isPlaying;
+        [ShowNativeProperty] public float ColorSpreadProgress=>waveActive?Mathf.InverseLerp(waveStart,waveLastStart,Time.time):0;
         [ShowNativeProperty] public int TotalMusicStarts { get; private set; }
         [ShowNativeProperty] public int TotalSoundStarts { get; private set; }
-        [ShowNativeProperty] public int ActiveSfxCount { get {int count=0;if(voices!=null)for(int i=0;i<voices.Length;i++)if(voices[i].Active)count++;return count;} }
+        [ShowNativeProperty] public int ActiveSfxCount { get {int count=0;if(voices!=null)for(int i=0;i<voices.Length;i++)if(voices[i]!=null&&voices[i].Source!=null&&voices[i].Active)count++;return count;} }
         public event System.Action SettingsChanged;
         private FloodFillGameManager3D game;
         private FloodAudioUIBinder ui;
@@ -91,14 +111,13 @@ namespace FloodFill.ThreeD.Audio
         private float resultAt;
         private float duck=1f,duckTarget=1f;
         private bool waveActive;
-        private float waveStart,waveEnd,waveLastStart,waveStep,nextProgress;
-        private int progressCount,progressLimit,waveAffected,waveNew;
+        private float waveStart,waveEnd,waveLastStart;
 
         private void Awake()
         {
             if(Instance!=null&&Instance!=this){Destroy(gameObject);return;}
             Instance=this;DontDestroyOnLoad(gameObject);
-            LoadSettings();CreateSources();ui=new FloodAudioUIBinder();
+            LoadSettings();RefreshFloodClipBindings();CreateSources();ui=new FloodAudioUIBinder();
             FloodAudioSignals.ManagerAvailable+=AttachGame;FloodAudioSignals.ManagerRemoved+=DetachGame;
             FloodAudioSignals.ColorAccepted+=OnColorSelected;FloodAudioSignals.FloodStarted+=OnFlood;
             FloodAudioSignals.LevelReset+=OnLevelReset;FloodAudioSignals.RestartRequested+=OnRestart;
@@ -220,13 +239,13 @@ namespace FloodFill.ThreeD.Audio
             FloodAudioSignals.PauseChanged-=OnPause;FloodAudioSignals.ResultScheduled-=OnResult;
             FloodAudioSignals.MenuContextChanged-=OnMenu;FloodAudioSignals.PopupChanged-=OnPopup;
             if(game!=null){game.UIChanged-=OnGameChanged;game.ManagerReady-=OnGameChanged;}
-            ui?.Dispose();Instance=null;
+            DisposeSpreadClips();ui?.Dispose();Instance=null;
         }
         [Button("Refresh / Reapply Audio Settings")]
         public void RefreshAudioSettings()
         {
             if(!Application.isPlaying||Instance!=this)return;
-            ApplyVolumes();ResizePool();RefreshActiveVoices();RefreshFloodTuning();preview=false;stoppedByUser=false;duckTarget=!menuContext&&resultHandled?resultMusicDuck:1f;
+            RefreshFloodClipBindings();ApplyVolumes();ResizePool();RefreshActiveVoices();preview=false;stoppedByUser=false;duckTarget=!menuContext&&resultHandled?resultMusicDuck:1f;
             if(releasing)pendingMusicDuration=Mathf.Max(.01f,requestedMusic==FloodMusicState.MainMenu?defaultCrossfadeDuration:gameplayCrossfadeDuration);
             if(crossfading){fadeElapsed=0;fadeDuration=Mathf.Max(.01f,requestedMusic==FloodMusicState.MainMenu?defaultCrossfadeDuration:gameplayCrossfadeDuration);musicStartGain[0]=musicGain[0];musicStartGain[1]=musicGain[1];}
             ReevaluateMusic(true);
@@ -238,7 +257,6 @@ namespace FloodFill.ThreeD.Audio
         [Button("Test Button Click")] public void TestButtonClick()=>PlaySound(FloodSound.ButtonClick);
         [Button("Test Color Selection")] public void TestColorSelection()=>PlaySound(FloodSound.ColorSelected);
         [Button("Test Flood Spread")] public void TestFloodSpread(){if(Application.isPlaying)OnFlood(new FloodAudioSignals.FloodWave(20,10,1.2f,.8f,.065f));}
-        [Button("Test Large Capture")] public void TestLargeCapture()=>PlaySound(FloodSound.LargeCapture);
         [Button("Test Level Complete")] public void TestLevelComplete()=>PlaySound(FloodSound.LevelCompleted);
         [Button("Test Level Failed")] public void TestLevelFailed()=>PlaySound(FloodSound.LevelFailed);
         [Button("Return To Game Music")] public void ReturnToGameMusic(){if(!Application.isPlaying)return;preview=false;stoppedByUser=false;duckTarget=!menuContext&&resultHandled?resultMusicDuck:1f;ReevaluateMusic(true);}
@@ -246,7 +264,7 @@ namespace FloodFill.ThreeD.Audio
         public void StopAllAudio()
         {
             if(!Application.isPlaying||musicSources==null)return;
-            stoppedByUser=true;preview=false;waveActive=false;floodFinishPending=false;resultPending=false;
+            stoppedByUser=true;preview=false;CancelFlood();resultPending=false;
             TransitionMusic(FloodMusicState.Silent,null,0,defaultFadeDuration);
             if(voices!=null)for(int i=0;i<voices.Length;i++)if(voices[i].Active)voices[i].Stopping=true;
         }

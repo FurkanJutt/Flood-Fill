@@ -5,8 +5,8 @@ The demo scene is ready to play: `Assets/FloodFill/Scenes/FloodFill3DDemo.unity`
 ## Assign and audition clips
 
 1. Before Play Mode, select **FloodAudioManager** in the demo hierarchy, or open its prefab. Assign the four music tracks and expand **UI Sound Effects** / **Gameplay Sound Effects** for individual cues. Each cue has clip, alternates, volume, pitch, small random pitch range, retrigger interval, instance cap, and fade tuning.
-2. During Play Mode, select **DontDestroyOnLoad > FloodAudioManager**. Edit that runtime instance, then press **Refresh / Reapply Audio Settings**. Changed music assignments crossfade; unchanged music keeps playing at its current position. Volumes, routing, active cue pitch/volume, thresholds, flood limits, and pool size are reapplied. Existing one-shot effects finish their current clip; later events use new assignments.
-3. Use the Inspector buttons for menu/normal/medium/hard music, button/color/flood/large-capture/completion/failure cues. **Return To Game Music** or **Refresh** ends a music preview and follows the actual game again. Previews do not alter moves, board state, or the solver.
+2. During Play Mode, select **DontDestroyOnLoad > FloodAudioManager**. Edit that runtime instance, then press **Refresh / Reapply Audio Settings**. Changed music assignments crossfade; unchanged music keeps playing at its current position. Volumes, routing, active cue pitch/volume, thresholds, spread speed/fade, and pool size are reapplied. Existing one-shot effects finish their current clip; later events use new assignments.
+3. Use the Inspector buttons for menu/normal/medium/hard music, button/color/flood/completion/failure cues. **Return To Game Music** or **Refresh** ends a music preview and follows the actual game again. Previews do not alter moves, board state, or the solver.
 4. **Stop All Audio** fades music and active effects. Music remains stopped until Return/Refresh, a new level, or a menu/game context change. Music and SFX enable flags are independent of their stored volumes.
 
 The supplied prefab has 12 pooled SFX sources plus exactly two music sources, all on the same persistent GameObject. Sources are created once at initialization. Changing pool size explicitly with Refresh grows the pool or fades retiring voices before shrinking it. No AudioSource is attached to a cube or added during a flood event.
@@ -17,6 +17,10 @@ Inspector diagnostics show music state/clip, game state, remaining moves, starti
 
 The current navy/blue panel, typography, current-block option, and navigation remain. The settings content is spaced to include Master, Music, and Sound Effects sliders with percentage labels, plus Music Enabled and Sound Effects Enabled toggles. No second settings menu was created.
 
+**Show Current Block** remains a visible, explicit settings row with its original saved preference. Opening Settings also repairs a hidden legacy auto-layout row without creating duplicates. After updating scripts during an existing Play session, restart Play Mode once to rebuild the controls and load updated prefab routing.
+
+Music and SFX toggles share the same `Toggle On` / `Toggle Off` cue definitions. The SFX toggle's own short confirmation uses a pooled voice routed to Master, scaled by the stored SFX level, so it can confirm muting without being silenced by that same mute. Master volume still applies; all other gameplay/UI effects mute immediately. No additional source or mixer group is created.
+
 Values apply immediately through exposed mixer parameters. Muting preserves the selected volume. Initialization and refresh use `SetValueWithoutNotify` / `SetIsOnWithoutNotify`. Sliders do not write to disk on every drag sample: values are saved when settings close, on focus loss/backgrounding, on orderly shutdown, and when the owning manager is destroyed. Keys are `FloodFill3D.Audio.Master`, `.Music`, `.Sfx`, `.MusicEnabled`, and `.SfxEnabled`.
 
 ## Routing and music policy
@@ -25,7 +29,7 @@ Values apply immediately through exposed mixer parameters. Muting preserves the 
 
 - **Master**: exposed `MasterVolume`; compressor threshold -3 dB, attack 5 ms, release 100 ms, zero makeup gain.
 - **Master / Music**: exposed `MusicVolume`, routed from both music sources.
-- **Master / SFX**: exposed `SfxVolume`, routed from the reusable SFX pool; compressor threshold -10 dB, attack 5 ms, release 100 ms, zero makeup gain.
+- **Master / SFX**: exposed `SfxVolume`, routed from ordinary reusable SFX pool voices; compressor threshold -10 dB, attack 5 ms, release 100 ms, zero makeup gain.
 - All groups appear in the mixer's **All** view. Mixer updates use unscaled time. Linear volume converts with `20 * log10(value)` and a safe -80 dB floor for silence.
 
 The audio manager reads `FloodFillGameManager3D.CurrentMoveBudget` and `MoveCount`. It never reads UI text or solver paths. During generation it requests Normal; when gameplay becomes active it uses the authoritative budget and the following exclusive rules:
@@ -46,11 +50,13 @@ Missing clips are intentional safe cases: Hard falls back to Medium, then Normal
 
 ## Flood and gameplay integration
 
-`VoxelBoardManager3D` emits one compact event after its existing six-neighbor recolor and capture logic. It reports affected/newly captured counts, the existing animation duration, actual last wave start, and existing wave-step delay. Added bookkeeping tracks timing only; the recolor algorithm and animation calls/durations are unchanged.
+`VoxelBoardManager3D` emits one compact event after its existing six-neighbor recolor and capture logic. It reports affected/newly captured counts, the existing animation duration, and first/last animated wave starts, including color anticipation. Audio tracking uses two scalar bounds during the existing traversal: no per-cube timing array, sorting, extra traversal, or per-frame cube inspection. Recolor and capture animation calls and durations are unchanged.
 
-`Block Color Change` is the **Flood Start** cue. Defaults allow four quiet progress events, spaced by at least 0.12 real seconds and quantized to actual animation wave boundaries, with at most two simultaneous flood voices. Progress follows scaled animation time and therefore pauses with the visuals at `timeScale = 0`; the retrigger safety floor remains real-time. Size adds only modest capped volume/pitch variation. There is no sound per voxel. A small outside component merged into an already captured area counts only the union of recolored and newly captured cubes; unchanged captured mass does not inflate its sound intensity. Timing excludes non-animated capture bookkeeping. Short cue attacks play at their configured gain immediately rather than waiting for a frame to fade in; cue fade duration controls release and tails.
+**Color Spread** is the single sound assignment for recoloring. The Inspector's **Test Flood Spread** and actual gameplay call the identical playback path, using their respective animation durations. Legacy Progress, End, and Large Capture assignments are retained as hidden serialized data for existing scenes; the gameplay scheduler does not play those layers.
 
-An assigned Flood End or Large Capture cue can finish the wave. A final win/failure cue replaces extra flood finishing feedback on the last move. Large Capture uses the actual newly captured count (default threshold 30). If the pool is busy, a finishing cue briefly waits for fading flood voices rather than exceeding the cap. Assign only a start clip and leave progress/end/large clips empty to use a single-clip design.
+At initialization or an explicit Refresh after clip/loop settings change, a short section of the assigned clip is copied into a small PCM loop with 4 ms softened edges. Original audio assets are unchanged. The supplied preset uses a 0.105-second start offset and 0.16-second loop from the existing bubble clip. Alternate clips are prepared once too, starting at zero. Changing the primary clip clears its old offset; tune the offset/loop section then Refresh. Use Decompress On Load for short spread clips. Streaming clips or clips whose PCM data cannot be read safely fall back to looping the original clip.
+
+One pooled source loops natively throughout the animation. Playback speed rises from 0.8× to 1.65× between the first and last wave starts, then fades smoothly over the last 0.2 seconds (short waves cap the fade to 40% of their duration). Base pitch and volume come from Color Spread. Its generic one-shot retrigger/instance/random-pitch/fade settings do not govern this continuous effect; use the Color Spread speed, loop, and fade controls. The source pauses with scaled visual time, resumes with the animation, and is released at its end. Restarts and menu transitions cancel it. No per-wave clip creation, PCM reads, playback retrigger loop, or extra ending cue occurs during gameplay. Result sounds remain separate and play after the animation.
 
 Accepted color changes emit exactly one color cue. Invalid or repeated selections do not. Palette controls suppress generic UI clicks. Level start, result, restart, and pause/resume hooks guard duplicate notifications. Result cues wait for the current flood animation to finish; restarts/menu transitions cancel old wave schedules. The game's existing pause behavior, win animation, input, rendering, camera, level generation, and solver are unchanged.
 
@@ -76,7 +82,7 @@ Created runtime scripts:
 
 - `Assets/FloodFill/Scripts/ThreeD/Audio/FloodAudioManager.cs` — ownership, settings, game events, Inspector controls and diagnostics.
 - `FloodAudioMusic.cs` — the same partial manager's two-source music and crossfades.
-- `FloodAudioEffects.cs` — the same partial manager's SFX pool and wave scheduler.
+- `FloodAudioEffects.cs` — the same partial manager's SFX pool and continuous spread playback.
 - `FloodAudioSettings.cs` — serializable cue tuning, isolated audio random source, volume and intensity policy.
 - `FloodAudioSignals.cs` — small typed gameplay/navigation hooks.
 - `FloodAudioUIBinder.cs` — central listener ownership and dynamic uGUI binding.
@@ -91,7 +97,9 @@ Created assets: `Assets/FloodFill/Audio/FloodFillAudio.mixer` and `FloodAudioMan
 
 ## Verification and remaining limits
 
-Native Unity Play Mode verification covers startup loops/routing, actual generated Play button callbacks, repeated binding, exact threshold boundaries, hard priority, unchanged-track playback, interrupted power-bounded fades, live reassignment/refresh, real settings sliders, mute/volume preservation, saved startup settings, valid/invalid palette selections, an actual voxel recolor handler, flood voice/progression caps, paused wave versus unscaled music/UI behavior, pool refresh, duplicate result/pause notifications, rapid real restarts, missing/alternate clips, additive-scene persistence, duplicate-manager rejection, and app pause/resume. Audio variation is checked against Unity's random state. The recorded run passed 153 assertions, including checks during each interrupted-fade/progression step; the exact count can vary with generated wave duration. See `Documentation/Audio/play-mode-verification.txt`.
+Native Unity Play Mode verification covers startup loops/routing, actual generated Play button callbacks, repeated binding, exact threshold boundaries, hard priority, unchanged-track playback, interrupted music fades, live reassignment/refresh, real settings controls, saved startup settings, valid/invalid palette selections, actual voxel recolor handlers, pause synchronization, pool refresh, duplicate result/pause notifications, rapid restarts, missing/alternate clips, additive-scene persistence, duplicate-manager rejection, and app pause/resume. A deterministic 33-voxel spread verifies a single continuously playing source, increasing pitch, fade before the animation ends, no extra sound layers, and an identical prepared loop in Inspector preview and gameplay. The recorded run passed 483 assertions; the exact count varies with frame timing. See `Documentation/Audio/play-mode-verification.txt`.
+
+The same headless Editor run measured spread scheduling at 0.197 microseconds per call and active spread updates at 0.279 microseconds per call, with zero managed bytes allocated over 10,000 calls to each. Loop preparation is excluded because it runs only during initialization/explicit settings changes. These are isolated CPU measurements, not a rendered FPS or device-audio benchmark. The Unity Profiler markers `FloodAudio.StartSpread` and `FloodAudio.UpdateSpread` identify this work in a real gameplay capture; cube tween/material updates and GPU rendering remain separate costs. This measurement does not establish the cause of a previously observed full-game FPS drop.
 
 Android and iOS checks use Unity's `PlayerBuildInterface.CompilePlayerScripts`, with Editor folders excluded, rather than merely compiling against desktop Editor definitions. Both Android and iOS compiled 63 player assemblies successfully. See `Documentation/Audio/mobile-player-compilation.txt`. These checks compile managed player scripts; they do not produce signed APK/IPA packages, exercise IL2CPP/native linking, or verify device audio latency.
 
@@ -105,3 +113,7 @@ Unity -batchmode -nographics -projectPath /path/to/copy -quit -executeMethod Flo
 ```
 
 The Play Mode runner exits with success/failure and writes `Logs/FloodAudioVerification.txt`; do not add `-quit` to that asynchronous Play Mode command. Player compilation writes `Logs/FloodAudioPlayerCompilation.txt`.
+
+### Inspector lifecycle regression
+
+The Inspector diagnostic getters tolerate empty/uninitialized arrays, invalid music indices, null slots and destroyed AudioSources. They do not initialize or add sources while the Inspector reads them. The focused Unity check passed 23 cases using the same property-reflection access as NaughtyAttributes, including reads before Awake. Run **Tools > Flood Fill > Audio > Verify Inspector Diagnostics** outside Play Mode to repeat it. Evidence: `Documentation/Audio/inspector-diagnostics-verification.txt`.

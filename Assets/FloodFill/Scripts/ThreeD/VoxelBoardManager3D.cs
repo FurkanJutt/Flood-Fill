@@ -135,6 +135,7 @@ namespace FloodFill.ThreeD
         public int TotalVoxelCount => allVoxels.Count;
         public int LastNewlyCapturedCount { get; private set; }
         private float audioLastWaveStart;
+        private float audioFirstWaveStart;
         public float LastRecolorAnimationDuration { get; private set; }
         public float LastWinCelebrationDuration { get; private set; }
         public float CapturedPercentage => TotalVoxelCount > 0
@@ -236,6 +237,7 @@ namespace FloodFill.ThreeD
                 return false;
             }
 
+            ResetAudioWaveBounds();
             CurrentPlayerColor = StartingVoxel.ColorIndex;
             CaptureInitialRegion();
             Debug.Log(
@@ -348,6 +350,7 @@ namespace FloodFill.ThreeD
                 }
             }
 
+            ResetAudioWaveBounds();
             CurrentPlayerColor = state.currentPlayerColor;
             LastNewlyCapturedCount = 0;
             Debug.Log(
@@ -459,6 +462,18 @@ namespace FloodFill.ThreeD
             return count;
         }
 
+        private void ResetAudioWaveBounds()
+        {
+            audioFirstWaveStart = float.PositiveInfinity;
+            audioLastWaveStart = 0f;
+        }
+
+        private void RecordAudioWave(float delay)
+        {
+            audioFirstWaveStart = Mathf.Min(audioFirstWaveStart, delay);
+            audioLastWaveStart = Mathf.Max(audioLastWaveStart, delay);
+        }
+
         public bool RecolorConnectedRegion(VoxelCell3D voxel, int colorIndex)
         {
             if (cells == null || voxel == null || colorIndex < 0 ||
@@ -470,7 +485,7 @@ namespace FloodFill.ThreeD
                 return false;
             }
 
-            audioLastWaveStart = 0f;
+            ResetAudioWaveBounds();
             int originalColorIndex = voxel.ColorIndex;
             int audioRecoloredUncaptured = 0;
             var queue = new Queue<VoxelCell3D>();
@@ -486,7 +501,7 @@ namespace FloodFill.ThreeD
                 VoxelCell3D current = queue.Dequeue();
                 int currentDepth = depthByVoxel[current];
                 if (!current.IsCaptured) audioRecoloredUncaptured++;
-                audioLastWaveStart = Mathf.Max(audioLastWaveStart, currentDepth * waveStepDelay);
+                RecordAudioWave(currentDepth * waveStepDelay + current.ColorWaveStartOffset);
                 float animationDuration = current.AnimateColor(
                     colorIndex,
                     palette[colorIndex],
@@ -516,7 +531,7 @@ namespace FloodFill.ThreeD
             RecalculateCapturedRegion(voxel);
             FloodAudioSignals.BeginFlood(new FloodAudioSignals.FloodWave(
                 visited.Count + LastNewlyCapturedCount - audioRecoloredUncaptured, LastNewlyCapturedCount,
-                LastRecolorAnimationDuration, audioLastWaveStart, waveStepDelay));
+                LastRecolorAnimationDuration, audioLastWaveStart, waveStepDelay, float.IsPositiveInfinity(audioFirstWaveStart) ? 0f : audioFirstWaveStart));
 
             Debug.Log(
                 $"Recolored {visited.Count} connected voxel(s) from " +
@@ -1167,9 +1182,9 @@ namespace FloodFill.ThreeD
             queue.Enqueue(originVoxel);
             visited.Add(originVoxel);
             depthByVoxel.Add(originVoxel, 0);
-            LastRecolorAnimationDuration = Mathf.Max(
-                LastRecolorAnimationDuration,
-                originVoxel.SetCaptured(true, !previouslyCaptured.Contains(originVoxel)));
+            float originAnimationDuration = originVoxel.SetCaptured(true, !previouslyCaptured.Contains(originVoxel));
+            LastRecolorAnimationDuration = Mathf.Max(LastRecolorAnimationDuration, originAnimationDuration);
+            if (originAnimationDuration > 0f) RecordAudioWave(0f);
             capturedVoxels.Add(originVoxel);
 
             while (queue.Count > 0)
@@ -1198,7 +1213,7 @@ namespace FloodFill.ThreeD
                         !previouslyCaptured.Contains(neighbor),
                         neighborDepth * waveStepDelay);
                     if (captureAnimationDuration > 0f)
-                        audioLastWaveStart = Mathf.Max(audioLastWaveStart, neighborDepth * waveStepDelay);
+                        RecordAudioWave(neighborDepth * waveStepDelay);
                     LastRecolorAnimationDuration = Mathf.Max(
                         LastRecolorAnimationDuration,
                         captureAnimationDuration);

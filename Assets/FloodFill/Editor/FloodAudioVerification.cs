@@ -25,6 +25,76 @@ namespace FloodFill.EditorTools
         private static readonly List<string> report=new List<string>();
         private const BindingFlags Flags=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;
         static FloodAudioVerification(){if(SessionState.GetBool(Running,false))EditorApplication.update+=Tick;}
+        [MenuItem("Tools/Flood Fill/Audio/Verify Inspector Diagnostics")]
+        public static void VerifyInspectorDiagnostics()
+        {
+            if(Application.isPlaying)throw new InvalidOperationException("Run this isolated check outside Play Mode.");
+            var scene=EditorSceneManager.NewPreviewScene();
+            var root=new GameObject("Audio diagnostic regression check");root.SetActive(false);
+            SceneManager.MoveGameObjectToScene(root,scene);
+            var audio=root.AddComponent<FloodAudioManager>();
+            AudioClip clip=null;int checks=0;
+            var property=typeof(FloodAudioManager).GetProperty(nameof(FloodAudioManager.CurrentMusicClip));
+            void ExpectClip(string expected)
+            {
+                // Match NaughtyAttributes' reflection path, including exception wrapping.
+                if((string)property.GetValue(audio)!=expected)throw new InvalidOperationException("Unexpected diagnostic clip.");
+                checks++;
+            }
+            try
+            {
+                Set(audio,"musicSources",null);ExpectClip("None");
+                Set(audio,"musicSources",Array.Empty<AudioSource>());Set(audio,"activeMusic",0);ExpectClip("None");
+                Set(audio,"musicSources",new AudioSource[2]);Set(audio,"activeMusic",-1);ExpectClip("None");
+                Set(audio,"activeMusic",2);ExpectClip("None");
+                Set(audio,"activeMusic",int.MaxValue);ExpectClip("None");
+                Set(audio,"activeMusic",0);ExpectClip("None");
+                var source=root.AddComponent<AudioSource>();source.playOnAwake=false;
+                Set(audio,"musicSources",new[]{source});ExpectClip("None");
+                clip=AudioClip.Create("Diagnostic clip",32,1,22050,false);source.clip=clip;ExpectClip(clip.name);
+                int sourceCount=root.GetComponents<AudioSource>().Length;
+                ExpectClip(clip.name);
+                if(root.GetComponents<AudioSource>().Length!=sourceCount)throw new InvalidOperationException("Inspector reads created audio sources.");
+                checks++;
+                UnityEngine.Object.DestroyImmediate(source);ExpectClip("None");
+                var voiceField=typeof(FloodAudioManager).GetField("voices",Flags);
+                voiceField.SetValue(audio,Array.CreateInstance(voiceField.FieldType.GetElementType(),2));
+                if(audio.ActiveSfxCount!=0)throw new InvalidOperationException("Uninitialized SFX slots must report zero.");
+                checks++;
+                foreach(var diagnostic in typeof(FloodAudioManager).GetProperties(Flags))
+                    if(Attribute.IsDefined(diagnostic,typeof(NaughtyAttributes.ShowNativePropertyAttribute)))
+                    {diagnostic.GetValue(audio);checks++;}
+                Directory.CreateDirectory("Logs");
+                string result=$"PASS: {checks} Inspector diagnostic checks, including empty arrays, invalid indices, null/destroyed sources, and reflection access before Awake.";
+                File.WriteAllText("Logs/FloodAudioInspectorVerification.txt",result+Environment.NewLine);Debug.Log(result);
+            }
+            finally
+            {
+                if(clip!=null)UnityEngine.Object.DestroyImmediate(clip);
+                UnityEngine.Object.DestroyImmediate(root);EditorSceneManager.ClosePreviewScene(scene);
+            }
+        }
+        public static void InspectFloodClipWindows()
+        {
+            var prefab=AssetDatabase.LoadAssetAtPath<GameObject>(FloodAudioSetup.PrefabPath);
+            var audio=prefab.GetComponent<FloodAudioManager>();var lines=new List<string>();
+            foreach(var cue in new[]{audio.blockColorChange,audio.floodProgress})
+            {
+                var clip=cue.clip;if(clip==null)continue;clip.LoadAudioData();
+                var samples=new float[clip.samples*clip.channels];
+                if(!clip.GetData(samples,0))throw new InvalidOperationException("Cannot inspect "+clip.name);
+                double total=0;foreach(float value in samples)total+=value*value;
+                double sum=0;int first=-1,last=0;
+                for(int i=0;i<samples.Length;i++)
+                {
+                    sum+=samples[i]*samples[i];
+                    if(first<0&&sum>=total*.01)first=i;
+                    if(sum<=total*.99)last=i;
+                }
+                lines.Add($"{clip.name}: duration={clip.length:0.000}s, 1%-99% energy={(float)first/clip.channels/clip.frequency:0.000}s..{(float)last/clip.channels/clip.frequency:0.000}s");
+            }
+            Directory.CreateDirectory("Logs");File.WriteAllLines("Logs/FloodAudioClipWindows.txt",lines);Debug.Log(string.Join("\n",lines));
+        }
         public static void BeginBatch()
         {
             // Batch verification runs in an isolated copy; isolate preferences/session files too.
@@ -70,6 +140,29 @@ namespace FloodFill.EditorTools
         }
         private static void Counter(FloodFillGameManager3D game,int budget,int used)
         {Set(game,"currentMoveBudget",budget);Set(game,"<MoveCount>k__BackingField",used);Call(game,"RefreshUI");}
+        private static void VerifySpreadCost(FloodAudioManager audio)
+        {
+            int sources=audio.GetComponents<AudioSource>().Length;
+            var update=(Action)Delegate.CreateDelegate(typeof(Action),audio,typeof(FloodAudioManager).GetMethod("UpdateFlood",Flags));
+            // Start and update are measured separately from board animation/rendering.
+            // A future start avoids measuring native playback restarts in the start loop.
+            var wave=new FloodAudioSignals.FloodWave(100000,100000,3,2,.065f,1);
+            for(int i=0;i<100;i++)FloodAudioSignals.BeginFlood(wave);
+            var watch=new System.Diagnostics.Stopwatch();
+            long allocated=GC.GetAllocatedBytesForCurrentThread();watch.Start();
+            for(int i=0;i<10000;i++)FloodAudioSignals.BeginFlood(wave);
+            watch.Stop();long startBytes=GC.GetAllocatedBytesForCurrentThread()-allocated;
+            double startMicros=watch.Elapsed.TotalMilliseconds/10;
+            audio.TestFloodSpread();for(int i=0;i<100;i++)update();
+            allocated=GC.GetAllocatedBytesForCurrentThread();watch.Restart();
+            for(int i=0;i<10000;i++)update();
+            watch.Stop();long updateBytes=GC.GetAllocatedBytesForCurrentThread()-allocated;
+            double updateMicros=watch.Elapsed.TotalMilliseconds/10;
+            Check(startBytes==0&&updateBytes==0,"Spread scheduling and frame updates allocate zero managed bytes");
+            Check(sources==audio.GetComponents<AudioSource>().Length,"Profiling does not grow the source pool");
+            report.Add($"PROFILE spread start: {startMicros:0.000} us/call, {startBytes} B/10000 calls; update: {updateMicros:0.000} us/call, {updateBytes} B/10000 calls. Headless Editor CPU timing; excludes board/rendering and audio-device latency.");
+            FloodAudioSignals.ResetLevel();
+        }
         private static IEnumerator Run()
         {
             yield return .6f;
@@ -97,7 +190,7 @@ namespace FloodFill.EditorTools
             var tone=Tone("Audio verification short cue");
             foreach(FloodSound sound in Enum.GetValues(typeof(FloodSound)))
             {var settings=audio.SoundSettings(sound);settings.clip=tone;settings.minimumInterval=0;settings.maximumInstances=2;settings.volume=.1f;settings.randomPitch=0;}
-            audio.sliderInteraction.minimumInterval=.12f;
+            audio.sliderInteraction.minimumInterval=.12f;audio.RefreshAudioSettings();
             // The real generated Play button hides its own screen before the audio callback runs.
             var play=Find<Button>("PLAYButton");audio.BindControl(play,"PLAY");audio.BindControl(play,"PLAY");
             int confirms=audio.SoundStartCount(FloodSound.ButtonConfirm);play.onClick.Invoke();
@@ -136,6 +229,43 @@ namespace FloodFill.EditorTools
             report.Add("PASS interrupted equal-power fades, live clip assignment, preview safety and refresh idempotence.");
 
             Find<Button>("SETTINGSButton").onClick.Invoke();yield return .05f;
+            var currentBlock=Find<Toggle>("ShowCurrentBlockToggle");
+            Check(currentBlock.gameObject.activeInHierarchy,"Show Current Block is present and active in Settings");
+            bool savedBlock=currentBlock.isOn;currentBlock.isOn=!savedBlock;
+            Check(PlayerPrefs.GetInt("FloodFill3D.ShowCurrentBlock")==(savedBlock?0:1),"Show Current Block still saves its preference");
+            // Simulate an old hidden auto-layout row left by an in-Play script reload.
+            var oldBlockRow=currentBlock.transform.parent.gameObject;
+            oldBlockRow.AddComponent<HorizontalLayoutGroup>();oldBlockRow.SetActive(false);
+            Find<Button>("SETTINGSButton").onClick.Invoke();yield return .1f;
+            currentBlock=Find<Toggle>("ShowCurrentBlockToggle");
+            Check(currentBlock.gameObject.activeInHierarchy&&currentBlock.isOn!=savedBlock,"Opening Settings repairs the hidden legacy row and retains its value");
+            var blockRect=(RectTransform)currentBlock.transform.parent;
+            Check(Mathf.Approximately(blockRect.anchoredPosition.y,270)&&blockRect.GetComponent<HorizontalLayoutGroup>()==null,"Current-block row has explicit non-overlapping layout");
+            Find<Button>("SETTINGSButton").onClick.Invoke();Find<Button>("SETTINGSButton").onClick.Invoke();yield return .05f;
+            int blockRows=0;foreach(var transform in UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Include))if(transform.name=="ShowCurrentBlockOption")blockRows++;
+            Check(blockRows==1,"Repeated Settings visits do not duplicate the current-block option");
+            currentBlock.SetIsOnWithoutNotify(savedBlock);PlayerPrefs.SetInt("FloodFill3D.ShowCurrentBlock",savedBlock?1:0);
+            audio.toggleOn.clip=Tone("Shared toggle on",550);audio.toggleOff.clip=Tone("Shared toggle off",330);
+            audio.toggleOn.maximumInstances=4;audio.toggleOff.maximumInstances=4;
+            var musicToggle=Find<Toggle>("MusicEnabledToggle");var sfxToggle=Find<Toggle>("SoundEffectsEnabledToggle");
+            int off=audio.SoundStartCount(FloodSound.ToggleOff);musicToggle.isOn=false;
+            Check(audio.SoundStartCount(FloodSound.ToggleOff)==off+1,"Music toggle uses shared off cue");yield return .1f;
+            off=audio.SoundStartCount(FloodSound.ToggleOff);sfxToggle.isOn=false;
+            Check(audio.SoundStartCount(FloodSound.ToggleOff)==off+1,"SFX toggle uses the same off cue exactly once");
+            bool audibleOff=false;
+            foreach(object voice in (Array)Get(audio,"voices"))
+                if((bool)Get(voice,"Active")&&(bool)Get(voice,"ToggleFeedback")&&(FloodSound)Get(voice,"Kind")==FloodSound.ToggleOff)
+                {
+                    var source=(AudioSource)Get(voice,"Source");
+                    audibleOff=source.clip==audio.toggleOff.clip&&source.volume>0&&source.outputAudioMixerGroup.name=="Master";
+                }
+            Check(audibleOff,"SFX off confirmation uses the shared clip without being silenced by its own mute");
+            Check(mixer.GetFloat("SfxVolume",out float mutedDb)&&mutedDb<=-79.9f&&!audio.PlaySound(FloodSound.BlockColorChange),"Gameplay effects are muted immediately during the confirmation");
+            yield return .1f;int on=audio.SoundStartCount(FloodSound.ToggleOn);sfxToggle.isOn=true;
+            Check(audio.SoundStartCount(FloodSound.ToggleOn)==on+1,"SFX toggle uses the shared on cue exactly once");
+            yield return .1f;on=audio.SoundStartCount(FloodSound.ToggleOn);musicToggle.isOn=true;
+            Check(audio.SoundStartCount(FloodSound.ToggleOn)==on+1,"Music and SFX toggle-on use the same bank");
+            report.Add("PASS current-block Settings row restoration/persistence and shared audible music/SFX toggle confirmations.");
             var master=Find<Slider>("MASTER VOLUME Slider");var musicSlider=Find<Slider>("MUSIC VOLUME Slider");var sfx=Find<Slider>("SOUND EFFECTS Slider");
             master.value=.3f;musicSlider.value=.2f;sfx.value=.5f;
             Check(mixer.GetFloat("MasterVolume",out float db)&&Mathf.Abs(db-FloodAudioPolicy.Decibels(.3f))<.05f,"Master slider immediate dB");
@@ -164,7 +294,7 @@ namespace FloodFill.EditorTools
             audio.maximumSimultaneousFloodSounds=2;audio.maximumProgressSoundsPerFlood=3;audio.minimumCubesForProgress=1;
             var board=game.BoardManager;var voxel=board.StartingVoxel;game.SelectColor((voxel.ColorIndex+1)%6);
             int floodStarts=audio.SoundStartCount(FloodSound.BlockColorChange);int progress=audio.SoundStartCount(FloodSound.FloodProgress);
-            Call(game,"HandleVoxelClicked",voxel);
+            Call(game,"HandleVoxelClicked",voxel);yield return .1f;
             Check(audio.SoundStartCount(FloodSound.BlockColorChange)==floodStarts+1,"One primary cue from actual recolor handler");
             Time.timeScale=0;int frozen=audio.SoundStartCount(FloodSound.FloodProgress);
             audio.TestMediumMusic();yield return .25f;
@@ -177,6 +307,52 @@ namespace FloodFill.EditorTools
             Check(audio.SoundStartCount(FloodSound.FloodProgress)-progress<=3,"Progress events capped independently of cube count");
             FloodAudioSignals.Restart();FloodAudioSignals.ResetLevel();yield return .1f;Check(CountFloodVoices(audio)==0,"Restart fades/reset flood voices");
             report.Add("PASS accepted-color de-duplication, real flood timing, scaled pause synchronization, unscaled audio, flood caps/reset.");
+
+            // Exercise the actual board path with a long animation and a two-second
+            // original clip: the prepared loop must stay alive, accelerate, and fade.
+            audio.StopAllAudio();yield return .15f;audio.ReturnToGameMusic();FloodAudioSignals.ResetLevel();
+            var lineVoxels=new VoxelSaveData3D[33];
+            for(int i=0;i<lineVoxels.Length;i++)lineVoxels[i]=new VoxelSaveData3D{x=i,y=0,z=0,colorIndex=i<32?0:1,captured=i<32,starting=i==0};
+            var lineState=new VoxelBoardSaveData3D{width=33,height=1,depth=1,volumeMode=0,currentPlayerColor=0,voxels=lineVoxels};
+            Check(board.RestorePersistentState(lineState,(Color[])Get(game,"colors")),"Restore deterministic long color wave");
+            FloodAudioSignals.FloodWave lineWave=default;Action<FloodAudioSignals.FloodWave> lineObserver=w=>lineWave=w;
+            FloodAudioSignals.FloodStarted+=lineObserver;
+            int beforeSpread=audio.SoundStartCount(FloodSound.BlockColorChange);
+            int oldLayers=audio.SoundStartCount(FloodSound.FloodProgress)+audio.SoundStartCount(FloodSound.FloodEnd)+audio.SoundStartCount(FloodSound.LargeCapture);
+            try {Check(board.RecolorConnectedRegion(board.StartingVoxel,1),"Recolor deterministic wave through the actual board");}
+            finally {FloodAudioSignals.FloodStarted-=lineObserver;}
+            Check(lineWave.FirstWaveStart>0&&lineWave.LastWaveStart>1,"Actual wave bounds include anticipation and the long traversal");
+            yield return .12f;
+            object spreadVoice=Get(audio,"spreadVoice");Check(spreadVoice!=null,"Actual board starts its spread source");
+            var spreadSource=(AudioSource)Get(spreadVoice,"Source");var preparedLoop=spreadSource.clip;
+            Check(spreadSource.loop&&preparedLoop.length<=audio.spreadLoopSeconds+.001f,"Native loop uses a prepared short clip, without the original's silent tail");
+            Check(preparedLoop!=tone,"Loop preparation retains the original clip unchanged");
+            float firstPitch=spreadSource.pitch,previousPitch=firstPitch,fullVolume=spreadSource.volume;
+            float animationStart=Time.time-.12f;
+            while(Time.time<animationStart+lineWave.Duration-.06f)
+            {
+                Check(ReferenceEquals(Get(audio,"spreadVoice"),spreadVoice)&&spreadSource.isPlaying,"Same single source continuously follows the wave");
+                Check(spreadSource.pitch+.001f>=previousPitch,"Spread playback speeds up as the wave progresses");
+                previousPitch=spreadSource.pitch;
+                Check(CountFloodVoices(audio)==1,"Only one color spread voice, independent of cube count");
+                yield return .02f;
+            }
+            Check(previousPitch>firstPitch*1.5f,"Playback accelerates substantially by the end of the spread");
+            Check(spreadSource.volume<fullVolume*.65f,"Spread fades out before the animation ends");
+            yield return .15f;
+            Check(Get(audio,"spreadVoice")==null&&!spreadSource.isPlaying,"Spread stops at the visual end");
+            Check(audio.SoundStartCount(FloodSound.BlockColorChange)==beforeSpread+1,"Exactly one source start for the entire spread");
+            Check(audio.SoundStartCount(FloodSound.FloodProgress)+audio.SoundStartCount(FloodSound.FloodEnd)+audio.SoundStartCount(FloodSound.LargeCapture)==oldLayers,"No extra progress, end, or large capture layers");
+            audio.TestFloodSpread();yield return .12f;
+            var previewVoice=Get(audio,"spreadVoice");
+            Check(previewVoice!=null&&((AudioSource)Get(previewVoice,"Source")).clip==preparedLoop,"Inspector preview and real gameplay use the identical prepared clip and source path");
+            Time.timeScale=0;yield return .05f;
+            Check(!((AudioSource)Get(previewVoice,"Source")).isPlaying,"Spread source pauses with the animation");
+            Time.timeScale=1;yield return .05f;
+            Check(((AudioSource)Get(previewVoice,"Source")).isPlaying,"Spread resumes with the animation");
+            FloodAudioSignals.ResetLevel();yield return .1f;
+            VerifySpreadCost(audio);
+            report.Add("PASS one native looping spread source, preview/gameplay parity, increasing playback speed, end fade, scaled pause, and no extra layers.");
 
             audio.StopAllAudio();yield return .15f;audio.ReturnToGameMusic();
             Set(board,"<LastRecolorAnimationDuration>k__BackingField",0f);
@@ -229,10 +405,9 @@ namespace FloodFill.EditorTools
             Check(observed.LastWaveStart<=observed.Duration,"Wave timing includes only real animated waves");
             FloodAudioSignals.ResetLevel();yield return .1f;
             report.Add("PASS free-flood outside-component merge metadata and actual animated-wave bounds.");
-            audio.largeCapture.clip=null;audio.largeCapture.alternateClips=new[]{tone};
             int large=audio.SoundStartCount(FloodSound.LargeCapture);
             FloodAudioSignals.BeginFlood(new FloodAudioSignals.FloodWave(100,100,.08f,0,.065f));yield return .2f;
-            Check(audio.SoundStartCount(FloodSound.LargeCapture)==large+1,"Alternate-only large capture is selected by the wave scheduler");
+            Check(audio.SoundStartCount(FloodSound.LargeCapture)==large,"Large captures use the same single spread effect");
             audio.mainMenuMusic=null;audio.normalMusic=null;audio.mediumMusic=null;audio.hardMusic=null;audio.RefreshAudioSettings();yield return .25f;
             Check(!music[0].isPlaying&&!music[1].isPlaying,"Missing clips resolve safely to silence");
             audio.buttonClick.clip=null;audio.buttonClick.alternateClips=new[]{tone};yield return 2.1f;

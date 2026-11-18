@@ -1,0 +1,1 @@
+PASS: 23 Inspector diagnostic checks, including empty arrays, invalid indices, null/destroyed sources, and reflection access before Awake.

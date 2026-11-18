@@ -8,9 +8,12 @@ namespace FloodFill.ThreeD.Audio
         public readonly struct FloodWave
         {
             public readonly int AffectedCubes, NewlyCaptured;
-            public readonly float Duration, LastWaveStart, WaveStep;
-            public FloodWave(int affected, int captured, float duration, float lastWaveStart, float waveStep)
-            { AffectedCubes=affected; NewlyCaptured=captured; Duration=duration; LastWaveStart=lastWaveStart; WaveStep=waveStep; }
+            public readonly float Duration, FirstWaveStart, LastWaveStart, WaveStep;
+            public FloodWave(int affected,int captured,float duration,float lastWaveStart,float waveStep,float firstWaveStart=0)
+            {
+                AffectedCubes=affected;NewlyCaptured=captured;Duration=duration;
+                FirstWaveStart=firstWaveStart;LastWaveStart=lastWaveStart;WaveStep=waveStep;
+            }
         }
         public static event Action<FloodFillGameManager3D> ManagerAvailable;
         public static event Action<FloodFillGameManager3D> ManagerRemoved;

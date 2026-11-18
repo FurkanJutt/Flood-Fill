@@ -285,12 +285,22 @@ MonoBehaviour:
     minimumInterval: 0.08
     maximumInstances: 1
     fadeDuration: 0.015
-  minimumCubesForProgress: 12
+  minimumCubesForProgress: 6
   largeCaptureThreshold: 30
   minimumProgressInterval: 0.12
   maximumProgressSoundsPerFlood: 4
   maximumSimultaneousFloodSounds: 2
   floodProgressVolume: 0.45
+  spreadLoopSeconds: 0.16
+  spreadStartSpeed: 0.8
+  spreadEndSpeed: 1.65
+  spreadFadeOutSeconds: 0.2
+  floodStartPlaybackSeconds: 0.22
+  floodProgressPlaybackSeconds: 0.14
+  floodStartClipOffset: 0.105
+  floodProgressClipOffset: 0.025
+  floodStartOffsetClip: {fileID: 8300000, guid: 8aee5c9220d3042cda7d1881506acc47, type: 3}
+  floodProgressOffsetClip: {fileID: 8300000, guid: d3e2290fba8994599a725bde31018421, type: 3}
   floodPitchVariation: 0.025
   floodVolumeScaling: 0.12
   floodPitchScaling: 0.05
