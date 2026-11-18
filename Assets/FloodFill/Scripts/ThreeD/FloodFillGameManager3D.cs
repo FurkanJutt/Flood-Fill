@@ -377,8 +377,10 @@ namespace FloodFill.ThreeD
             RefreshUI();
             boardManager.SetBoardVisible(true);
             Physics.SyncTransforms();
-            // Render/warm the completed board behind the opaque loading screen.
+            // Render/warm the completed board behind the opaque loading screen,
+            // then retain the requested buffer after preparation is complete.
             yield return null;
+            yield return new WaitForSecondsRealtime(.5f);
             if (generationId != solverGenerationId) yield break;
             IsLoading = false;
             loadingCoroutine = null;

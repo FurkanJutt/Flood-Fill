@@ -34,7 +34,7 @@ namespace FloodFill.ThreeD
         [SerializeField, Min(1f)] private float framePadding = 1.22f;
         [SerializeField, Min(0f)] private float boardSurfaceClearance = 0.75f;
 
-        [Header("Double Tap Zoom Reset")]
+        [Header("Double Tap View Reset")]
         [SerializeField, Range(0.1f, 0.6f)] private float doubleTapMaximumDelay = 0.32f;
         [SerializeField, Min(0f)] private float tapMaximumMovement = 36f;
         [SerializeField, Min(0f)] private float doubleTapMaximumSeparation = 80f;
@@ -50,6 +50,7 @@ namespace FloodFill.ThreeD
         private Vector3 framedBoundsCenter;
         private float framedBoundsRadius;
         private float zoomResetStartDistance;
+        private Vector3 zoomResetStartPosition;
         private float zoomResetElapsed;
         private bool zoomResetAnimating;
         private bool inputEnabled = true;
@@ -128,9 +129,11 @@ namespace FloodFill.ThreeD
                 hasConfiguredMaximumDistance = true;
             }
             maximumDistance = Mathf.Max(configuredMaximumDistance, distance);
-            defaultDistance = distance;
             zoomResetAnimating = false;
             ApplyCameraTransform();
+            // Clearance may push the fitted camera farther out. Reset to the actual
+            // starting distance, not the uncorrected fit that was inside that limit.
+            defaultDistance = distance;
         }
 
         public OrbitCameraSaveData3D CapturePersistentState()
@@ -159,10 +162,13 @@ namespace FloodFill.ThreeD
             yaw = state.yaw;
             pitch = Mathf.Clamp(state.pitch, minimumPitch, maximumPitch);
             distance = Mathf.Clamp(state.distance, minimumDistance, maximumDistance);
-            defaultDistance = Mathf.Clamp(
-                state.defaultDistance,
-                minimumDistance,
-                maximumDistance);
+            defaultDistance = Mathf.Clamp(state.defaultDistance, minimumDistance, maximumDistance);
+            if (framedBoundsRadius > 0f)
+            {
+                float clearance = Mathf.Max(boardSurfaceClearance, targetCamera != null ? targetCamera.nearClipPlane + .15f : .5f);
+                defaultDistance = Mathf.Max(defaultDistance, framedBoundsRadius + clearance);
+                maximumDistance = Mathf.Max(maximumDistance, defaultDistance);
+            }
             zoomResetAnimating = false;
             ApplyCameraTransform();
             return true;
@@ -184,15 +190,17 @@ namespace FloodFill.ThreeD
             if (!inputEnabled) return;
             float targetDistance = Mathf.Clamp(
                 defaultDistance, minimumDistance, maximumDistance);
-            if (zoomResetDuration <= 0f || Mathf.Approximately(distance, targetDistance))
+            if (zoomResetDuration <= 0f || (Mathf.Approximately(distance, targetDistance) && (targetPosition - framedBoundsCenter).sqrMagnitude < .000001f))
             {
                 distance = targetDistance;
+                targetPosition = framedBoundsCenter;
                 zoomResetAnimating = false;
                 ApplyCameraTransform();
                 return;
             }
 
             zoomResetStartDistance = distance;
+            zoomResetStartPosition = targetPosition;
             zoomResetElapsed = 0f;
             zoomResetAnimating = true;
         }
@@ -475,6 +483,7 @@ namespace FloodFill.ThreeD
                 return;
             }
 
+            if (delta.sqrMagnitude > 0f) zoomResetAnimating = false;
             float scale = distance * panSensitivity / Mathf.Max(1f, Screen.height);
             targetPosition -= targetCamera.transform.right * delta.x * scale;
             targetPosition -= targetCamera.transform.up * delta.y * scale;
@@ -533,6 +542,7 @@ namespace FloodFill.ThreeD
                 ? Mathf.Clamp01(zoomResetElapsed / zoomResetDuration)
                 : 1f;
             float easedProgress = progress * progress * (3f - 2f * progress);
+            targetPosition = Vector3.LerpUnclamped(zoomResetStartPosition, framedBoundsCenter, easedProgress);
             distance = Mathf.LerpUnclamped(
                 zoomResetStartDistance,
                 Mathf.Clamp(defaultDistance, minimumDistance, maximumDistance),
@@ -540,6 +550,7 @@ namespace FloodFill.ThreeD
             if (progress >= 1f)
             {
                 distance = Mathf.Clamp(defaultDistance, minimumDistance, maximumDistance);
+                targetPosition = framedBoundsCenter;
                 zoomResetAnimating = false;
             }
         }

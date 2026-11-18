@@ -204,12 +204,16 @@ namespace FloodFill.EditorTools
             Check(!entranceRoot.gameObject.activeSelf&&!entranceBoard.IsStartAnimationPlaying,"Board and entrance stay hidden until ready");
             Check(!game.CanInteract&&!(bool)Get(entranceCamera,"inputEnabled"),"Loading locks camera and gameplay input");
             Check(audio.SoundStartCount(FloodSound.LevelStarted)==levelStarts,"Intro sound waits for the prepared level");
-            int loadingFrames=0;
+            int loadingFrames=0;float preparedAt=-1;
             while(game.IsLoading&&loadingFrames++<500)
             {
                 Check(loadingScreen.activeSelf&&!gameplayScreen.activeSelf&&!entranceBoard.IsStartAnimationPlaying,"Gameplay never opens during board/solver preparation");
+                if(preparedAt<0&&game.State==FloodFillGameManager3D.GameState.Playing&&entranceRoot.gameObject.activeSelf)
+                {preparedAt=Time.unscaledTime;Time.timeScale=0;}
                 yield return .02f;
             }
+            Check(preparedAt>=0&&Time.unscaledTime-preparedAt>=.45f,"Completed loading retains the half-second buffer, including at timeScale zero");
+            Time.timeScale=1;
             Check(!game.IsLoading&&game.LastSolverResult!=null&&game.LastSolverResult.SolutionValidated,"Only a completed validated move budget releases loading");
             Check(!loadingScreen.activeSelf&&gameplayScreen.activeSelf,"Prepared gameplay replaces loading");
             var cameraBefore=entranceCamera.CapturePersistentState();
@@ -236,6 +240,22 @@ namespace FloodFill.EditorTools
             Check(UnityEngine.Object.FindObjectsByType<FloodAudioManager>(FindObjectsInactive.Include).Length==1,"Exactly one audio manager initialized");
             Call(game,"RefreshUI");Call(game,"RefreshUI");yield return .1f;
             Check(audio.SoundStartCount(FloodSound.ButtonConfirm)-confirms+audio.SoundStartCount(FloodSound.LevelStarted)-levelStarts==1,"Repeated ready/UI notifications do not replay the launch sound");
+            // Exercise the shared mouse/touch double-tap handler after orbit, pan,
+            // and zoom, and also when already at the default zoom distance.
+            var centered=entranceCamera.CapturePersistentState();
+            Call(entranceCamera,"Orbit",new Vector2(40,-20));Call(entranceCamera,"Pan",new Vector2(90,60));Call(entranceCamera,"Zoom",2f);
+            var moved=entranceCamera.CapturePersistentState();
+            Check(Vector3.Distance(moved.targetPosition,centered.targetPosition)>.001f,"Camera is panned before double-tap reset");
+            Set(entranceCamera,"lastTapTime",-10f);Call(entranceCamera,"RegisterTap",new Vector2(100,100));Call(entranceCamera,"RegisterTap",new Vector2(100,100));
+            yield return .6f;
+            var reset=entranceCamera.CapturePersistentState();
+            Check(Vector3.Distance(reset.targetPosition,centered.targetPosition)<.001f&&Mathf.Abs(reset.distance-centered.defaultDistance)<.001f,$"Double tap restores both starting center and default zoom: target={reset.targetPosition}, expected={centered.targetPosition}, zoom={reset.distance}/{centered.defaultDistance}, elapsed={Get(entranceCamera,"zoomResetElapsed")}, active={Get(entranceCamera,"zoomResetAnimating")}");
+            Check(reset.yaw==moved.yaw&&reset.pitch==moved.pitch,"Recenter retains the chosen viewing angle");
+            Call(entranceCamera,"Pan",new Vector2(50,30));
+            Set(entranceCamera,"distance",centered.defaultDistance);Set(entranceCamera,"lastTapTime",-10f);
+            Call(entranceCamera,"RegisterTap",new Vector2(100,100));Call(entranceCamera,"RegisterTap",new Vector2(100,100));yield return .6f;
+            Check(Vector3.Distance(entranceCamera.CapturePersistentState().targetPosition,centered.targetPosition)<.001f,"Double tap recenters even when zoom was already normal");
+            report.Add("PASS half-second post-load buffer with unscaled time, plus double-tap center/zoom reset with rotated and panned views.");
             // A new level without a UI confirmation must still play its own start cue.
             levelStarts=audio.SoundStartCount(FloodSound.LevelStarted);generation=(int)Get(game,"solverGenerationId");
             game.StartConfiguredGame(1,0,1);
