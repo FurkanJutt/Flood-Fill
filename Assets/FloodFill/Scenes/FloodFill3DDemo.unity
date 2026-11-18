@@ -554,7 +554,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.1
-  far clip plane: 100
+  far clip plane: 500
   field of view: 50
   orthographic: 0
   orthographic size: 5
@@ -905,7 +905,7 @@ MonoBehaviour:
     logGenerationDetails: 0
     logGenerationPerformance: 0
   voxelSize: 1
-  voxelGap: 0.009
+  voxelGap: 0.01
   castVoxelShadows: 0
   logGenerationPerformance: 0
   boardCamera: {fileID: 0}
@@ -918,6 +918,7 @@ MonoBehaviour:
   winRotationDuration: 7.5
   boardRoot: {fileID: 188707891}
   voxelPrefab: {fileID: 5850776491364219721, guid: a424f5487f9f3425b85560e5b7b75970, type: 3}
+  startAnimationDuration: 0.55
 --- !u!4 &2036762444
 Transform:
   m_ObjectHideFlags: 0

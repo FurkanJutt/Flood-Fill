@@ -1,0 +1,1 @@
+PASS: All skin sprite references resolve, runtime UI builds and all six screens render at 1080x1920.

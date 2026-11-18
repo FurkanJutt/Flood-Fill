@@ -86,6 +86,7 @@ namespace FloodFill.ThreeD
             HideLegacyUI(canvasRoot);
             safeRoot = MakeRect("SafeArea", canvasRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, Vector2.zero).transform;
             safeRoot.gameObject.AddComponent<FloodFillSafeArea3D>();
+            uiSkin = Resources.Load<FloodUISkin>("FloodUISkin");
             BuildScreens();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             BuildFpsCounter();
@@ -108,14 +109,14 @@ namespace FloodFill.ThreeD
             Image menuBackground = menu.GetComponent<Image>();
             menuBackground.color = new Color(0f, 0f, 0f, 0.001f);
             menuBackground.raycastTarget = true;
-            TMP_Text menuTitle = AddText(menu.transform, "FLOOD FILL 3D", 72, FontStyles.Bold, Vector2.zero, new Vector2(900, 110));
+            TMP_Text menuTitle = AddText(menu.transform, "FLOOD FILL <color=#26D9FF>3D</color>", 72, FontStyles.Bold | FontStyles.Italic, Vector2.zero, new Vector2(900, 110));
             RectTransform menuTitleRect = menuTitle.rectTransform;
             menuTitleRect.anchorMin = new Vector2(0f, 1f);
             menuTitleRect.anchorMax = new Vector2(1f, 1f);
             menuTitleRect.pivot = new Vector2(.5f, 1f);
             menuTitleRect.sizeDelta = new Vector2(-48f, 110f);
             menuTitleRect.anchoredPosition = new Vector2(0f, -105f);
-            TMP_Text menuDescription = AddText(menu.transform, "A colorful spatial puzzle", 32, FontStyles.Normal, Vector2.zero, new Vector2(850, 58), Muted);
+            TMP_Text menuDescription = AddText(menu.transform, "A COLORFUL SPATIAL PUZZLE", 28, FontStyles.Normal, Vector2.zero, new Vector2(850, 58), Muted);
             RectTransform menuDescriptionRect = menuDescription.rectTransform;
             menuDescriptionRect.anchorMin = new Vector2(0f, 1f);
             menuDescriptionRect.anchorMax = new Vector2(1f, 1f);
@@ -186,6 +187,7 @@ namespace FloodFill.ThreeD
             progress.fillMethod = Image.FillMethod.Horizontal;
             AddText(hud.transform, "Choose a color to expand your connected region.", 26, FontStyles.Normal, new Vector2(0, -680), new Vector2(900, 90), Muted, true);
             BuildPalette(hud.transform);
+            SkinDecoration("TouchHint", hud.transform, "Touch", new Vector2(0, -570), new Vector2(64, 64));
 
             howTo = ModalScreen("HowToPlay");
             AddText(howTo.transform, "HOW TO PLAY", 52, FontStyles.Bold, new Vector2(0, 510), new Vector2(820, 80));
@@ -222,16 +224,23 @@ namespace FloodFill.ThreeD
             loadingRetry = AddButton(loading.transform, "TRY AGAIN", new Vector2(0, -170), new Vector2(580, 86), Accent, Restart, 30).gameObject;
             loadingRetry.SetActive(false);
             AddButton(loading.transform, "BACK", new Vector2(0, -290), new Vector2(500, 80), Panel, BackToMenu, 28);
+            victoryCrown = MakeRect("VictoryDecoration", results.transform, new Vector2(.5f,.5f), new Vector2(.5f,.5f), Vector2.zero, Vector2.zero);
+            SkinDecoration("Crown", victoryCrown.transform, "Crown", new Vector2(0, 460), new Vector2(130, 95));
+            SkinDecoration("Ribbon", results.transform, "Ribbon", new Vector2(0, 330), new Vector2(760, 140));
+            resultTitle.transform.SetAsLastSibling();
             HideAll();
         }
 
         private void BuildPalette(Transform parent)
         {
             GameObject dock = MakeRect("ColorDock", parent, new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, 150), new Vector2(850, 150));
+            Image dockImage = dock.AddComponent<Image>();
+            SkinImage(dockImage, "Dock"); dockImage.raycastTarget = false;
             HorizontalLayoutGroup row = dock.AddComponent<HorizontalLayoutGroup>(); row.childAlignment = TextAnchor.MiddleCenter; row.spacing = 20; row.childControlWidth = false; row.childControlHeight = false; row.childForceExpandWidth = false; row.childForceExpandHeight = false;
             for (int i = 0; i < Palette.Length; i++)
             {
                 int index = i; GameObject item = new GameObject("Color_" + i, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button)); item.transform.SetParent(dock.transform, false); item.GetComponent<RectTransform>().sizeDelta = new Vector2(112, 112); item.GetComponent<Image>().color = Palette[i];
+                SkinImage(item.GetComponent<Image>(), "Color" + i, false);
                 Button b = item.GetComponent<Button>(); b.onClick.AddListener(() => manager.SelectColor(index)); colorButtons.Add(b);
             }
         }
@@ -309,6 +318,7 @@ namespace FloodFill.ThreeD
         {
             if (showCurrentBlockToggle == null) return;
             showCurrentBlockToggle.SetIsOnWithoutNotify(PlayerPrefs.GetInt(ShowCurrentBlockKey, 0) != 0);
+            SkinSwitch(showCurrentBlockToggle);
         }
 
         private void SetShowCurrentBlock(bool enabled)
@@ -374,6 +384,8 @@ namespace FloodFill.ThreeD
         private void BuildStat(Transform parent, string label, Vector2 position, out TMP_Text value)
         {
             GameObject card = MakeImage(label + "Card", parent, position, new Vector2(265, 132), Panel);
+            SkinImage(card.GetComponent<Image>(), "Stat");
+            card.GetComponent<Image>().raycastTarget = false;
             AddText(card.transform, label, 22, FontStyles.Bold, new Vector2(0, 30), new Vector2(245, 36), Muted);
             value = AddText(card.transform, "0", 34, FontStyles.Bold, new Vector2(0, -18), new Vector2(245, 54));
         }
@@ -460,6 +472,8 @@ namespace FloodFill.ThreeD
         {
             GameObject screen = Screen(name); screen.GetComponent<Image>().color = new Color(.015f, .025f, .055f, .96f);
             GameObject card = MakeImage("Card", screen.transform, Vector2.zero, new Vector2(900, 1200), Panel);
+            SkinImage(card.GetComponent<Image>(), name == "PauseMenu" ? "PausePanel" : name == "GameResults" ? "ResultPanel" : "SettingsPanel");
+            card.GetComponent<Image>().raycastTarget = false;
             return screen;
         }
 
@@ -501,9 +515,9 @@ namespace FloodFill.ThreeD
             MarkChoices(modeButtons, modeIndex); MarkChoices(sizeButtons, sizeIndex); MarkChoices(difficultyButtons, difficultyIndex);
             UpdateModeSections();
         }
-        private static void MarkChoices(List<Button> buttons, int selected)
+        private void MarkChoices(List<Button> buttons, int selected)
         {
-            for (int i = 0; i < buttons.Count; i++) buttons[i].image.color = i == selected ? Accent : Panel;
+            for (int i = 0; i < buttons.Count; i++) SkinChoice(buttons[i], i == selected);
         }
 
         private void StartGame()
@@ -611,8 +625,14 @@ namespace FloodFill.ThreeD
             if (manager.State == FloodFillGameManager3D.GameState.Won || manager.State == FloodFillGameManager3D.GameState.Lost)
             {
                 bool won = manager.State == FloodFillGameManager3D.GameState.Won;
+                if (victoryCrown != null) victoryCrown.SetActive(won);
                 resultTitle.text = won ? "YOU WIN!" : "OUT OF MOVES";
-                if (resultActionLabel != null) resultActionLabel.text = won ? "NEXT LEVEL" : "PLAY AGAIN";
+                if (resultActionLabel != null)
+                {
+                    resultActionLabel.text = won ? "NEXT LEVEL" : "PLAY AGAIN";
+                    Transform icon = resultActionLabel.transform.parent.Find("Icon");
+                    if (icon != null) SkinImage(icon.GetComponent<Image>(), won ? "Play" : "Restart", false);
+                }
                 string levelDetails = manager.IsCampaignGame ? "Level: " + manager.ActiveCampaignLevel + "\n" : string.Empty;
                 resultDetails.text = levelDetails + "Final score: " + manager.Score.ToString("N0") + "\nMoves used: " + manager.MoveCount + "\nCaptured: " + Mathf.RoundToInt(manager.CapturedPercentage) + "%";
                 Show(results);
@@ -706,12 +726,17 @@ namespace FloodFill.ThreeD
         {
             GameObject go = MakeImage(label + "Button", parent, position, dimensions, color); Button button = go.AddComponent<Button>(); button.targetGraphic = go.GetComponent<Image>(); button.onClick.AddListener(action); button.navigation = new Navigation { mode = Navigation.Mode.None };
             FloodAudioManager.Instance?.BindControl(button, label);
-            AddText(go.transform, label, fontSize, FontStyles.Bold, Vector2.zero, dimensions - new Vector2(20, 12)); button.transform.localScale = Vector3.one; button.onClick.AddListener(() => button.transform.DOPunchScale(Vector3.one * .045f, .18f, 6)); return button;
+            AddText(go.transform, label, fontSize, FontStyles.Bold, Vector2.zero, dimensions - new Vector2(20, 12)); SkinButton(button, label, color); button.transform.localScale = Vector3.one; button.onClick.AddListener(() => button.transform.DOPunchScale(Vector3.one * .045f, .18f, 6)); return button;
         }
 
         private GameObject MakeImage(string name, Transform parent, Vector2 position, Vector2 dimensions, Color color)
         {
-            GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image)); go.transform.SetParent(parent, false); RectTransform rect = go.GetComponent<RectTransform>(); rect.anchorMin = rect.anchorMax = new Vector2(.5f, .5f); rect.anchoredPosition = position; rect.sizeDelta = dimensions; go.GetComponent<Image>().color = color; return go;
+            GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image)); go.transform.SetParent(parent, false); RectTransform rect = go.GetComponent<RectTransform>(); rect.anchorMin = rect.anchorMax = new Vector2(.5f, .5f); rect.anchoredPosition = position; rect.sizeDelta = dimensions; Image image = go.GetComponent<Image>(); image.color = color;
+            if (name == "ProgressTrack" || name == "ProgressFill") SkinImage(image, name);
+            else if (name == "Track") SkinImage(image, "SettingsTrack");
+            else if (name == "Fill") SkinImage(image, "SettingsFill");
+            else if (name == "Handle") SkinImage(image, "Handle", false);
+            return go;
         }
 
         private GameObject MakeRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 position, Vector2 dimensions)

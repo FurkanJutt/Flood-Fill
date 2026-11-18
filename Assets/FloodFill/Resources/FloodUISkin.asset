@@ -1,0 +1,97 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 917d214acc2342b7b39f94ee2421da3a, type: 3}
+  m_Name: FloodUISkin
+  m_EditorClassIdentifier: 
+  entries:
+  - key: Primary
+    sprite: {fileID: -646590138, guid: 23924a82e9dcd4e929f5ddf48ffbc770, type: 3}
+  - key: Secondary
+    sprite: {fileID: 505915814, guid: 23924a82e9dcd4e929f5ddf48ffbc770, type: 3}
+  - key: Play
+    sprite: {fileID: 1622393616, guid: 23924a82e9dcd4e929f5ddf48ffbc770, type: 3}
+  - key: Continue
+    sprite: {fileID: 186879439, guid: 23924a82e9dcd4e929f5ddf48ffbc770, type: 3}
+  - key: Custom
+    sprite: {fileID: -369423712, guid: 23924a82e9dcd4e929f5ddf48ffbc770, type: 3}
+  - key: Help
+    sprite: {fileID: 1118663536, guid: 23924a82e9dcd4e929f5ddf48ffbc770, type: 3}
+  - key: Settings
+    sprite: {fileID: 342906440, guid: 23924a82e9dcd4e929f5ddf48ffbc770, type: 3}
+  - key: Quit
+    sprite: {fileID: -1442289012, guid: 23924a82e9dcd4e929f5ddf48ffbc770, type: 3}
+  - key: HudButton
+    sprite: {fileID: 1480746114, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: Stat
+    sprite: {fileID: -1348759929, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: Dock
+    sprite: {fileID: -1758363616, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: ProgressTrack
+    sprite: {fileID: 1946245761, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: ProgressFill
+    sprite: {fileID: 1578713779, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: Home
+    sprite: {fileID: -407612155, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: PausePanel
+    sprite: {fileID: -1523621439, guid: 5e9f0e136164e4e12a4ac0c9f6cfbcbe, type: 3}
+  - key: PausePrimary
+    sprite: {fileID: -1082070613, guid: 5e9f0e136164e4e12a4ac0c9f6cfbcbe, type: 3}
+  - key: PauseSecondary
+    sprite: {fileID: 1863967292, guid: 5e9f0e136164e4e12a4ac0c9f6cfbcbe, type: 3}
+  - key: Resume
+    sprite: {fileID: 1479253507, guid: 5e9f0e136164e4e12a4ac0c9f6cfbcbe, type: 3}
+  - key: Restart
+    sprite: {fileID: 1194587115, guid: 5e9f0e136164e4e12a4ac0c9f6cfbcbe, type: 3}
+  - key: Pause
+    sprite: {fileID: -1175972630, guid: 5e9f0e136164e4e12a4ac0c9f6cfbcbe, type: 3}
+  - key: SettingsPanel
+    sprite: {fileID: -995068923, guid: da7f308237f6740efa80e88bc9e0ef89, type: 3}
+  - key: SettingsTrack
+    sprite: {fileID: 2088991515, guid: da7f308237f6740efa80e88bc9e0ef89, type: 3}
+  - key: SettingsFill
+    sprite: {fileID: 948096023, guid: da7f308237f6740efa80e88bc9e0ef89, type: 3}
+  - key: Handle
+    sprite: {fileID: 76997412, guid: da7f308237f6740efa80e88bc9e0ef89, type: 3}
+  - key: SwitchOn
+    sprite: {fileID: 589224973, guid: da7f308237f6740efa80e88bc9e0ef89, type: 3}
+  - key: SwitchOff
+    sprite: {fileID: 142089216, guid: da7f308237f6740efa80e88bc9e0ef89, type: 3}
+  - key: Back
+    sprite: {fileID: -230103317, guid: da7f308237f6740efa80e88bc9e0ef89, type: 3}
+  - key: ResultPanel
+    sprite: {fileID: -1077941834, guid: 730d678b2bb3146779443d4a64543752, type: 3}
+  - key: ResultPrimary
+    sprite: {fileID: 162012805, guid: 730d678b2bb3146779443d4a64543752, type: 3}
+  - key: ResultSecondary
+    sprite: {fileID: 788260360, guid: 730d678b2bb3146779443d4a64543752, type: 3}
+  - key: Crown
+    sprite: {fileID: 45544500, guid: 730d678b2bb3146779443d4a64543752, type: 3}
+  - key: Ribbon
+    sprite: {fileID: 1432851837, guid: 730d678b2bb3146779443d4a64543752, type: 3}
+  - key: Tile
+    sprite: {fileID: 1837410807, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
+  - key: SelectedTile
+    sprite: {fileID: -1513461420, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
+  - key: Color0
+    sprite: {fileID: 1915976867, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: Color1
+    sprite: {fileID: 915600295, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: Color2
+    sprite: {fileID: 2026862511, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: Color3
+    sprite: {fileID: -1361520734, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: Color4
+    sprite: {fileID: -521871688, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: Color5
+    sprite: {fileID: -232120104, guid: db61d732bc5b5495ea3fab5086f0df2f, type: 3}
+  - key: Touch
+    sprite: {fileID: 21300000, guid: d225dbe96680b4590a9a38fcb4b42de5, type: 3}

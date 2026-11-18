@@ -94,7 +94,7 @@ MonoBehaviour:
   musicTransitionCooldown: 0.4
   enableDynamicMusic: 1
   mediumThresholdPercentage: 0.5
-  hardThresholdMoves: 10
+  hardThresholdMoves: 5
   resultMusicDuck: 0.3
   buttonClick:
     clip: {fileID: 8300000, guid: b63bae7db915d4dfbaaa4683b77fa5ec, type: 3}
