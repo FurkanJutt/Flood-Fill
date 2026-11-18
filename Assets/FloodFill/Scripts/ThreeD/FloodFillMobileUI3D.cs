@@ -52,6 +52,11 @@ namespace FloodFill.ThreeD
         private static readonly string[] FruitNames = { "RANDOM FRUIT", "APPLE", "BANANA", "ORANGE", "PEAR", "STRAWBERRY", "GRAPES", "PINEAPPLE", "LEMON", "MANGO" };
         private bool started;
         private GameObject cubeCluster;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private TMP_Text fpsLabel;
+        private float fpsElapsed;
+        private int fpsFrames;
+#endif
 
         public void Initialize(FloodFillGameManager3D gameManager, Transform canvas, VoxelCell3D voxelPrefab)
         {
@@ -78,6 +83,9 @@ namespace FloodFill.ThreeD
             safeRoot = MakeRect("SafeArea", canvasRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, Vector2.zero).transform;
             safeRoot.gameObject.AddComponent<FloodFillSafeArea3D>();
             BuildScreens();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            BuildFpsCounter();
+#endif
             modeIndex = manager.SelectedBoardMode == VoxelBoardManager3D.VoxelVolumeMode.HollowCube ? 1 : 0;
             sizeIndex = System.Array.IndexOf(sizes, manager.SelectedBoardSize);
             if (sizeIndex < 0) sizeIndex = 0;
@@ -367,7 +375,34 @@ namespace FloodFill.ThreeD
         private void LateUpdate()
         {
             RefreshMenuLayout(false);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (fpsLabel == null) return;
+            fpsElapsed += Time.unscaledDeltaTime;
+            fpsFrames++;
+            if (fpsElapsed >= .25f)
+            {
+                fpsLabel.SetText("FPS: {0}", Mathf.Round(fpsFrames / fpsElapsed));
+                fpsElapsed = 0f;
+                fpsFrames = 0;
+            }
+#endif
         }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private void BuildFpsCounter()
+        {
+            GameObject counter = MakeImage("Development FPS", safeRoot, new Vector2(20, -16), new Vector2(200, 52), new Color(0, 0, 0, .75f));
+            RectTransform rect = counter.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0, 1);
+            counter.GetComponent<Image>().raycastTarget = false;
+            // Keep the counter above every screen and isolate its text rebuilds.
+            Canvas overlay = counter.AddComponent<Canvas>();
+            overlay.overrideSorting = true;
+            overlay.sortingOrder = 1000;
+            fpsLabel = AddText(counter.transform, "FPS: --", 28, FontStyles.Bold, Vector2.zero, new Vector2(176, 52));
+            fpsLabel.alignment = TextAlignmentOptions.MidlineLeft;
+        }
+#endif
 
         private void RefreshMenuLayout(bool force)
         {

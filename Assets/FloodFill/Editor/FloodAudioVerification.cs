@@ -193,11 +193,30 @@ namespace FloodFill.EditorTools
             audio.sliderInteraction.minimumInterval=.12f;audio.RefreshAudioSettings();
             // The real generated Play button hides its own screen before the audio callback runs.
             var play=Find<Button>("PLAYButton");audio.BindControl(play,"PLAY");audio.BindControl(play,"PLAY");
-            int confirms=audio.SoundStartCount(FloodSound.ButtonConfirm);play.onClick.Invoke();
-            Check(audio.SoundStartCount(FloodSound.ButtonConfirm)==confirms+1,"Button has exactly one sound after repeat binding");
+            int confirms=audio.SoundStartCount(FloodSound.ButtonConfirm),levelStarts=audio.SoundStartCount(FloodSound.LevelStarted);
+            int generation=(int)Get(game,"solverGenerationId");play.onClick.Invoke();
             for(int i=0;i<200&&game.State!=FloodFillGameManager3D.GameState.Playing;i++)yield return .05f;
             Check(game.State==FloodFillGameManager3D.GameState.Playing,"Generated level becomes playable");
-            Check(audio.SoundStartCount(FloodSound.LevelStarted)==1,"Level start cue once");
+            Check((int)Get(game,"solverGenerationId")==generation+1,"One Play click initializes exactly one board/solver generation");
+            Check(audio.SoundStartCount(FloodSound.ButtonConfirm)-confirms+audio.SoundStartCount(FloodSound.LevelStarted)-levelStarts==1,"Shared Play confirmation/start clip plays once across asynchronous level loading");
+            Check(UnityEngine.Object.FindObjectsByType<FloodFillGameManager3D>(FindObjectsInactive.Include).Length==1,"Exactly one game manager initialized");
+            Check(UnityEngine.Object.FindObjectsByType<FloodAudioManager>(FindObjectsInactive.Include).Length==1,"Exactly one audio manager initialized");
+            Call(game,"RefreshUI");Call(game,"RefreshUI");yield return .1f;
+            Check(audio.SoundStartCount(FloodSound.ButtonConfirm)-confirms+audio.SoundStartCount(FloodSound.LevelStarted)-levelStarts==1,"Repeated ready/UI notifications do not replay the launch sound");
+            // A new level without a UI confirmation must still play its own start cue.
+            levelStarts=audio.SoundStartCount(FloodSound.LevelStarted);generation=(int)Get(game,"solverGenerationId");
+            game.StartConfiguredGame(1,0,1);
+            for(int i=0;i<200&&game.State!=FloodFillGameManager3D.GameState.Playing;i++)yield return .05f;
+            Check(game.State==FloodFillGameManager3D.GameState.Playing&&(int)Get(game,"solverGenerationId")==generation+1,"Direct launch generates one playable board");
+            Check(audio.SoundStartCount(FloodSound.LevelStarted)==levelStarts+1,"New level resets confirmation tracking and plays its standalone start cue");
+            var launchUI=UnityEngine.Object.FindAnyObjectByType<FloodFillMobileUI3D>();
+            Call(launchUI,"BackToMenu");Call(launchUI,"Show",Get(launchUI,"setup"));
+            confirms=audio.SoundStartCount(FloodSound.ButtonConfirm);levelStarts=audio.SoundStartCount(FloodSound.LevelStarted);generation=(int)Get(game,"solverGenerationId");
+            Find<Button>("START GAMEButton").onClick.Invoke();
+            for(int i=0;i<200&&game.State!=FloodFillGameManager3D.GameState.Playing;i++)yield return .05f;
+            Check(game.State==FloodFillGameManager3D.GameState.Playing&&(int)Get(game,"solverGenerationId")==generation+1,"Custom Start button initializes one playable board");
+            Check(audio.SoundStartCount(FloodSound.ButtonConfirm)-confirms+audio.SoundStartCount(FloodSound.LevelStarted)-levelStarts==1,"Custom Start also emits one shared launch sound");
+            report.Add("PASS Play/custom Start emit one shared launch clip, one board generation, single managers, repeated notification guards, and standalone start after reset.");
             Counter(game,35,0);audio.ReturnToGameMusic();yield return .35f;
             Check(audio.CurrentMusicState==FloodMusicState.Normal,"35 remaining is normal");
             Counter(game,35,17);yield return .2f;Check(audio.CurrentMusicState==FloodMusicState.Normal,"18 remaining is normal");

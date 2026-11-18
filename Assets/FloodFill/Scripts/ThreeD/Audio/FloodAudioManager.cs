@@ -107,6 +107,7 @@ namespace FloodFill.ThreeD.Audio
         private FloodFillGameManager3D game;
         private FloodAudioUIBinder ui;
         private bool ready,menuContext=true,paused,appSuspended,preview,stoppedByUser,resultHandled,levelHasStarted;
+        private AudioClip levelStartConfirmationClip;
         private bool resultPending,resultWon;
         private float resultAt;
         private float duck=1f,duckTarget=1f;
@@ -143,7 +144,7 @@ namespace FloodFill.ThreeD.Audio
             if(game==manager)return;
             if(game!=null){game.UIChanged-=OnGameChanged;game.ManagerReady-=OnGameChanged;}
             game=manager;if(game!=null){game.UIChanged+=OnGameChanged;game.ManagerReady+=OnGameChanged;}
-            levelHasStarted=false;resultHandled=false;OnGameChanged();
+            levelHasStarted=false;levelStartConfirmationClip=null;resultHandled=false;OnGameChanged();
         }
         private void DetachGame(FloodFillGameManager3D manager)
         {if(game!=manager)return;game.UIChanged-=OnGameChanged;game.ManagerReady-=OnGameChanged;game=null;OnMenu(true);}
@@ -151,7 +152,7 @@ namespace FloodFill.ThreeD.Audio
         {
             if(game==null)return;
             if(!menuContext&&game.State==FloodFillGameManager3D.GameState.Playing&&!levelHasStarted)
-            {levelHasStarted=true;PlaySound(FloodSound.LevelStarted);}
+            {levelHasStarted=true;PlaySound(FloodSound.LevelStarted);levelStartConfirmationClip=null;}
             if(!menuContext&&(game.State==FloodFillGameManager3D.GameState.Won||game.State==FloodFillGameManager3D.GameState.Lost))
                 OnResult(game.State==FloodFillGameManager3D.GameState.Won);
             if(!preview)duckTarget=!menuContext&&resultHandled?resultMusicDuck:1f;
@@ -161,11 +162,11 @@ namespace FloodFill.ThreeD.Audio
         {
             if(menuContext==value){OnGameChanged();return;}
             menuContext=value;preview=false;stoppedByUser=false;
-            if(value){CancelFlood();resultPending=false;duckTarget=1;paused=false;}
+            if(value){CancelFlood();levelStartConfirmationClip=null;resultPending=false;duckTarget=1;paused=false;}
             OnGameChanged();ReevaluateMusic(true);
         }
         private void OnLevelReset()
-        {CancelFlood();resultPending=false;resultHandled=false;levelHasStarted=false;paused=false;duckTarget=1;preview=false;stoppedByUser=false;}
+        {CancelFlood();resultPending=false;resultHandled=false;levelHasStarted=false;levelStartConfirmationClip=null;paused=false;duckTarget=1;preview=false;stoppedByUser=false;}
         private void OnRestart(){CancelFlood();PlaySound(FloodSound.Restart);}
         private void OnPause(bool value)
         {if(paused==value)return;paused=value;PlaySound(value?FloodSound.Pause:FloodSound.Resume);}

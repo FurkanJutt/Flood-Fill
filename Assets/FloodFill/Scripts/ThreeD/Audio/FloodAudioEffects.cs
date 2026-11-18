@@ -78,6 +78,10 @@ namespace FloodFill.ThreeD.Audio
             var clip=settings.ChooseClip();
             if(clip==null&&(kind==FloodSound.ButtonBack||kind==FloodSound.ButtonConfirm||kind==FloodSound.ButtonCancel||kind==FloodSound.ToggleOn||kind==FloodSound.ToggleOff||kind==FloodSound.Slider))clip=buttonClick.ChooseClip();
             if(clip==null)return false;
+            // A Play/Start confirmation can precede asynchronous level readiness by
+            // many frames. Treat that matching clip as the launch cue for this level,
+            // rather than playing it again when calculation completes.
+            if(kind==FloodSound.LevelStarted&&clip==levelStartConfirmationClip)return false;
             if(kind<=FloodSound.PopupClose)
                 for(int i=0;i<voices.Length;i++)
                     if(voices[i].Active&&voices[i].Source.clip==clip&&voices[i].StartFrame==Time.frameCount)return false;
@@ -96,6 +100,8 @@ namespace FloodFill.ThreeD.Audio
             voice.Source.Play();
             if(voice.MaximumAge>0)voice.Source.SetScheduledEndTime(AudioSettings.dspTime+voice.MaximumAge);
             lastSoundAt[(int)kind]=now;
+            if(kind==FloodSound.ButtonConfirm&&!menuContext&&!levelHasStarted&&game!=null&&game.State==FloodFillGameManager3D.GameState.Calculating)
+                levelStartConfirmationClip=clip;
             TotalSoundStarts++;soundStartCounts[(int)kind]++;
             return true;
         }
