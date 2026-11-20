@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.Linq;
 using System.Text.RegularExpressions;
 using FloodFill.ThreeD.Audio;
 using TMPro;
@@ -11,7 +12,7 @@ namespace FloodFill.ThreeD
 {
     public sealed partial class FloodFillMobileUI3D
     {
-        public GameObject[] EditorScreens => new[] { menu, setup, howTo, settings, hud, pause, results, loading };
+        public GameObject[] EditorScreens => new[] { menu, setup, howTo, settings, hud, pause, results, loading, levelSelection != null ? levelSelection.gameObject : null }.Where(screen => screen != null).ToArray();
 
         /// <summary>Explicit one-time editor construction. Runtime only uses the saved references.</summary>
         public void BuildEditableLayoutForEditor()

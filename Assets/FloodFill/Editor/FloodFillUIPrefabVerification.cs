@@ -28,7 +28,7 @@ namespace FloodFill.EditorTools
             if (!Application.isBatchMode) throw new InvalidOperationException("Use batch mode in an isolated project copy.");
             checks=0;stage=0;
             original=File.ReadAllBytes(FloodFillUIPrefabSetup.CanvasPath);
-            Check(AssetDatabase.FindAssets("t:Prefab", new[]{FloodFillUIPrefabSetup.Folder}).Length==9, "Canvas and eight screen prefabs exist");
+            Check(AssetDatabase.FindAssets("t:Prefab", new[]{FloodFillUIPrefabSetup.Folder}).Length==11, "Canvas, nine screens and reusable level tile exist");
             GameObject root=PrefabUtility.LoadPrefabContents(FloodFillUIPrefabSetup.CanvasPath);
             try
             {
@@ -36,7 +36,7 @@ namespace FloodFill.EditorTools
                 Check(Read<FloodFillGameManager3D>(ui,"manager")==null,"Reusable Canvas has no external scene dependency");
                 foreach(var screen in ui.EditorScreens)
                     Check(screen!=null&&PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(screen)==FloodFillUIPrefabSetup.Folder+"/"+screen.name+".prefab","Screen has nested prefab connection: "+screen.name);
-                foreach(var button in root.GetComponentsInChildren<Button>(true))
+                foreach(var button in root.GetComponentsInChildren<Button>(true).Where(value => value.GetComponentInParent<FloodLevelSelection3D>(true) == null))
                     Check(button.onClick.GetPersistentEventCount()==1&&button.onClick.GetPersistentTarget(0)==button.GetComponent<FloodFillUIAction3D>(),"Persistent button event: "+button.name);
                 var play=root.GetComponentsInChildren<FloodFillUIAction3D>(true).Single(value=>value.action==FloodFillUIAction.Play).GetComponent<Button>();
                 play.name="RenamedPlayControl";
@@ -85,7 +85,11 @@ namespace FloodFill.EditorTools
                     Check(toggle.GetComponent<RectTransform>().sizeDelta==new Vector2(123,67),"Switch changes preserve manual size");
                     Check(Read<System.Collections.Generic.List<Button>>(ui,"difficultyButtons")[1].image.color==Color.green,"Authored selection color is used");
                     buttonCount=ui.GetComponentsInChildren<Button>(true).Length;
-                    play.onClick.Invoke();stage=1;
+                    play.onClick.Invoke();
+                    var levels=ui.GetComponentInChildren<FloodLevelSelection3D>(true);
+                    Check(levels.gameObject.activeSelf,"Renamed PLAY opens authored levels");
+                    levels.Select(0,0);levels.SetPage(0);
+                    levels.grid.GetComponentsInChildren<FloodLevelButton3D>()[0].button.onClick.Invoke();stage=1;
                 }
                 else if(!manager.IsLoading&&!manager.BoardManager.IsStartAnimationPlaying&&manager.State==FloodFillGameManager3D.GameState.Playing)
                 {

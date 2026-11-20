@@ -54,6 +54,7 @@ namespace FloodFill.ThreeD
         [SerializeField] private Image progress;
         private int modeIndex, sizeIndex, difficultyIndex = 1, fruitIndex;
         private static readonly string[] FruitNames = { "RANDOM FRUIT", "APPLE", "BANANA", "ORANGE", "PEAR", "STRAWBERRY", "GRAPES", "PINEAPPLE", "LEMON", "MANGO" };
+        [SerializeField] private FloodLevelSelection3D levelSelection;
         private bool started;
         private GameObject cubeCluster;
         [SerializeField] private TMP_Text fpsLabel;
@@ -525,11 +526,23 @@ namespace FloodFill.ThreeD
         }
         private void PlayConfiguredGame()
         {
-            SaveSetupSelections();
+            OpenLevelSelection();
+        }
+        public void OpenLevelSelection()
+        {
+            if (levelSelection == null) { Debug.LogError("Level selection prefab is not installed."); return; }
+            manager.ReturnToMenu(); started = false;
+            Show(levelSelection.gameObject);
+            if (manager.NumberedLevel > 0) levelSelection.Open(manager.NumberedMode, (int)manager.SelectedDifficulty);
+        }
+        public void LevelSelectionHome() { started = false; Show(menu); }
+        public void StartSelectedLevel(int mode, int difficulty, int level)
+        {
             started = true;
-            manager.StartCampaignGame(difficultyIndex);
+            if (!manager.StartNumberedLevel(mode,difficulty,level)) { started = false; return; }
             Show(hud);
         }
+
         private void Continue()
         {
             started = true;
@@ -571,7 +584,12 @@ namespace FloodFill.ThreeD
             if (manager.State == FloodFillGameManager3D.GameState.Won)
             {
                 started = true;
-                manager.StartCampaignGame((int)manager.SelectedDifficulty);
+                if (manager.NumberedLevel > 0)
+                {
+                    if (manager.NumberedLevel == 100) { OpenLevelSelection(); return; }
+                    manager.StartNumberedLevel(manager.NumberedMode, (int)manager.SelectedDifficulty, manager.NumberedLevel + 1);
+                }
+                else manager.StartCampaignGame((int)manager.SelectedDifficulty);
                 Show(hud);
                 return;
             }
@@ -592,7 +610,7 @@ namespace FloodFill.ThreeD
             }
             else if (loading.activeSelf && manager.State == FloodFillGameManager3D.GameState.Playing) Show(hud);
             if (gameTitle != null)
-                gameTitle.text = manager.IsCampaignGame
+                gameTitle.text = manager.NumberedLevel > 0 ? "LEVEL " + manager.NumberedLevel : manager.IsCampaignGame
                     ? "LEVEL " + manager.ActiveCampaignLevel
                     : "FLOOD FILL 3D";
             moves.text = manager.State == FloodFillGameManager3D.GameState.Calculating ? "…" : manager.MoveCount + " / " + manager.CurrentMoveBudget;
@@ -616,15 +634,18 @@ namespace FloodFill.ThreeD
             if (manager.State == FloodFillGameManager3D.GameState.Won || manager.State == FloodFillGameManager3D.GameState.Lost)
             {
                 bool won = manager.State == FloodFillGameManager3D.GameState.Won;
+                // PLAY AGAIN already replays a lost level; the separate replay action belongs to wins.
+                foreach (var action in results.GetComponentsInChildren<FloodFillUIAction3D>(true))
+                    if (action.action == FloodFillUIAction.Restart) action.gameObject.SetActive(won);
                 if (victoryCrown != null) victoryCrown.SetActive(won);
                 resultTitle.text = won ? "YOU WIN!" : "OUT OF MOVES";
                 if (resultActionLabel != null)
                 {
-                    resultActionLabel.text = won ? "NEXT LEVEL" : "PLAY AGAIN";
+                    resultActionLabel.text = won ? (manager.NumberedLevel == 100 ? "LEVELS" : "NEXT LEVEL") : "PLAY AGAIN";
                     Transform icon = resultActionLabel.transform.parent.Find("Icon");
                     if (icon != null) icon.GetComponent<FloodFillUIState3D>()?.Apply(won);
                 }
-                string levelDetails = manager.IsCampaignGame ? "Level: " + manager.ActiveCampaignLevel + "\n" : string.Empty;
+                string levelDetails = manager.NumberedLevel > 0 ? "Level: " + manager.NumberedLevel + "\n" : manager.IsCampaignGame ? "Level: " + manager.ActiveCampaignLevel + "\n" : string.Empty;
                 resultDetails.text = levelDetails + "Final score: " + manager.Score.ToString("N0") + "\nMoves used: " + manager.MoveCount + "\nCaptured: " + Mathf.RoundToInt(manager.CapturedPercentage) + "%";
                 Show(results);
             }
@@ -699,7 +720,7 @@ namespace FloodFill.ThreeD
             }
             BuildCubeCluster(menu.transform);
         }
-        private void HideAll() { menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
+        private void HideAll() { if (levelSelection != null) levelSelection.gameObject.SetActive(false); menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
 
 #if UNITY_EDITOR
         private void HideLegacyUI(Transform canvas)

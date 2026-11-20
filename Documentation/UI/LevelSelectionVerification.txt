@@ -1,0 +1,13 @@
+1083398 checks passed. All 12 catalogs and 12 playable mode/difficulty workflows; deterministic replay; real solver-driven wins; saves; pagination; three portrait renders. Items use deterministic fruit masks.
+204 layout checks passed. Three portrait renders; difficulty star meshes present.
+3 separate-process persistence checks passed.
+PASS: 76 prefab checks, including nested screens, persistent button events, renamed controls, saved layout/text/state edits, single initialization and playable launch.
+
+Unity 6000.5.8f1; isolated project copy and test save identities.
+Full integration: real solver-driven wins and deterministic restart for each mode/difficulty at level 1; Next advances to 2; completion at 100 returns to selection.
+All 400 Items masks checked at their assigned sizes for deterministic occupancy and face connectivity.
+Portrait renders: 876x1796, 750x1334, 1170x2532.
+Legacy campaign preferences and old session JSON schema preserved. No fake sample progress migrated.
+Existing UI prefab regression suite updated for PLAY opening selection and runtime-bound catalog controls.
+The copied Unity Library emitted an unrelated UnityEditor.Search indexer startup exception during full/regression runs; the final layout run had no such exception. No UI/gameplay exceptions occurred.
+Android/iOS native builds and physical-device behavior not verified: build modules unavailable.

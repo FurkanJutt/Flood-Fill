@@ -1,0 +1,1 @@
+54 checks passed: win, loss, win again; labels, replay visibility, nonoverlapping actions within card, four portrait renders, repeatable prefab repair.

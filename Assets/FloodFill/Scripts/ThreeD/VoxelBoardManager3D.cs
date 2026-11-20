@@ -19,7 +19,8 @@ namespace FloodFill.ThreeD
         public enum VoxelVolumeMode
         {
             HollowCube = 0,
-            Procedural = 2
+            Procedural = 2,
+            Items = 3
         }
 
         private static readonly Vector3Int[] Directions =
@@ -120,6 +121,7 @@ namespace FloodFill.ThreeD
         public ProceduralVoxelShapeSettings ProceduralSettings => proceduralSettings;
         public VoxelShapeBounds ActiveBounds => activeBounds;
         public int LastGenerationSeed { get; private set; }
+        public int? NumberedLevelSeed { get; set; }
         public int LastGenerationAttempt { get; private set; }
         public int LastTargetSolidVoxelCount { get; private set; }
         public int LastSolidVoxelCount { get; private set; }
@@ -201,7 +203,9 @@ namespace FloodFill.ThreeD
             }
 
             Stopwatch setupWatch = Stopwatch.StartNew();
-            System.Random fixedColorRandom = volumeMode == VoxelVolumeMode.Procedural &&
+            System.Random fixedColorRandom = NumberedLevelSeed.HasValue
+                ? new System.Random(unchecked(NumberedLevelSeed.Value ^ 0x5F3759DF))
+                : volumeMode == VoxelVolumeMode.Procedural &&
                 proceduralSettings != null && !proceduralSettings.useRandomSeed
                     ? new System.Random(unchecked(LastGenerationSeed ^ 0x5F3759DF))
                     : null;
@@ -980,6 +984,15 @@ namespace FloodFill.ThreeD
 
         private bool TryCreateActiveMask()
         {
+            if (volumeMode == VoxelVolumeMode.Items)
+            {
+                LastGenerationSeed = NumberedLevelSeed ?? 12345;
+                activeMask = FloodItemShape3D.Generate(width,height,depth,LastGenerationSeed,out activeBounds);
+                LastGenerationAttempt = 1;
+                LastTargetSolidVoxelCount = LastSolidVoxelCount = CountActiveMaskVoxels();
+                LastLogicalGenerationMilliseconds = 0;
+                return LastSolidVoxelCount > 0;
+            }
             if (volumeMode == VoxelVolumeMode.HollowCube)
             {
                 Stopwatch logicalWatch = Stopwatch.StartNew();
@@ -992,7 +1005,7 @@ namespace FloodFill.ThreeD
                     height - 1,
                     0,
                     depth - 1);
-                LastGenerationSeed = 0;
+                LastGenerationSeed = NumberedLevelSeed ?? 0;
                 LastGenerationAttempt = 1;
                 LastTargetSolidVoxelCount = CountActiveMaskVoxels();
                 LastSolidVoxelCount = LastTargetSolidVoxelCount;
@@ -1005,9 +1018,9 @@ namespace FloodFill.ThreeD
                 proceduralSettings = new ProceduralVoxelShapeSettings();
             }
 
-            int seed = proceduralSettings.useRandomSeed
+            int seed = NumberedLevelSeed ?? (proceduralSettings.useRandomSeed
                 ? Guid.NewGuid().GetHashCode()
-                : proceduralSettings.fixedSeed;
+                : proceduralSettings.fixedSeed);
             Stopwatch logicalGenerationWatch = Stopwatch.StartNew();
             if (!ProceduralVoxelShapeGenerator.TryGenerate(
                     width,

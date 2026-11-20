@@ -9,7 +9,7 @@ namespace FloodFill.ThreeD
         Play, Continue, Setup, Help, Settings, Quit, StartGame, Menu, Pause,
         Resume, Restart, ReturnToMenu, Result, FruitDropdown, Mode, Size,
         Difficulty, Fruit, Color, MasterVolume, MusicVolume, SfxVolume,
-        MusicEnabled, SfxEnabled, ShowCurrentBlock
+        MusicEnabled, SfxEnabled, ShowCurrentBlock, Levels
     }
 
     /// <summary>Persistent prefab event target. References survive renaming and reparenting.</summary>

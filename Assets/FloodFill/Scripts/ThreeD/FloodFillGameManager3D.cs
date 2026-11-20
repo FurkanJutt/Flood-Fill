@@ -24,7 +24,8 @@ namespace FloodFill.ThreeD
         private static readonly VoxelBoardManager3D.VoxelVolumeMode[] BoardModeOptions =
         {
             VoxelBoardManager3D.VoxelVolumeMode.Procedural,
-            VoxelBoardManager3D.VoxelVolumeMode.HollowCube
+            VoxelBoardManager3D.VoxelVolumeMode.HollowCube,
+            VoxelBoardManager3D.VoxelVolumeMode.Items
         };
 
         private static readonly int[] BoardSizeOptions =
@@ -143,13 +144,25 @@ namespace FloodFill.ThreeD
             ManagerReady?.Invoke();
         }
 
+        public int NumberedLevel { get; private set; }
+        public int NumberedMode { get; private set; }
+        public bool StartNumberedLevel(int mode, int difficultyIndex, int level)
+        {
+            if (mode < 0 || mode > 2 || difficultyIndex < 0 || difficultyIndex > 3 || !FloodLevelProgression3D.Unlocked(mode, difficultyIndex, level)) return false;
+            NumberedLevel = level; NumberedMode = mode;
+            StartGame(mode == 0 ? 1 : mode == 1 ? 0 : 2, Mathf.Min(6, (level - 1) / 15), difficultyIndex, false);
+            return true;
+        }
+
         public void StartConfiguredGame(int modeIndex, int sizeIndex, int difficultyIndex)
         {
+            NumberedLevel = 0;
             StartGame(modeIndex, sizeIndex, difficultyIndex, false);
         }
 
         public void StartCampaignGame(int difficultyIndex)
         {
+            NumberedLevel = 0;
             CampaignLevel = Mathf.Max(1, PlayerPrefs.GetInt(CampaignLevelKey, CampaignLevel));
             int maxStructuredLevel = BoardSizeOptions.Length * CampaignLevelsPerSize;
             int sizeIndex = CampaignLevel <= maxStructuredLevel
@@ -335,8 +348,8 @@ namespace FloodFill.ThreeD
             LastSolverResult = null;
             CurrentMoveBudgetProfile = default;
             currentMoveBudget = 1;
-            SyncBoardModeFromDropdown();
-            SyncBoardSizeFromDropdown();
+            if (NumberedLevel == 0) { SyncBoardModeFromDropdown(); SyncBoardSizeFromDropdown(); }
+            boardManager.NumberedLevelSeed = NumberedLevel > 0 ? (int?)FloodLevelProgression3D.Seed(NumberedMode, (int)difficulty, NumberedLevel) : null;
             boardManager.SetVolumeMode(SelectedBoardMode);
             boardManager.SetDimensions(SelectedBoardSize);
             if (resultPanel != null) resultPanel.SetActive(false);
@@ -972,7 +985,11 @@ namespace FloodFill.ThreeD
             State = state;
             FloodAudioSignals.Result(state == GameState.Won);
             SetColorInputEnabled(false);
-            if (state == GameState.Won) AdvanceCampaignAfterWin();
+            if (state == GameState.Won)
+            {
+                AdvanceCampaignAfterWin();
+                if (NumberedLevel > 0) FloodLevelProgression3D.Record(NumberedMode, (int)difficulty, NumberedLevel, MoveCount, FloodLevelProgression3D.Stars(MoveCount, currentMoveBudget));
+            }
             SaveSession();
             if (resultCoroutine != null)
             {
@@ -1047,6 +1064,8 @@ namespace FloodFill.ThreeD
             State = System.Enum.IsDefined(typeof(GameState), saved.gameState)
                 ? (GameState)saved.gameState
                 : GameState.Calculating;
+            NumberedLevel = saved.numberedLevel >= 1 && saved.numberedLevel <= 100 && saved.numberedMode >= 0 && saved.numberedMode <= 2 ? saved.numberedLevel : 0;
+            NumberedMode = saved.numberedMode;
             isCampaignGame = saved.isCampaignGame;
             activeCampaignLevel = saved.campaignLevel > 0
                 ? saved.campaignLevel
@@ -1151,6 +1170,8 @@ namespace FloodFill.ThreeD
                 selectedBoardSize = SelectedBoardSize,
                 difficulty = (int)difficulty,
                 isCampaignGame = isCampaignGame,
+                numberedLevel = NumberedLevel,
+                numberedMode = NumberedMode,
                 campaignLevel = activeCampaignLevel,
                 moveCount = MoveCount,
                 score = Score,
