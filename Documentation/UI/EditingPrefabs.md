@@ -58,3 +58,12 @@ Native Android/iOS packages and device touch behavior require the corresponding 
 Verification results are recorded in `LevelSelectionVerification.txt`; `LevelSelectionPreview.png` shows the fresh-save screen. Persistence was also checked across two separate Unity processes with the verifier’s `SeedPersistenceBatch` and `VerifyRestartedCatalogBatch` methods.
 
 Result actions use `GameResults/Content/ResultActions`, a Vertical Layout Group. Wins show Next Level, Replay, Levels, and Main Menu. Losses show Play Again, Levels, and Main Menu; hiding Replay lets the layout close the gap. Use **Tools > Flood Fill > UI > Repair Result Screen Layout** to repair an older result prefab without rebuilding level selection. `BeginResultBatch` checks both states, transitions back to a win, nonoverlap, card bounds, and portrait renders in the isolated test project.
+
+Auto Solver numbered level controls
+----------------------------------
+
+In **Tools > Flood Fill > Auto Solver**, Restart Level replays the active numbered level with its existing seed. Next Level uses the result-screen action to advance within the same mode and difficulty; it is disabled at level 100. Legacy campaign sessions retain their existing Next behavior. Both actions keep the gameplay HUD synchronized.
+
+**Auto Next Level** advances after a win once playback finishes, with a one-second result delay. It stops at level 100. **Auto Start Solver** calculates, validates, and plays a solution once each newly loaded board is ready, including restarts and levels selected through the UI. The two checkboxes are independent and default off; enable both for continuous solving. Failed searches and manually stopped playback do not automatically retry on the same board. Automation stays idle while the board is hidden in menus. Changing boards clears the previous search and solution.
+
+The isolated batch entry point `FloodFill.Development.AutoSolver.AutoSolverWorkflowVerification.BeginBatch` exercises deterministic restart, manual Next, independent checkbox behavior, actual solver wins on successive Items levels, saved completion, the level-100 boundary, and the hidden-menu guard. Its report is `/tmp/FloodAutoSolverWorkflowVerification.txt`.

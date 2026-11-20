@@ -42,6 +42,16 @@ namespace FloodFill.Development.AutoSolver
             return null;
         }
 
+        public int NumberedLevel => ReadInt(Manager, "NumberedLevel", 0);
+        public string CurrentLevelLabel => NumberedLevel > 0
+            ? NumberedLevel + " / 100"
+            : ReadBool(Manager, "IsCampaignGame", false)
+                ? ReadInt(Manager, "ActiveCampaignLevel", 1).ToString()
+                : TotalVoxelCount > 0 ? "Custom Game" : "—";
+        public int Generation => ReadInt(Manager, "solverGenerationId", 0);
+        public bool BoardVisible => GetField(Board, "boardRoot") is Component root && root.gameObject.activeInHierarchy;
+        public bool ReadyToSolve => IsAlive && BoardVisible && GameState == "Playing" && !ReadBool(Manager,"IsLoading",false) && ReadBool(Manager,"CanInteract",false);
+        public bool CanStartNextLevel => IsAlive && BoardVisible && GameState == "Won" && NumberedLevel < 100;
         public bool IsAlive => Manager != null && Board != null && Manager.gameObject != null && Board.gameObject != null;
         public string GameState => ReadString(Manager, "State", "Unknown");
         public int MoveCount => ReadInt(Manager, "MoveCount", 0);
@@ -234,20 +244,47 @@ namespace FloodFill.Development.AutoSolver
         public void RestartLevel()
         {
             if (!IsAlive) throw new InvalidOperationException("No active game is available.");
-            MethodInfo restart = Manager.GetType().GetMethod("RestartGame", InstanceFlags, null, Type.EmptyTypes, null);
-            if (restart == null) throw new MissingMethodException("The game's existing RestartGame() method was not found.");
-            restart.Invoke(Manager, null);
+            if (!InvokeUiAction("Restart"))
+            {
+                MethodInfo restart = Manager.GetType().GetMethod("RestartCurrentGame", InstanceFlags, null, Type.EmptyTypes, null);
+                if (restart == null) throw new MissingMethodException("RestartCurrentGame() was not found.");
+                restart.Invoke(Manager, null);
+            }
             HideResultPanel();
         }
 
         public void StartNextLevel()
         {
-            if (!IsAlive) throw new InvalidOperationException("No active game is available.");
-            if (GameState != "Won") throw new InvalidOperationException("Next Level is available after a campaign level is won.");
-            MethodInfo startCampaign = Manager.GetType().GetMethod("StartCampaignGame", InstanceFlags, null, new[] { typeof(int) }, null);
-            if (startCampaign == null) throw new MissingMethodException("The game's existing StartCampaignGame(int) method was not found.");
+            if (!CanStartNextLevel) throw new InvalidOperationException(NumberedLevel >= 100 ? "This category is complete at level 100." : "Win the active level before advancing.");
+            if (InvokeUiAction("Result")) return;
             int difficulty = Convert.ToInt32(GetValue(Manager, "SelectedDifficulty"));
-            startCampaign.Invoke(Manager, new object[] { difficulty });
+            if (NumberedLevel > 0)
+            {
+                MethodInfo start = Manager.GetType().GetMethod("StartNumberedLevel", InstanceFlags);
+                if (start == null || !(bool)start.Invoke(Manager,new object[]{ReadInt(Manager,"NumberedMode",0),difficulty,NumberedLevel+1}))
+                    throw new InvalidOperationException("The next numbered level could not be started.");
+            }
+            else
+            {
+                MethodInfo start = Manager.GetType().GetMethod("StartCampaignGame",InstanceFlags);
+                if(start==null)throw new MissingMethodException("StartCampaignGame(int) was not found.");
+                start.Invoke(Manager,new object[]{difficulty});
+            }
+        }
+
+        private bool InvokeUiAction(string action)
+        {
+            Type type=ResolveType(MobileUiTypeName);
+            if(type==null)return false;
+            foreach(UnityEngine.Object instance in Resources.FindObjectsOfTypeAll(type))
+            {
+                if(!(instance is Component ui) || !ui.gameObject.activeInHierarchy || !ReferenceEquals(GetField(ui,"manager"),Manager) || !ReadBool(ui,"IsBuilt",false))continue;
+                MethodInfo execute=type.GetMethod("ExecuteAuthoredAction",InstanceFlags);
+                if(execute==null)return false;
+                execute.Invoke(ui,new[]{Enum.Parse(execute.GetParameters()[0].ParameterType,action),(object)0});
+                return true;
+            }
+            return false;
         }
 
         public void HideResultPanel()

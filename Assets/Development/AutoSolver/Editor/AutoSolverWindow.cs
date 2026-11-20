@@ -23,6 +23,13 @@ namespace FloodFill.Development.AutoSolver
         private bool logAnalysisWhenReady;
         private bool autoPlayWhenReady;
         private bool waitingForRestart;
+        [SerializeField] private bool autoNextLevel;
+        [SerializeField] private bool autoStartSolver;
+        private int observedGeneration = -1, autoSolveGeneration = -1;
+        private UnityEngine.Object observedManager;
+        private bool autoNextAttempted;
+        private double advanceAfter = -1;
+
         private bool showSolution = true;
         private float playbackSpeed = 1f;
         private float animationDuration = 0.2f;
@@ -99,6 +106,7 @@ namespace FloodFill.Development.AutoSolver
                 EditorGUILayout.HelpBox("No active Flood Fill 3D game was found. Enter Play Mode and load a level.", MessageType.Warning);
                 return;
             }
+            EditorGUILayout.LabelField("Current Level", adapter.CurrentLevelLabel);
             EditorGUILayout.LabelField("Current Game Status", adapter.GameState);
             string boardStatus = boardSnapshot != null
                 ? $"{boardSnapshot.Width}x{boardSnapshot.Height}x{boardSnapshot.Depth} · {adapter.TotalVoxelCount} playable voxels"
@@ -139,6 +147,7 @@ namespace FloodFill.Development.AutoSolver
                 using (new EditorGUI.DisabledScope(!playback.IsPlaying && searchTask == null))
                     if (GUILayout.Button("Stop"))
                     {
+                        autoSolveGeneration = adapter != null ? adapter.Generation : -1;
                         CancelSearch();
                         playback.Stop("Stopped. Current game state was preserved.");
                     }
@@ -148,9 +157,13 @@ namespace FloodFill.Development.AutoSolver
             {
                 using (new EditorGUI.DisabledScope(adapter == null || !adapter.IsAlive || searchTask != null))
                     if (GUILayout.Button("Restart Level", GUILayout.Height(24f))) RestartLevel();
-                using (new EditorGUI.DisabledScope(adapter == null || !adapter.IsAlive || adapter.GameState != "Won" || searchTask != null))
+                using (new EditorGUI.DisabledScope(adapter == null || !adapter.IsAlive || !adapter.CanStartNextLevel || searchTask != null))
                     if (GUILayout.Button("Next Level", GUILayout.Height(24f))) StartNextLevel();
             }
+            autoNextLevel = EditorGUILayout.Toggle("Auto Next Level", autoNextLevel);
+            bool startAutomatically = EditorGUILayout.Toggle("Auto Start Solver", autoStartSolver);
+            if (startAutomatically && !autoStartSolver) autoSolveGeneration = -1;
+            autoStartSolver = startAutomatically;
             EditorGUILayout.HelpBox(status, playback.IsPaused ? MessageType.Warning : MessageType.Info);
         }
 
@@ -253,6 +266,7 @@ namespace FloodFill.Development.AutoSolver
         private void BeginSearch(bool autoPlay, bool logAnalysis)
         {
             if (!EditorApplication.isPlaying) return;
+            autoSolveGeneration = adapter != null ? adapter.Generation : -1;
             CancelSearch();
             if (playback.IsPlaying) playback.Stop("Previous playback stopped before analysis.");
             if (adapter == null || !adapter.IsAlive) FindActiveGame();
@@ -348,7 +362,7 @@ namespace FloodFill.Development.AutoSolver
         private void StartNextLevel()
         {
             CancelSearch();
-            playback.Stop("Starting the next campaign level.");
+            playback.Stop("Starting the next level in the current category.");
             if (adapter == null || !adapter.IsAlive) FindActiveGame();
             if (adapter == null || !adapter.IsAlive) return;
             try
@@ -358,7 +372,7 @@ namespace FloodFill.Development.AutoSolver
                 graph = null;
                 boardSnapshot = null;
                 waitingForRestart = true;
-                status = "Next campaign level started. Waiting for the game's move-limit calculation…";
+                status = "Next level started. Waiting for the game's move-limit calculation…";
             }
             catch (Exception exception)
             {
@@ -375,10 +389,21 @@ namespace FloodFill.Development.AutoSolver
                 nextConnectionSearch = EditorApplication.timeSinceStartup + 0.5d;
             }
 
+            if (adapter != null && adapter.IsAlive && (observedManager != adapter.Manager || observedGeneration != adapter.Generation))
+            {
+                bool hadBoard = observedGeneration >= 0;
+                observedManager = adapter.Manager; observedGeneration = adapter.Generation;
+                autoSolveGeneration = -1; autoNextAttempted = false; advanceAfter = -1;
+                if (hadBoard)
+                {
+                    CancelSearch(); playback.Stop("Level changed. Previous solution cleared.");
+                    boardSnapshot = null; graph = null; solution = null;
+                }
+            }
             if (waitingForRestart && adapter != null && adapter.IsAlive)
             {
                 adapter.HideResultPanel();
-                if (adapter.GameState == "Playing")
+                if (adapter.ReadyToSolve)
                 {
                     adapter.ShowGameplayHud();
                     waitingForRestart = false;
@@ -397,6 +422,7 @@ namespace FloodFill.Development.AutoSolver
             if (searchTask != null && searchTask.IsCompleted) CompleteSearch();
             bool playbackWasRunning = playback.IsPlaying;
             playback.Tick(EditorApplication.timeSinceStartup);
+            TickAutomation();
             double repaintInterval = playback.IsPlaying || searchTask != null || waitingForRestart ? 0.08d : 0.15d;
             if (adapter != null && adapter.IsAlive && EditorApplication.timeSinceStartup - lastRepaintTime > repaintInterval)
             {
@@ -404,6 +430,29 @@ namespace FloodFill.Development.AutoSolver
                 Repaint();
             }
             else if (playbackWasRunning && !playback.IsPlaying) Repaint();
+        }
+
+        private void TickAutomation()
+        {
+            if (adapter == null || !adapter.IsAlive || !adapter.BoardVisible || waitingForRestart || searchTask != null || playback.IsPlaying) return;
+            if (autoStartSolver && adapter.ReadyToSolve && autoSolveGeneration != adapter.Generation)
+            {
+                autoSolveGeneration = adapter.Generation;
+                BeginSearch(true, false);
+                return;
+            }
+            if (adapter.GameState != "Won") { advanceAfter = -1; return; }
+            if (!autoNextLevel || autoNextAttempted) return;
+            if (!adapter.CanStartNextLevel)
+            {
+                autoNextAttempted = true;
+                status = "Category complete: level 100 reached. Auto Next Level stopped.";
+                return;
+            }
+            if (advanceAfter < 0) { advanceAfter = EditorApplication.timeSinceStartup + 1; return; }
+            if (EditorApplication.timeSinceStartup < advanceAfter) return;
+            autoNextAttempted = true;
+            StartNextLevel();
         }
 
         private void CompleteSearch()
@@ -476,6 +525,8 @@ namespace FloodFill.Development.AutoSolver
                 graph = null;
                 solution = null;
                 waitingForRestart = false;
+                observedManager = null; observedGeneration = autoSolveGeneration = -1;
+                autoNextAttempted = false; advanceAfter = -1;
                 status = "Enter Play Mode to use Auto Solver.";
                 Repaint();
             }
@@ -491,6 +542,7 @@ namespace FloodFill.Development.AutoSolver
             graph = null;
             solution = null;
             waitingForRestart = false;
+            observedManager = null; observedGeneration = autoSolveGeneration = -1;
             Repaint();
         }
 
