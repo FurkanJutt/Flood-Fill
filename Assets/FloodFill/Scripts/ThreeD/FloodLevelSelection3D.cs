@@ -3,6 +3,7 @@ using FloodFill.ThreeD.Audio;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 namespace FloodFill.ThreeD
 {
@@ -17,6 +18,11 @@ namespace FloodFill.ThreeD
         public FloodLevelButton3D levelPrefab;
         public RectTransform grid;
         public FloodLevelRules3D rules;
+        public GameObject restartPrompt;
+        public Button restartContinue, restartBack;
+        public CanvasGroup navigationContent;
+        public RectTransform restartCard;
+        private int pendingMode, pendingDifficulty, pendingLevel;
         public int Mode { get; private set; }
         public int Difficulty { get; private set; }
         public int Page { get; private set; }
@@ -28,6 +34,8 @@ namespace FloodFill.ThreeD
             owner = GetComponentInParent<FloodFillMobileUI3D>();
             for (int i = 0; i < pages.Length; i++) pages[i] = -1;
             Mode = rules != null ? rules.defaultMode : 0; Difficulty = rules != null ? rules.defaultDifficulty : 0;
+            if (restartContinue != null) restartContinue.onClick.AddListener(ConfirmRestart);
+            if (restartBack != null) restartBack.onClick.AddListener(CloseRestartPrompt);
             home.onClick.AddListener(() => owner.LevelSelectionHome());
             previous.onClick.AddListener(() => SetPage(Page - 1)); next.onClick.AddListener(() => SetPage(Page + 1));
             for (int i = 0; i < modes.Length; i++) { int index = i; modes[i].onClick.AddListener(() => Select(index, Difficulty)); }
@@ -38,6 +46,7 @@ namespace FloodFill.ThreeD
         }
         private void OnEnable()
         {
+            CloseRestartPrompt();
             if (tiles == null) return;
             foreach (Button b in GetComponentsInChildren<Button>(true)) FloodAudioManager.Instance?.BindControl(b, b.name);
             Select(Mode, Difficulty);
@@ -60,9 +69,38 @@ namespace FloodFill.ThreeD
         }
         public void StartLevel(int level)
         {
-            if (!FloodLevelProgression3D.Unlocked(Mode,Difficulty,level)) return;
+            if (pendingLevel != 0 || !FloodLevelProgression3D.Unlocked(Mode,Difficulty,level)) return;
+            if (owner.WouldRestartSavedLevel(Mode,Difficulty,level))
+            {
+                if (restartPrompt == null) { Debug.LogError("Install the level restart confirmation UI before restarting a saved level.", this); return; }
+                pendingMode = Mode; pendingDifficulty = Difficulty; pendingLevel = level;
+                if (navigationContent != null) { navigationContent.interactable = false; navigationContent.blocksRaycasts = false; }
+                restartPrompt.SetActive(true); restartPrompt.transform.SetAsLastSibling();
+                FloodAudioSignals.Popup(true);
+                if (restartCard != null) { restartCard.DOKill(); restartCard.localScale = Vector3.one * .96f; restartCard.DOScale(1,.18f).SetUpdate(true); }
+                EventSystem.current?.SetSelectedGameObject(restartBack.gameObject);
+                return;
+            }
             owner.StartSelectedLevel(Mode,Difficulty,level);
         }
+        private void ConfirmRestart()
+        {
+            if (pendingLevel == 0) return;
+            int mode = pendingMode, difficulty = pendingDifficulty, level = pendingLevel;
+            CloseRestartPrompt();
+            owner.StartSelectedLevel(mode,difficulty,level);
+        }
+        private void CloseRestartPrompt()
+        {
+            bool wasOpen = restartPrompt != null && restartPrompt.activeSelf;
+            pendingLevel = 0;
+            if (restartPrompt != null) restartPrompt.SetActive(false);
+            if (navigationContent != null) { navigationContent.interactable = true; navigationContent.blocksRaycasts = true; }
+            if (restartCard != null) { restartCard.DOKill(); restartCard.localScale = Vector3.one; }
+            if (wasOpen) FloodAudioSignals.Popup(false);
+            EventSystem.current?.SetSelectedGameObject(null);
+        }
+        private void OnDisable() => CloseRestartPrompt();
         public void Refresh()
         {
             for (int i=0;i<3;i++) modeBackgrounds[i].sprite = i==Mode ? tabSelected : tabNormal;

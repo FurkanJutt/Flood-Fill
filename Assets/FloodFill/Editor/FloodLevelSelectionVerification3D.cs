@@ -40,6 +40,71 @@ namespace FloodFill.EditorTools
             deadline=EditorApplication.timeSinceStartup+600;
             EditorApplication.update+=Tick;EditorApplication.EnterPlaymode();
         }
+        private static string savedBeforePrompt, initialBoard;
+        public static void BeginRestartConfirmationBatch()
+        {
+            if(!Application.isBatchMode || !Application.dataPath.Contains("/tmp/"))throw new Exception("Use isolated /tmp copy");
+            PlayerSettings.companyName="FloodRestartConfirmationVerification";PlayerSettings.productName="FloodRestartConfirmationVerification";
+            PlayerPrefs.DeleteAll();FloodFillSessionPersistence3D.Delete();
+            FloodLevelSelectionSetup3D.InstallRestartConfirmation();
+            FloodLevelSelectionSetup3D.InstallRestartConfirmation();
+            EditorSceneManager.OpenScene("Assets/FloodFill/Scenes/FloodFill3DDemo.unity");
+            stage=0;checks=0;deadline=EditorApplication.timeSinceStartup+120;
+            EditorApplication.update+=TickRestartConfirmation;EditorApplication.EnterPlaymode();
+        }
+        private static void MakeOneMove()
+        {
+            manager.SelectColor((manager.CurrentPlayerColor+1)%6);
+            typeof(FloodFillGameManager3D).GetMethod("HandleVoxelClicked",Flags).Invoke(manager,new object[]{manager.BoardManager.StartingVoxel});
+        }
+        private static void TickRestartConfirmation()
+        {
+            try
+            {
+                if(!EditorApplication.isPlaying)return;
+                if(EditorApplication.timeSinceStartup>deadline)throw new Exception("Restart confirmation verification timed out at stage "+stage);
+                ui=UnityEngine.Object.FindAnyObjectByType<FloodFillMobileUI3D>();manager=UnityEngine.Object.FindAnyObjectByType<FloodFillGameManager3D>();
+                if(ui==null||!ui.IsBuilt)return;
+                levels=ui.GetComponentInChildren<FloodLevelSelection3D>(true);
+                if(stage==0){Check(!ui.WouldRestartSavedLevel(2,0,1),"Fresh game needs no confirmation");ui.StartSelectedLevel(2,0,1);stage=1;return;}
+                if(stage==1)
+                {
+                    if(!manager.CanInteract)return;
+                    manager.BoardManager.TryCapturePersistentState(out var board);initialBoard=JsonUtility.ToJson(board);
+                    MakeOneMove();Check(manager.MoveCount==1,"In-progress level has a real move");
+                    ui.ExecuteAuthoredAction(FloodFillUIAction.ReturnToMenu,0);Check(manager.HasSavedSession,"Continue available");
+                    savedBeforePrompt=File.ReadAllText(FloodFillSessionPersistence3D.SavePath);
+                    ui.ExecuteAuthoredAction(FloodFillUIAction.Play,0);levels.Select(2,0);
+                    Check(ui.WouldRestartSavedLevel(2,0,1),"Saved identity matches");
+                    Check(!ui.WouldRestartSavedLevel(1,0,1)&&!ui.WouldRestartSavedLevel(2,1,1)&&!ui.WouldRestartSavedLevel(2,0,2),"Mode difficulty and level compared independently");
+                    levels.StartLevel(2);Check(!levels.restartPrompt.activeSelf&&!manager.IsLoading,"Locked tile does not open prompt or start");
+                    levels.StartLevel(1);Check(levels.restartPrompt.activeSelf&&!manager.IsLoading,"Saved tile opens confirmation before restarting");
+                    Check(!levels.navigationContent.interactable&&!levels.navigationContent.blocksRaycasts,"Background controls blocked");
+                    levels.StartLevel(1);Check(manager.MoveCount==1,"Repeated tile click does not restart");
+                    Check(File.ReadAllText(FloodFillSessionPersistence3D.SavePath)==savedBeforePrompt,"Opening prompt preserves save");
+                    Capture(876,1796,"RestartConfirmation.png");Capture(750,1334,"RestartConfirmation-Small.png");
+                    levels.restartBack.onClick.Invoke();Check(!levels.restartPrompt.activeSelf&&levels.navigationContent.interactable,"Back dismisses and restores navigation");
+                    Check(manager.HasSavedSession&&manager.MoveCount==1&&File.ReadAllText(FloodFillSessionPersistence3D.SavePath)==savedBeforePrompt,"Back preserves Continue and progress");
+                    levels.StartLevel(1);levels.restartContinue.onClick.Invoke();
+                    Check(!levels.restartPrompt.activeSelf&&manager.IsLoading,"Continue confirms restart once");
+                    stage=2;return;
+                }
+                if(stage==2)
+                {
+                    if(!manager.CanInteract)return;
+                    manager.BoardManager.TryCapturePersistentState(out var board);
+                    Check(manager.NumberedLevel==1&&manager.NumberedMode==2&&manager.MoveCount==0&&JsonUtility.ToJson(board)==initialBoard,"Confirmed restart resets same deterministic level");
+                    MakeOneMove();ui.ExecuteAuthoredAction(FloodFillUIAction.ReturnToMenu,0);ui.ExecuteAuthoredAction(FloodFillUIAction.Continue,0);
+                    Check(manager.MoveCount==1&&!levels.restartPrompt.activeSelf,"Main menu Continue resumes without confirmation");
+                    ui.ExecuteAuthoredAction(FloodFillUIAction.ReturnToMenu,0);ui.ExecuteAuthoredAction(FloodFillUIAction.Play,0);
+                    levels.Select(2,1);levels.StartLevel(1);
+                    Check(!levels.restartPrompt.activeSelf&&manager.IsLoading&&(int)manager.SelectedDifficulty==1,"Different difficulty starts without matching-save prompt");
+                    File.WriteAllText("/tmp/FloodRestartConfirmationVerification.txt",checks+" checks passed: real in-progress save, matching identity, locked tiles, modal input blocking, unchanged save on Back, confirmed deterministic restart, normal Continue resume, category isolation, repeatable installation and two portrait renders.\n");
+                    EditorApplication.Exit(0);
+                }
+            }
+            catch(Exception e){Debug.LogException(e);File.WriteAllText("/tmp/FloodRestartConfirmationVerification.txt",e.ToString());EditorApplication.Exit(1);}
+        }
         public static void BeginResultBatch()
         {
             if(!Application.isBatchMode || !Application.dataPath.Contains("/tmp/"))throw new Exception("Use isolated /tmp copy");
@@ -232,7 +297,7 @@ namespace FloodFill.EditorTools
             var go=new GameObject("Verification camera",typeof(Camera));var camera=go.GetComponent<Camera>();camera.cullingMask=1<<5;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.005f,.018f,.045f);
             var rt=new RenderTexture(width,height,24);camera.targetTexture=rt;canvas.renderMode=RenderMode.ScreenSpaceCamera;canvas.worldCamera=camera;canvas.planeDistance=1;
             Canvas.ForceUpdateCanvases();
-            var fit=ui.EditorScreens.First(screen=>screen.activeSelf).GetComponentInChildren<FloodFillUIFit3D>(true);fit.SendMessage("LateUpdate");Canvas.ForceUpdateCanvases();camera.Render();
+            var fits=ui.EditorScreens.First(screen=>screen.activeSelf).GetComponentsInChildren<FloodFillUIFit3D>(true);foreach(var item in fits)item.SendMessage("LateUpdate");var fit=fits[0];Canvas.ForceUpdateCanvases();camera.Render();
             RenderTexture.active=rt;var texture=new Texture2D(width,height,TextureFormat.RGB24,false);texture.ReadPixels(new Rect(0,0,width,height),0,0);texture.Apply();File.WriteAllBytes("/tmp/"+name,texture.EncodeToPNG());
             var rect=fit.GetComponent<RectTransform>();var corners=new Vector3[4];rect.GetWorldCorners(corners);
             foreach(var corner in corners){var p=camera.WorldToViewportPoint(corner);Check(p.x>=-.01f&&p.x<=1.01f&&p.y>=-.01f&&p.y<=1.01f,"Portrait content fits");}

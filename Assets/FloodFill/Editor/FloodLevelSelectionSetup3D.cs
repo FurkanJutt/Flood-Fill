@@ -118,6 +118,7 @@ namespace FloodFill.EditorTools
                 c.next=Button("NextButton",pagination,S(2),248,0,84,76);Img("NextIcon",c.next.transform,S(15),0,0,23,36);
                 c.dots=new Button[4];c.dotImages=new Image[4];c.dotNormal=S(9);c.dotSelected=S(10);
                 for(int i=0;i<4;i++){var b=Button("Page"+(i+1),pagination,S(9),(i-1.5f)*40,0,40,56);b.image.sprite=null;b.image.color=Color.clear;var dot=Img("Dot",b.transform,S(9),0,0,22,22);c.dots[i]=b;c.dotImages[i]=dot;}
+                BuildRestartConfirmation(c);
                 panel.gameObject.SetActive(false);
                 PrefabUtility.SaveAsPrefabAssetAndConnect(panel.gameObject,Folder+"LevelSelectionPanel.prefab",InteractionMode.AutomatedAction);
                 serialized.Update();serialized.FindProperty("levelSelection").objectReferenceValue=c;serialized.ApplyModifiedPropertiesWithoutUndo();
@@ -126,6 +127,40 @@ namespace FloodFill.EditorTools
             finally{PrefabUtility.UnloadPrefabContents(canvas);}
             AddResultControls();AssetDatabase.SaveAssets();
             Debug.Log("Level selection installed: authored panel, reusable tile, rules and PLAY integration.");
+        }
+        [MenuItem("Tools/Flood Fill/UI/Install Saved Level Restart Confirmation")]
+        public static void InstallRestartConfirmation()
+        {
+            var root=PrefabUtility.LoadPrefabContents(Folder+"LevelSelectionPanel.prefab");
+            try
+            {
+                skin=Resources.Load<FloodUISkin>("FloodUISkin");font=root.GetComponentInChildren<TMP_Text>(true).font;
+                BuildRestartConfirmation(root.GetComponent<FloodLevelSelection3D>());
+                root.GetComponent<FloodLevelSelection3D>().restartCard.GetComponent<Image>().sprite=skin.Find("ResultPanel");
+                PrefabUtility.SaveAsPrefabAsset(root,Folder+"LevelSelectionPanel.prefab");
+            }
+            finally{PrefabUtility.UnloadPrefabContents(root);}
+            AssetDatabase.SaveAssets();
+        }
+        private static void BuildRestartConfirmation(FloodLevelSelection3D controller)
+        {
+            if(controller.restartPrompt!=null)return;
+            var content=controller.transform.Find("Content");
+            controller.navigationContent=content.GetComponent<CanvasGroup>();
+            if(controller.navigationContent==null)controller.navigationContent=content.gameObject.AddComponent<CanvasGroup>();
+            var overlay=Rect("RestartConfirmation",controller.transform,0,0,0,0);
+            overlay.anchorMin=Vector2.zero;overlay.anchorMax=Vector2.one;overlay.offsetMin=overlay.offsetMax=Vector2.zero;
+            var shade=overlay.gameObject.AddComponent<Image>();shade.color=new Color(0,.006f,.02f,.86f);shade.raycastTarget=true;
+            var frame=Rect("Content",overlay,0,0,876,1796);frame.gameObject.AddComponent<FloodFillUIFit3D>();
+            var card=Img("Card",frame,skin.Find("ResultPanel"),0,0,710,430);card.type=Image.Type.Sliced;
+            Text("Title",card.transform,"RESTART LEVEL?",36,0,130,650,65);
+            var message=Text("Message",card.transform,"This will restart the level.\nAre you sure you want to continue?",28,0,25,620,140);message.fontStyle=FontStyles.Normal;
+            controller.restartContinue=Button("Continue",card.transform,skin.Find("Primary"),-153,-125,280,82);
+            Text("Label",controller.restartContinue.transform,"CONTINUE",28,0,0,260,70);
+            controller.restartBack=Button("Back",card.transform,skin.Find("Secondary"),153,-125,280,82);
+            Text("Label",controller.restartBack.transform,"BACK",28,0,0,260,70);
+            controller.restartPrompt=overlay.gameObject;controller.restartCard=card.rectTransform;
+            overlay.gameObject.SetActive(false);
         }
         [MenuItem("Tools/Flood Fill/UI/Repair Result Screen Layout")]
         public static void RepairResultLayout()

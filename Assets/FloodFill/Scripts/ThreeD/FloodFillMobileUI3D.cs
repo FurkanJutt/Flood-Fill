@@ -536,6 +536,11 @@ namespace FloodFill.ThreeD
             if (manager.NumberedLevel > 0) levelSelection.Open(manager.NumberedMode, (int)manager.SelectedDifficulty);
         }
         public void LevelSelectionHome() { started = false; Show(menu); }
+        public bool WouldRestartSavedLevel(int mode, int difficulty, int level)
+        {
+            return manager != null && manager.HasSavedSession && manager.NumberedLevel == level &&
+                manager.NumberedMode == mode && (int)manager.SelectedDifficulty == difficulty;
+        }
         public void StartSelectedLevel(int mode, int difficulty, int level)
         {
             started = true;

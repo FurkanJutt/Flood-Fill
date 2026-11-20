@@ -1,0 +1,1 @@
+24 checks passed: real in-progress save, matching identity, locked tiles, modal input blocking, unchanged save on Back, confirmed deterministic restart, normal Continue resume, category isolation, repeatable installation and two portrait renders.
