@@ -17,6 +17,7 @@ namespace FloodFill.Development.AutoSolver
         private static int stage,checks;
         private static double deadline,readyAt;
         private static string original;
+        private static int stoppedMoves;
         private static void Set(string field,object value)=>typeof(AutoSolverWindow).GetField(field,Flags).SetValue(window,value);
         private static T Get<T>(string field)=>(T)typeof(AutoSolverWindow).GetField(field,Flags).GetValue(window);
         private static void Call(string method)=>typeof(AutoSolverWindow).GetMethod(method,Flags).Invoke(window,null);
@@ -59,7 +60,15 @@ namespace FloodFill.Development.AutoSolver
                     if(EditorApplication.timeSinceStartup<readyAt)return;
                     Check(Get<object>("searchTask")==null&&!Get<AutoSolverPlaybackController>("playback").IsPlaying&&manager.MoveCount==0,"Auto Start off leaves board untouched");
                     manager.BoardManager.TryCapturePersistentState(out var board);Check(JsonUtility.ToJson(board)==original,"Restart regenerates identical board");
-                    Set("autoStartSolver",true);stage=3;readyAt=0;return;
+                    Set("autoStartSolver",true);stage=20;readyAt=EditorApplication.timeSinceStartup+1;return;
+                }
+                if(stage==20)
+                {
+                    if(EditorApplication.timeSinceStartup<readyAt)return;
+                    Check(Get<object>("searchTask")==null&&!Get<AutoSolverPlaybackController>("playback").IsPlaying&&manager.MoveCount==0,"Checking Auto Start alone does not solve");
+                    Check(!Get<bool>("solverSessionStarted"),"Checkbox does not arm the run");
+                    Call("StartAutoSolve");Check(Get<bool>("solverSessionStarted"),"Start button arms the run");
+                    stage=3;readyAt=0;return;
                 }
                 if(stage==3)
                 {
@@ -83,16 +92,20 @@ namespace FloodFill.Development.AutoSolver
                     if(manager.NumberedLevel<3)return;
                     Check(manager.NumberedLevel==3&&manager.NumberedMode==2,"Auto Next advances exactly once in category");
                     Check(FloodLevelProgression3D.Get(2,0,2).completed,"Second win saves progression");
-                    Set("autoNextLevel",false);Set("autoStartSolver",false);Call("CancelSearch");Get<AutoSolverPlaybackController>("playback").Stop();
-                    stage=6;return;
+                    Call("StopAutoSolve");
+                    Check(!Get<bool>("solverSessionStarted")&&Get<bool>("autoStartSolver")&&Get<bool>("autoNextLevel"),"Stop disarms run and preserves checkbox preferences");
+                    stage=6;readyAt=0;return;
                 }
                 if(stage==6)
                 {
                     if(!manager.CanInteract)return;
+                    if(readyAt==0){stoppedMoves=manager.MoveCount;readyAt=EditorApplication.timeSinceStartup+1;}
+                    if(EditorApplication.timeSinceStartup<readyAt)return;
+                    Check(Get<object>("searchTask")==null&&!Get<AutoSolverPlaybackController>("playback").IsPlaying&&manager.MoveCount==stoppedMoves,"Stop prevents automatic solving of the next loaded board");
                     typeof(FloodFillGameManager3D).GetField("<NumberedLevel>k__BackingField",Flags).SetValue(manager,100);
                     typeof(FloodFillGameManager3D).GetField("<State>k__BackingField",Flags).SetValue(manager,FloodFillGameManager3D.GameState.Won);
                     Check(!AutoSolverAdapter.FindActive().CanStartNextLevel,"Next disabled at level 100");
-                    Set("autoNextLevel",true);Call("TickAutomation");Check(manager.NumberedLevel==100,"Auto Next never requests 101");
+                    Set("solverSessionStarted",true);Set("autoNextLevel",true);Call("TickAutomation");Check(manager.NumberedLevel==100,"Auto Next never requests 101");
                     ui.LevelSelectionHome();manager.ReturnToMenu();Set("autoStartSolver",true);
                     readyAt=EditorApplication.timeSinceStartup+1;stage=7;return;
                 }
@@ -101,7 +114,7 @@ namespace FloodFill.Development.AutoSolver
                     if(EditorApplication.timeSinceStartup<readyAt)return;
                     Check(Get<object>("searchTask")==null&&!Get<AutoSolverPlaybackController>("playback").IsPlaying,"Automation stays idle with menu board hidden");
                     UnityEngine.Object.DestroyImmediate(window);window=null;
-                    File.WriteAllText("/tmp/FloodAutoSolverWorkflowVerification.txt",checks+" checks passed: deterministic numbered restart, manual Next, independent automation toggles, actual solver wins on successive Items levels, saved progression, level 100 boundary, and hidden-menu guard.\n");
+                    File.WriteAllText("/tmp/FloodAutoSolverWorkflowVerification.txt",checks+" checks passed: deterministic numbered restart, manual Next, checkbox idle until Start, Stop disarms continuation, independent automation toggles, actual solver wins on successive Items levels, saved progression, level 100 boundary, and hidden-menu guard.\n");
                     EditorApplication.Exit(0);
                 }
             }
