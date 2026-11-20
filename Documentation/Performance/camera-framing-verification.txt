@@ -1,0 +1,1 @@
+PASS: 129124 camera checks across 7 board sizes and 4 aspect ratios. Initial board widths match across sizes; portrait width is about 80%. Minimum orbit edge margin: 3.09 %. Near-plane safety, outside-board zoom clamp and reset framing passed.

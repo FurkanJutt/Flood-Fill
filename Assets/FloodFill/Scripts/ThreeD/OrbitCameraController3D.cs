@@ -31,7 +31,8 @@ namespace FloodFill.ThreeD
         [SerializeField] private float maximumPitch = 75f;
         [SerializeField, Min(0.1f)] private float minimumDistance = 4f;
         [SerializeField, Min(0.1f)] private float maximumDistance = 30f;
-        [SerializeField, Min(1f)] private float framePadding = 1.22f;
+        [Tooltip("Proportional framing padding for every board size. Keeps a small edge margin while orbiting.")]
+        [SerializeField, Min(1f)] private float framePadding = 1.05f;
         [SerializeField, Min(0f)] private float boardSurfaceClearance = 0.75f;
 
         [Header("Double Tap View Reset")]
