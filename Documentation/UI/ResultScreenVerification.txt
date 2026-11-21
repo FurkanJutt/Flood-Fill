@@ -1,1 +1,1 @@
-54 checks passed: win, loss, win again; labels, replay visibility, nonoverlapping actions within card, four portrait renders, repeatable prefab repair.
+123 checks passed: normal win/loss, level 100 win/loss, and return to a normal win; no duplicate Levels action, no empty button slots, equal visible-body gaps using actual Canvas overrides, correct labels, card bounds, portrait renders.

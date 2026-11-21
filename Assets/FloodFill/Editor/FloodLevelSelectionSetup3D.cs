@@ -125,7 +125,7 @@ namespace FloodFill.EditorTools
                 PrefabUtility.SaveAsPrefabAsset(canvas,FloodFillUIPrefabSetup.CanvasPath);
             }
             finally{PrefabUtility.UnloadPrefabContents(canvas);}
-            AddResultControls();AssetDatabase.SaveAssets();
+            AddResultControls();RepairResultButtonSpacing();AssetDatabase.SaveAssets();
             Debug.Log("Level selection installed: authored panel, reusable tile, rules and PLAY integration.");
         }
         [MenuItem("Tools/Flood Fill/UI/Install Saved Level Restart Confirmation")]
@@ -162,11 +162,65 @@ namespace FloodFill.EditorTools
             controller.restartPrompt=overlay.gameObject;controller.restartCard=card.rectTransform;
             overlay.gameObject.SetActive(false);
         }
+        [MenuItem("Tools/Flood Fill/UI/Repair Result Button Spacing")]
+        public static void RepairResultButtonSpacing()
+        {
+            string path=Folder+"GameResults.prefab";
+            var root=PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                var actions=root.transform.Find("Content/ResultActions") as RectTransform;
+                foreach(var binding in root.GetComponentsInChildren<FloodFillUIAction3D>(true))
+                {
+                    var button=binding.GetComponent<RectTransform>();
+                    if(button==null||!button.IsChildOf(actions))continue;
+                    RectTransform row=button.parent==actions?null:button.parent as RectTransform;
+                    float preferred=LayoutUtility.GetPreferredHeight(button);
+                    if(row==null)
+                    {
+                        row=Rect(binding.action+"Slot",actions,0,0,580,Mathf.Max(1,preferred));
+                        row.SetSiblingIndex(button.GetSiblingIndex());button.SetParent(row,false);
+                        if(preferred>0)button.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,preferred);
+                    }
+                    var element=row.GetComponent<LayoutElement>();if(element==null)element=row.gameObject.AddComponent<LayoutElement>();
+                    element.preferredWidth=element.minWidth=580;element.flexibleWidth=0;
+                    var slot=row.GetComponent<FloodFillResultButtonSlot3D>();if(slot==null)slot=row.gameObject.AddComponent<FloodFillResultButtonSlot3D>();
+                    slot.buttonImage=binding.GetComponent<Image>();slot.measuredSprite=slot.buttonImage.sprite;
+                    slot.bodyPixelY=MeasureBodyY(slot.measuredSprite);slot.Refresh();
+                }
+                LayoutRebuilder.ForceRebuildLayoutImmediate(actions);
+                PrefabUtility.SaveAsPrefabAsset(root,path);
+            }
+            finally{PrefabUtility.UnloadPrefabContents(root);}
+            AssetDatabase.SaveAssets();
+        }
+        private static Vector2 MeasureBodyY(Sprite sprite)
+        {
+            Texture2D texture=sprite.texture;var previous=RenderTexture.active;
+            var target=RenderTexture.GetTemporary(texture.width,texture.height,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);
+            Texture2D readable=null;
+            try
+            {
+                Graphics.Blit(texture,target);RenderTexture.active=target;
+                readable=new Texture2D(texture.width,texture.height,TextureFormat.RGBA32,false,true);
+                readable.ReadPixels(new Rect(0,0,texture.width,texture.height),0,0);readable.Apply();
+                var pixels=readable.GetPixels32();Rect rect=sprite.rect;
+                int bottom=(int)rect.yMax,top=(int)rect.yMin;
+                for(int y=(int)rect.yMin;y<(int)rect.yMax;y++)for(int x=(int)rect.xMin;x<(int)rect.xMax;x++)
+                    if(pixels[y*texture.width+x].a>=230){bottom=Mathf.Min(bottom,y);top=Mathf.Max(top,y+1);}
+                return top>bottom?new Vector2(bottom-rect.yMin,top-rect.yMin):new Vector2(0,rect.height);
+            }
+            finally
+            {
+                RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);
+                if(readable!=null)UnityEngine.Object.DestroyImmediate(readable);
+            }
+        }
         [MenuItem("Tools/Flood Fill/UI/Repair Result Screen Layout")]
         public static void RepairResultLayout()
         {
             skin=Resources.Load<FloodUISkin>("FloodUISkin");
-            AddResultControls();AssetDatabase.SaveAssets();
+            AddResultControls();RepairResultButtonSpacing();AssetDatabase.SaveAssets();
         }
         private static void AddResultControls()
         {
@@ -193,7 +247,10 @@ namespace FloodFill.EditorTools
                 for(int i=0;i<order.Length;i++)
                 {
                     var binding=bindings.Single(value=>value.action==order[i]);
-                    var button=binding.GetComponent<RectTransform>();button.SetParent(actions,false);button.SetAsLastSibling();
+                    var button=binding.GetComponent<RectTransform>();
+                    var existingSlot=binding.GetComponentInParent<FloodFillResultButtonSlot3D>(true);
+                    if(existingSlot!=null){existingSlot.transform.SetParent(actions,false);existingSlot.transform.SetAsLastSibling();}
+                    else {button.SetParent(actions,false);button.SetAsLastSibling();}
                     button.anchorMin=button.anchorMax=new Vector2(.5f,.5f);button.pivot=new Vector2(.5f,.5f);button.localScale=Vector3.one;
                     var element=button.GetComponent<LayoutElement>();if(element==null)element=button.gameObject.AddComponent<LayoutElement>();
                     element.minWidth=element.preferredWidth=580;element.minHeight=element.preferredHeight=i==0?100:84;element.flexibleHeight=element.flexibleWidth=0;

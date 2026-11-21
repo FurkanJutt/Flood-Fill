@@ -639,14 +639,21 @@ namespace FloodFill.ThreeD
             if (manager.State == FloodFillGameManager3D.GameState.Won || manager.State == FloodFillGameManager3D.GameState.Lost)
             {
                 bool won = manager.State == FloodFillGameManager3D.GameState.Won;
-                // PLAY AGAIN already replays a lost level; the separate replay action belongs to wins.
+                bool categoryComplete = won && manager.NumberedLevel == FloodLevelProgression3D.LevelsPerCategory;
+                // Inactive controls are removed from the ResultActions vertical layout.
                 foreach (var action in results.GetComponentsInChildren<FloodFillUIAction3D>(true))
-                    if (action.action == FloodFillUIAction.Restart) action.gameObject.SetActive(won);
+                {
+                    if (action.action != FloodFillUIAction.Restart && action.action != FloodFillUIAction.Levels) continue;
+                    bool visible = action.action == FloodFillUIAction.Restart ? won : !categoryComplete;
+                    var slot = action.GetComponentInParent<FloodFillResultButtonSlot3D>(true);
+                    if (slot != null) slot.SetVisible(visible);
+                    else action.gameObject.SetActive(visible);
+                }
                 if (victoryCrown != null) victoryCrown.SetActive(won);
                 resultTitle.text = won ? "YOU WIN!" : "OUT OF MOVES";
                 if (resultActionLabel != null)
                 {
-                    resultActionLabel.text = won ? (manager.NumberedLevel == 100 ? "LEVELS" : "NEXT LEVEL") : "PLAY AGAIN";
+                    resultActionLabel.text = won ? (categoryComplete ? "LEVELS" : "NEXT LEVEL") : "PLAY AGAIN";
                     Transform icon = resultActionLabel.transform.parent.Find("Icon");
                     if (icon != null) icon.GetComponent<FloodFillUIState3D>()?.Apply(won);
                 }

@@ -109,9 +109,9 @@ namespace FloodFill.EditorTools
         {
             if(!Application.isBatchMode || !Application.dataPath.Contains("/tmp/"))throw new Exception("Use isolated /tmp copy");
             PlayerSettings.companyName="FloodResultVerification";PlayerSettings.productName="FloodResultVerification";
-            FloodLevelSelectionSetup3D.RepairResultLayout();
-            // Running the repair twice must not duplicate controls or listeners.
-            FloodLevelSelectionSetup3D.RepairResultLayout();
+            // Preserve the real Canvas overrides, wrappers, fonts and authored button graphics.
+            FloodLevelSelectionSetup3D.RepairResultButtonSpacing();
+            FloodLevelSelectionSetup3D.RepairResultButtonSpacing();
             EditorSceneManager.OpenScene("Assets/FloodFill/Scenes/FloodFill3DDemo.unity");
             stage=0;checks=0;deadline=EditorApplication.timeSinceStartup+120;
             EditorApplication.update+=TickResult;EditorApplication.EnterPlaymode();
@@ -126,29 +126,46 @@ namespace FloodFill.EditorTools
                 if(ui==null||!ui.IsBuilt)return;
                 if(stage==0){ui.StartSelectedLevel(0,0,1);stage=1;return;}
                 if(manager.IsLoading||!manager.CanInteract&&stage==1)return;
-                bool won=stage!=2;
+                bool won=stage!=2&&stage!=5;
+                bool end=stage==4||stage==5;
+                typeof(FloodFillGameManager3D).GetField("<NumberedLevel>k__BackingField",Flags).SetValue(manager,end?100:1);
                 typeof(FloodFillGameManager3D).GetField("<State>k__BackingField",Flags).SetValue(manager,won?FloodFillGameManager3D.GameState.Won:FloodFillGameManager3D.GameState.Lost);
                 typeof(FloodFillMobileUI3D).GetMethod("Refresh",Flags).Invoke(ui,null);
                 var screen=ui.EditorScreens.Single(value=>value.name=="GameResults");
                 var actions=screen.transform.Find("Content/ResultActions").GetComponent<RectTransform>();
-                Canvas.ForceUpdateCanvases();LayoutRebuilder.ForceRebuildLayoutImmediate(actions);
+                Canvas.ForceUpdateCanvases();
+                var slots=actions.GetComponentsInChildren<FloodFillResultButtonSlot3D>(true);
+                foreach(var slot in slots)slot.Refresh();
+                LayoutRebuilder.ForceRebuildLayoutImmediate(actions);
                 var bindings=screen.GetComponentsInChildren<FloodFillUIAction3D>(true);
                 Check(bindings.Length==4,"Exactly four authored result actions");
                 Check(bindings.Single(b=>b.action==FloodFillUIAction.Restart).gameObject.activeSelf==won,"Separate replay appears only on wins");
                 var primary=bindings.Single(b=>b.action==FloodFillUIAction.Result);
-                Check(primary.GetComponentInChildren<TMP_Text>(true).text==(won?"NEXT LEVEL":"PLAY AGAIN"),"Primary result label");
-                var buttons=actions.GetComponentsInChildren<Button>(false);Check(buttons.Length==(won?4:3),"Correct visible action count");
+                Check(bindings.Single(b=>b.action==FloodFillUIAction.Levels).gameObject.activeSelf==!(won&&end),"Secondary Levels hidden only when primary offers Levels");
+                Check(primary.GetComponentInChildren<TMP_Text>(true).text==(won?(end?"LEVELS":"NEXT LEVEL"):"PLAY AGAIN"),"Primary result label");
+                var buttons=actions.GetComponentsInChildren<Button>(false);Check(buttons.Length==(won&&!end?4:3),"Correct visible action count");
+                Check(slots.Length==4&&actions.Cast<Transform>().Count(child=>child.gameObject.activeSelf)==buttons.Length,"Exactly one active layout slot per visible button");
                 var bounds=buttons.Select(b=>RectTransformUtility.CalculateRelativeRectTransformBounds(screen.transform,b.transform)).ToArray();
-                for(int i=0;i<bounds.Length;i++)for(int j=i+1;j<bounds.Length;j++)Check(!bounds[i].Intersects(bounds[j]),"Result buttons do not overlap");
+                var localBounds=buttons.Select(b=>BodyBounds(actions,b.GetComponentInParent<FloodFillResultButtonSlot3D>())).ToArray();
+                for(int i=0;i<localBounds.Length;i++)for(int j=i+1;j<localBounds.Length;j++)Check(!localBounds[i].Intersects(localBounds[j]),"Visible button bodies do not overlap");
+                for(int i=0;i<localBounds.Length-1;i++)Check(Mathf.Abs(localBounds[i].min.y-localBounds[i+1].max.y-actions.GetComponent<VerticalLayoutGroup>().spacing)<.1f,"Visible buttons close gaps using normal layout spacing");
                 var card=RectTransformUtility.CalculateRelativeRectTransformBounds(screen.transform,screen.transform.Find("Content/Card"));
                 foreach(var bound in bounds)Check(card.Contains(bound.min)&&card.Contains(bound.max),"Result action fits inside card");
                 var fps=(TMP_Text)typeof(FloodFillMobileUI3D).GetField("fpsLabel",Flags).GetValue(ui);if(fps!=null)fps.transform.parent.gameObject.SetActive(false);
                 if(stage<=2){Capture(876,1796,won?"Result-Win.png":"Result-Loss.png");Capture(750,1334,won?"Result-Win-Small.png":"Result-Loss-Small.png");}
-                if(stage++<3)return;
-                File.WriteAllText("/tmp/FloodResultVerification.txt",checks+" checks passed: win, loss, win again; labels, replay visibility, nonoverlapping actions within card, four portrait renders, repeatable prefab repair.\n");
+                if(stage==4){Capture(876,1796,"Result-Level100-Win.png");Capture(750,1334,"Result-Level100-Win-Small.png");}
+                if(stage++<6)return;
+                File.WriteAllText("/tmp/FloodResultVerification.txt",checks+" checks passed: normal win/loss, level 100 win/loss, and return to a normal win; no duplicate Levels action, no empty button slots, equal visible-body gaps using actual Canvas overrides, correct labels, card bounds, portrait renders.\n");
                 EditorApplication.Exit(0);
             }
             catch(Exception e){Debug.LogException(e);File.WriteAllText("/tmp/FloodResultVerification.txt",e.ToString());EditorApplication.Exit(1);}
+        }
+        private static Bounds BodyBounds(Transform relative,FloodFillResultButtonSlot3D slot)
+        {
+            var rect=slot.buttonImage.rectTransform;var y=slot.BodyLocalY;
+            var bottom=relative.InverseTransformPoint(rect.TransformPoint(new Vector3(0,y.x,0)));
+            var top=relative.InverseTransformPoint(rect.TransformPoint(new Vector3(0,y.y,0)));
+            return new Bounds((bottom+top)*.5f,new Vector3(1,top.y-bottom.y,0));
         }
         private static void RestartIdentity()
         {
