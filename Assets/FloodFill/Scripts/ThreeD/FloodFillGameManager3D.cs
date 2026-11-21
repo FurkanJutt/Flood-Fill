@@ -11,7 +11,7 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace FloodFill.ThreeD
 {
-    public sealed class FloodFillGameManager3D : MonoBehaviour
+    public sealed partial class FloodFillGameManager3D : MonoBehaviour
     {
         public enum GameState
         {
@@ -80,6 +80,7 @@ namespace FloodFill.ThreeD
         private sealed class SolverPreparation
         {
             public FloodFillSolverResult Result;
+            public Goals.SecondarySolutionTrace GoalTrace;
             public System.Exception Error;
             public int WorkerThreadId = Thread.CurrentThread.ManagedThreadId;
         }
@@ -319,7 +320,7 @@ namespace FloodFill.ThreeD
 
         public void SelectColor(int colorIndex)
         {
-            if (!CanInteract ||
+            if (Goals.FloodSecondaryGoalsUI3D.ConsumedPointerThisFrame || !CanInteract ||
                 colorIndex < 0 || colors == null || colorIndex >= colors.Length ||
                 colorIndex == SelectedColorIndex)
             {
@@ -327,6 +328,7 @@ namespace FloodFill.ThreeD
             }
 
             SelectedColorIndex = colorIndex;
+            SecondaryGoals?.SelectColor(colorIndex);
             FloodAudioSignals.SelectColor();
             RefreshUI();
             SaveSession();
@@ -347,6 +349,7 @@ namespace FloodFill.ThreeD
             }
 
             MoveCount++;
+            SecondaryGoals?.Move(MoveCount, boardManager.LastNewlyCapturedCount, boardManager.CapturedVoxelCount);
             AwardScore(boardManager.LastNewlyCapturedCount);
             RefreshUI();
             if (boardManager.IsFullyCaptured)
@@ -366,6 +369,7 @@ namespace FloodFill.ThreeD
         public void RestartGame()
         {
             elapsedTimerActive = false; ElapsedSeconds = 0;
+            ActiveLevelDefinition = null; SecondaryGoals = null; preparedGoalTrace = null;
             HasSavedSession = false; availableSession = null; failedToRestoreSession = false;
             CancelPendingSolver();
             solverGenerationId++;
@@ -399,6 +403,15 @@ namespace FloodFill.ThreeD
             // Let the loading screen render before any board setup or disk work.
             yield return null;
             FloodFillSessionPersistence3D.Delete();
+            if (NumberedLevel > 0)
+            {
+                if (FloodFillSessionPersistence3D.TryLoadLevel(NumberedMode,(int)difficulty,NumberedLevel,out var stored,out var error))
+                {
+                    if (!RestoreNumberedDefinition(stored)) { FailLoading("The saved level could not be reconstructed."); yield break; }
+                    yield return PresentPreparedLevel(generationId); yield break;
+                }
+                if (error != null) { FailLoading(error); yield break; }
+            }
             var watch = Stopwatch.StartNew();
             bool generated = false;
             yield return boardManager.GenerateBoardAsync(colors, value => generated = value);
@@ -421,8 +434,8 @@ namespace FloodFill.ThreeD
 
         private IEnumerator PresentPreparedLevel(int generationId)
         {
-            while (generationId == solverGenerationId && State == GameState.Calculating) yield return null;
-            if (generationId != solverGenerationId) yield break;
+            while (generationId == solverGenerationId && State == GameState.Calculating && string.IsNullOrEmpty(LoadingError)) yield return null;
+            if (generationId != solverGenerationId || !string.IsNullOrEmpty(LoadingError)) yield break;
             if (!boardManager.HasActiveBoard || !boardManager.TryGetWorldBounds(out _))
             {
                 HasSavedSession = false; availableSession = null;
@@ -835,11 +848,13 @@ namespace FloodFill.ThreeD
             solverCancellation = new CancellationTokenSource();
             CancellationToken token = solverCancellation.Token;
             MoveSolverSettings settingsCopy = CopySolverSettings(solverSettings);
-            Task<SolverPreparation> task = Task.Run(() => PrepareSolver(snapshot, settingsCopy, token), token);
+            int goalDifficulty = NumberedLevel > 0 ? (int)difficulty : -1;
+            int traceLimit = GoalSettings.validationMoveLimit;
+            Task<SolverPreparation> task = Task.Run(() => PrepareSolver(snapshot, settingsCopy, token, goalDifficulty, traceLimit), token);
             solverCoroutine = StartCoroutine(WaitForSolver(task, snapshot.VoxelCount, generationId, token));
         }
 
-        private static SolverPreparation PrepareSolver(FloodFillBoardSnapshot3D snapshot, MoveSolverSettings settings, CancellationToken token)
+        private static SolverPreparation PrepareSolver(FloodFillBoardSnapshot3D snapshot, MoveSolverSettings settings, CancellationToken token, int goalDifficulty, int traceLimit)
         {
             // Rapid restarts must not leave multiple searches competing for CPU/GC.
             SolverWorkerGate.Wait(token);
@@ -851,13 +866,13 @@ namespace FloodFill.ThreeD
                 {
                     // Normal play uses bounded runtime budgets, including development
                     // builds. Editor analysis tools retain their explicit larger budgets.
-                    return new SolverPreparation { Result = FloodFillMoveSolver3D.Solve(graph, settings, false, token) };
+                    return PrepareGoalTrace(graph, FloodFillMoveSolver3D.Solve(graph, settings, false, token), goalDifficulty, traceLimit, token);
                 }
                 catch (System.OperationCanceledException) { throw; }
                 catch (System.Exception)
                 {
                     token.ThrowIfCancellationRequested();
-                    return new SolverPreparation { Result = FloodFillMoveSolver3D.SolveGuaranteedFallback(graph, settings, token) };
+                    return PrepareGoalTrace(graph, FloodFillMoveSolver3D.SolveGuaranteedFallback(graph, settings, token), goalDifficulty, traceLimit, token);
                 }
             }
             catch (System.OperationCanceledException) { throw; }
@@ -882,6 +897,7 @@ namespace FloodFill.ThreeD
                 ApplyEmergencyMoveBudget(voxelCount);
                 yield break;
             }
+            preparedGoalTrace = task.Result.GoalTrace;
             solverWorkerThreadId = task.Result.WorkerThreadId;
             ApplySolverResult(task.Result.Result, generationId, true);
         }
@@ -900,6 +916,7 @@ namespace FloodFill.ThreeD
             LastSolverResult = result;
             CurrentMoveBudgetProfile = result.BudgetProfile;
             currentMoveBudget = CurrentMoveBudgetProfile.GetMoves(difficulty);
+            if (NumberedLevel > 0 && !PublishNumberedDefinition(result)) return;
             State = GameState.Playing;
             RefreshUI();
             SaveSession();
@@ -911,6 +928,7 @@ namespace FloodFill.ThreeD
 
         private void ApplyEmergencyMoveBudget(int logicalCount)
         {
+            if (NumberedLevel > 0) { FailLoading("Level search was inconclusive. No verified level was saved. Please retry."); return; }
             int guaranteedMoves = Mathf.Max(1, logicalCount - 1);
             CurrentMoveBudgetProfile = MoveBudgetCalculator3D.Calculate(
                 guaranteedMoves,
@@ -1032,9 +1050,15 @@ namespace FloodFill.ThreeD
             SetColorInputEnabled(false);
             if (state == GameState.Won)
             {
+                if (SecondaryGoals != null && NumberedLevel > 0)
+                {
+                    try { FloodLevelProgression3D.RecordSecondaryGoals(NumberedMode,(int)difficulty,NumberedLevel,SecondaryGoals.Goals,SecondaryGoals.Complete(true,MoveCount,CurrentPlayerColor,ElapsedSeconds),ElapsedSeconds); }
+                    catch (System.Exception error) { Debug.LogWarning("Secondary goal rewards could not be saved: " + error.Message); }
+                }
                 AdvanceCampaignAfterWin();
                 if (NumberedLevel > 0) FloodLevelProgression3D.Record(NumberedMode, (int)difficulty, NumberedLevel, MoveCount, FloodLevelProgression3D.Stars(MoveCount, currentMoveBudget));
             }
+            if (state == GameState.Lost) SecondaryGoals?.Complete(false,MoveCount,CurrentPlayerColor,ElapsedSeconds);
             SaveSession();
             if (resultCoroutine != null)
             {
@@ -1156,6 +1180,7 @@ namespace FloodFill.ThreeD
                 : GameState.Calculating;
             NumberedLevel = saved.numberedLevel >= 1 && saved.numberedLevel <= 100 && saved.numberedMode >= 0 && saved.numberedMode <= 2 ? saved.numberedLevel : 0;
             NumberedMode = saved.numberedMode;
+            RestoreSecondaryAttempt(saved);
             isCampaignGame = saved.isCampaignGame;
             activeCampaignLevel = saved.campaignLevel > 0
                 ? saved.campaignLevel
@@ -1237,6 +1262,7 @@ namespace FloodFill.ThreeD
                 campaignLevel = activeCampaignLevel,
                 moveCount = MoveCount,
                 elapsedSeconds = ElapsedSeconds,
+                secondaryGoalAttempt = SecondaryGoals?.Attempt,
                 score = Score,
                 currentMoveBudget = currentMoveBudget,
                 selectedColorIndex = SelectedColorIndex,

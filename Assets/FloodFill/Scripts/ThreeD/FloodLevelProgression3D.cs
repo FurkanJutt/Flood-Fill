@@ -8,7 +8,7 @@ namespace FloodFill.ThreeD
     {
         public const int LevelsPerCategory = 100, PageSize = 30, PageCount = 4;
         private const string Key = "FloodFill3D.LevelCatalog.v1";
-        [Serializable] public sealed class Result { public bool completed; public int stars; public int bestMoves; }
+        [Serializable] public sealed class Result { public bool completed; public int stars; public int bestMoves; public double bestCompletionSeconds; public bool hasCompletionTime; public string[] earnedGoalIds; }
         [Serializable] public sealed class Catalog { public int version = 1; public Result[] levels = new Result[1200]; }
         private static Catalog data;
         private static Catalog Data
@@ -46,6 +46,19 @@ namespace FloodFill.ThreeD
             result.completed = true; result.stars = Mathf.Max(result.stars, Mathf.Clamp(stars, 1, 3));
             Data.levels[index] = result;
             PlayerPrefs.SetString(Key, JsonUtility.ToJson(Data)); PlayerPrefs.Save();
+        }
+        public static event Action<int,int,int,string> SecondaryGoalEarned;
+        public static bool GoalEarned(int mode,int difficulty,int level,string id) => Array.IndexOf(Get(mode,difficulty,level).earnedGoalIds ?? Array.Empty<string>(),id)>=0;
+        public static int SecondaryStars(int mode,int difficulty,int level) => Get(mode,difficulty,level).earnedGoalIds?.Length ?? 0;
+        public static void RecordSecondaryGoals(int mode,int difficulty,int level,Goals.SecondaryGoalDefinition[] goals,bool[] earned,double seconds)
+        {
+            int index=Index(mode,difficulty,level);var result=Get(mode,difficulty,level);
+            var ids=new System.Collections.Generic.List<string>(result.earnedGoalIds ?? Array.Empty<string>());
+            var newlyEarned=new System.Collections.Generic.List<string>();
+            for(int i=0;i<goals.Length;i++)if(earned[i]&&!ids.Contains(goals[i].id)){ids.Add(goals[i].id);newlyEarned.Add(goals[i].id);}
+            result.earnedGoalIds=ids.ToArray();result.bestCompletionSeconds=result.hasCompletionTime?Math.Min(result.bestCompletionSeconds,seconds):seconds;result.hasCompletionTime=true;
+            Data.levels[index]=result;PlayerPrefs.SetString(Key,JsonUtility.ToJson(Data));PlayerPrefs.Save();
+            foreach(string id in newlyEarned)SecondaryGoalEarned?.Invoke(mode,difficulty,level,id);
         }
         public static int Stars(int moves, int budget)
         {

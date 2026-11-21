@@ -38,6 +38,8 @@ namespace FloodFill.ThreeD.Solver
             }
             return next;
         }
+        // Membership of the last counted component, for trace statistics without a second simulation.
+        public void CopyLastComponent(bool[] destination) => Array.Copy(seen, destination, seen.Length);
         public int CountComponent(byte[] state, int representative)
         {
             Array.Clear(seen, 0, seen.Length);

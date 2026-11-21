@@ -27,6 +27,7 @@ namespace FloodFill.ThreeD
         public MoveBudgetProfile moveBudgetProfile;
         public VoxelBoardSaveData3D board;
         public OrbitCameraSaveData3D camera;
+        public Goals.SecondaryGoalAttempt secondaryGoalAttempt;
     }
 
     [Serializable]
@@ -62,7 +63,7 @@ namespace FloodFill.ThreeD
         public float defaultDistance;
     }
 
-    public static class FloodFillSessionPersistence3D
+    public static partial class FloodFillSessionPersistence3D
     {
         private const string SaveFileName = "flood-fill-3d-session-v1.json";
 

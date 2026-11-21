@@ -1,0 +1,42 @@
+Unity 6000.5.8f1 — isolated /tmp/FloodLevelVerify, separate test save identity.
+
+1236 checks passed across all 12 mode/difficulty combinations on 6- and 20-wide boards.
+0/0/1: 152 voxels, 101 regions, 14/20 witness/budget, 3 goals, candidates 0.046 ms, graph + trace revalidation 0.273 ms, file 3242 bytes
+0/0/100: 2168 voxels, 1450 regions, 47/76 witness/budget, 3 goals, candidates 0.055 ms, graph + trace revalidation 3.499 ms, file 14230 bytes
+0/1/1: 152 voxels, 90 regions, 12/15 witness/budget, 3 goals, candidates 0.054 ms, graph + trace revalidation 0.179 ms, file 3230 bytes
+0/1/100: 2168 voxels, 1451 regions, 48/66 witness/budget, 3 goals, candidates 0.072 ms, graph + trace revalidation 3.563 ms, file 14224 bytes
+0/2/1: 152 voxels, 103 regions, 13/14 witness/budget, 3 goals, candidates 0.052 ms, graph + trace revalidation 0.190 ms, file 3229 bytes
+0/2/100: 2168 voxels, 1469 regions, 47/53 witness/budget, 3 goals, candidates 0.065 ms, graph + trace revalidation 3.486 ms, file 14216 bytes
+0/3/1: 152 voxels, 112 regions, 14/14 witness/budget, 3 goals, candidates 0.054 ms, graph + trace revalidation 0.218 ms, file 3238 bytes
+0/3/100: 2168 voxels, 1447 regions, 46/46 witness/budget, 3 goals, candidates 0.055 ms, graph + trace revalidation 3.415 ms, file 14210 bytes
+1/0/1: 116 voxels, 99 regions, 15/22 witness/budget, 3 goals, candidates 0.058 ms, graph + trace revalidation 0.165 ms, file 3053 bytes
+1/0/100: 1881 voxels, 1466 regions, 81/131 witness/budget, 3 goals, candidates 0.066 ms, graph + trace revalidation 3.308 ms, file 12806 bytes
+1/1/1: 108 voxels, 84 regions, 18/22 witness/budget, 3 goals, candidates 0.055 ms, graph + trace revalidation 0.156 ms, file 3017 bytes
+1/1/100: 1888 voxels, 1472 regions, 77/106 witness/budget, 3 goals, candidates 0.069 ms, graph + trace revalidation 3.537 ms, file 12904 bytes
+1/2/1: 108 voxels, 83 regions, 16/17 witness/budget, 3 goals, candidates 0.069 ms, graph + trace revalidation 0.164 ms, file 3009 bytes
+1/2/100: 1808 voxels, 1427 regions, 109/123 witness/budget, 3 goals, candidates 0.084 ms, graph + trace revalidation 3.854 ms, file 12495 bytes
+1/3/1: 84 voxels, 56 regions, 13/13 witness/budget, 2 goals, candidates 0.052 ms, graph + trace revalidation 0.121 ms, file 2724 bytes
+1/3/100: 1806 voxels, 1389 regions, 78/78 witness/budget, 3 goals, candidates 0.140 ms, graph + trace revalidation 3.371 ms, file 12407 bytes
+2/0/1: 48 voxels, 33 regions, 8/13 witness/budget, 3 goals, candidates 0.076 ms, graph + trace revalidation 0.078 ms, file 2639 bytes
+2/0/100: 240 voxels, 183 regions, 28/42 witness/budget, 3 goals, candidates 0.053 ms, graph + trace revalidation 0.350 ms, file 3791 bytes
+2/1/1: 48 voxels, 37 regions, 10/13 witness/budget, 3 goals, candidates 0.041 ms, graph + trace revalidation 0.079 ms, file 2636 bytes
+2/1/100: 240 voxels, 187 regions, 31/40 witness/budget, 3 goals, candidates 0.052 ms, graph + trace revalidation 0.351 ms, file 3773 bytes
+2/2/1: 48 voxels, 37 regions, 10/11 witness/budget, 3 goals, candidates 0.045 ms, graph + trace revalidation 0.084 ms, file 2644 bytes
+2/2/100: 240 voxels, 177 regions, 27/30 witness/budget, 3 goals, candidates 0.049 ms, graph + trace revalidation 0.336 ms, file 3767 bytes
+2/3/1: 48 voxels, 30 regions, 8/8 witness/budget, 3 goals, candidates 0.049 ms, graph + trace revalidation 0.083 ms, file 2643 bytes
+2/3/100: 240 voxels, 195 regions, 30/30 witness/budget, 3 goals, candidates 0.051 ms, graph + trace revalidation 0.339 ms, file 3758 bytes
+
+72 fresh-process checks passed.
+Phone and tablet rendering, safe-area bounds, authored trigger, expanded touch target, outside camera raycasts and dismissal click-through checks passed.
+
+Existing authored HUD verification: every original component ID and transform geometry is unchanged; the existing content transform only gains the GoalsUI child.
+
+Phone/tablet previews: SecondaryGoalsPhone.png and SecondaryGoalsTablet.png.
+
+Timing is desktop Editor measurement, not a mobile-device benchmark. Candidate generation uses the shared validated witness without additional solver searches. Native packaging, signing, device input and human Speed Run calibration require device playtesting.
+
+Android and iOS runtime player script compilation passed. Packaging, signing and device playtesting not performed.
+
+Measured candidate generation maximum: 0.140 ms. Graph + detailed trace revalidation maximum: 3.854 ms. Permanent definition files: 2,636–14,230 bytes across tested boards. These are desktop Editor measurements.
+
+Existing elapsed-time regression suite passed with goals integrated: HUD clock, unchanged capture bar, loading/pause/menu exclusion, restart reset, Continue timer persistence, real-time 4x playback, completion freeze and legacy checkpoints.
