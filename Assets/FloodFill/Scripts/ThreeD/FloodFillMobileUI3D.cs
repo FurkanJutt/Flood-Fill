@@ -619,7 +619,7 @@ namespace FloodFill.ThreeD
                     ? "LEVEL " + manager.ActiveCampaignLevel
                     : "FLOOD FILL 3D";
             moves.text = manager.State == FloodFillGameManager3D.GameState.Calculating ? "…" : manager.MoveCount + " / " + manager.CurrentMoveBudget;
-            captured.text = Mathf.RoundToInt(manager.CapturedPercentage) + "%";
+            captured.text = manager.BoardManager.DisplayedCapturedPercentage + "%";
             score.text = manager.Score.ToString("N0");
             progress.DOKill(); progress.DOFillAmount(manager.CapturedPercentage / 100f, .25f);
             for (int i = 0; i < colorButtons.Count; i++)
@@ -651,7 +651,8 @@ namespace FloodFill.ThreeD
                     if (icon != null) icon.GetComponent<FloodFillUIState3D>()?.Apply(won);
                 }
                 string levelDetails = manager.NumberedLevel > 0 ? "Level: " + manager.NumberedLevel + "\n" : manager.IsCampaignGame ? "Level: " + manager.ActiveCampaignLevel + "\n" : string.Empty;
-                resultDetails.text = levelDetails + "Final score: " + manager.Score.ToString("N0") + "\nMoves used: " + manager.MoveCount + "\nCaptured: " + Mathf.RoundToInt(manager.CapturedPercentage) + "%";
+                resultDetails.text = levelDetails + "Final score: " + manager.Score.ToString("N0") + "\nMoves used: " + manager.MoveCount + " / " + manager.CurrentMoveBudget + "\nCaptured: " + manager.BoardManager.CapturedVoxelCount + " / " + manager.BoardManager.TotalVoxelCount + " (" +
+                    (manager.BoardManager.IsFullyCaptured ? "100" : Mathf.Min(99.99f, manager.CapturedPercentage).ToString("0.##")) + "%)";
                 Show(results);
             }
             else if (started && results != null && results.activeSelf && (manager.State == FloodFillGameManager3D.GameState.Calculating || manager.State == FloodFillGameManager3D.GameState.Playing))

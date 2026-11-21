@@ -88,6 +88,7 @@ namespace FloodFill.Development.AutoSolver
         public bool SearchWasExhaustive;
         public bool ValidationPassed;
         public double CalculationMilliseconds;
+        public bool FitsMoveBudget => Conclusion == AutoSolverConclusion.Solved && ValidationPassed && Moves != null && Moves.Length <= RemainingMoveLimit;
         public string Message;
     }
 }

@@ -55,11 +55,14 @@ namespace FloodFill.Development.AutoSolver
         public bool IsAlive => Manager != null && Board != null && Manager.gameObject != null && Board.gameObject != null;
         public string GameState => ReadString(Manager, "State", "Unknown");
         public int MoveCount => ReadInt(Manager, "MoveCount", 0);
+        public int Score => ReadInt(Manager, "Score", 0);
         public int MoveLimit => ReadInt(Manager, "CurrentMoveBudget", 0);
         public int CurrentColor => ReadInt(Board, "CurrentPlayerColor", -1);
         public int SelectedColor => ReadInt(Manager, "SelectedColorIndex", -1);
         public int CapturedCount => ReadInt(Board, "CapturedVoxelCount", 0);
         public int TotalVoxelCount => ReadInt(Board, "TotalVoxelCount", 0);
+        public string CapturedPercentageLabel => TotalVoxelCount > 0 && CapturedCount == TotalVoxelCount
+            ? "100%" : Mathf.Min(99.99f, CapturedPercentage).ToString("0.##") + "%";
         public float CapturedPercentage => ReadFloat(Board, "CapturedPercentage", 0f);
         public Color[] Palette => GetField(Board, "palette") as Color[];
 
@@ -239,6 +242,26 @@ namespace FloodFill.Development.AutoSolver
             if (!IsAlive) return;
             MethodInfo setter = Board.GetType().GetMethod("SetInputEnabled", InstanceFlags, null, new[] { typeof(bool) }, null);
             setter?.Invoke(Board, new object[] { enabled });
+        }
+
+        public bool TryGetBudgetSolution(AutoSolverBoardSnapshot snapshot, AutoSolverGraph graph, out AutoSolverResult result)
+        {
+            result = null;
+            if (snapshot == null || snapshot.MoveCount != 0 || MoveCount != 0) return false;
+            var game = Manager as FloodFill.ThreeD.FloodFillGameManager3D;
+            var source = game != null ? game.LastSolverResult : null;
+            if (source == null || source.BestRegionSequence == null || source.BestColorSequence == null || source.BestRegionSequence.Length != source.BestColorSequence.Length || source.BestRegionSequence.Length > snapshot.RemainingMoves) return false;
+            var moves = new AutoSolverMove[source.BestRegionSequence.Length];
+            for (int i = 0; i < moves.Length; i++) moves[i] = new AutoSolverMove(source.BestRegionSequence[i],source.BestColorSequence[i]);
+            if (!AutoSolverSearch.TryValidate(graph, graph.RegionColors, moves, out var counts)) return false;
+            result = new AutoSolverResult
+            {
+                Conclusion = AutoSolverConclusion.Solved, ValidationPassed = true, Moves = moves, CapturedPerMove = counts,
+                RemainingMoveLimit = snapshot.RemainingMoves, CoreResult = source, IsProvenOptimal = source.IsProvenOptimal,
+                RegionCount = graph.RegionCount, PlayableVoxels = graph.TotalVoxels, ExploredStates = source.ExploredStates,
+                Message = "Using the independently validated solution that established this level's move budget."
+            };
+            return true;
         }
 
         public void RestartLevel()

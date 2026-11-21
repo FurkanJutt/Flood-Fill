@@ -11,6 +11,7 @@ namespace FloodFill.Development.AutoSolver
     public sealed class AutoSolverWindow : EditorWindow
     {
         private readonly AutoSolverPlaybackController playback = new AutoSolverPlaybackController();
+        private readonly AutoSolverSummaryRecorder summaryRecorder = new AutoSolverSummaryRecorder();
         private AutoSolverAdapter adapter;
         private AutoSolverBoardSnapshot boardSnapshot;
         private AutoSolverGraph graph;
@@ -66,6 +67,7 @@ namespace FloodFill.Development.AutoSolver
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
             SceneManager.activeSceneChanged -= OnActiveSceneChanged;
+            summaryRecorder.Observe(adapter); summaryRecorder.Finish("Window closed");
             solverSessionStarted = false;
             CancelSearch();
             playback.Stop("Auto Solver window closed. Playback stopped safely.");
@@ -76,6 +78,7 @@ namespace FloodFill.Development.AutoSolver
         {
             scroll = EditorGUILayout.BeginScrollView(scroll);
             DrawConnection();
+            if (GUILayout.Button("Solver Summary", GUILayout.Height(25f))) AutoSolverSummaryWindow.OpenWindow();
             if (!EditorApplication.isPlaying)
             {
                 EditorGUILayout.HelpBox("Enter Play Mode to use Auto Solver.", MessageType.Info);
@@ -188,6 +191,16 @@ namespace FloodFill.Development.AutoSolver
             beamWidth = EditorGUILayout.IntSlider("Beam Width", beamWidth, 4, 128);
         }
 
+        private string PlaybackProgressLabel
+        {
+            get
+            {
+                int total = solution != null && solution.Moves != null ? solution.Moves.Length : 0;
+                int played = solution != null && ReferenceEquals(playback.CurrentSolution, solution) ? playback.NextMoveIndex : 0;
+                return played + " / " + total;
+            }
+        }
+
         private void DrawLiveStatistics()
         {
             EditorGUILayout.Space(6f);
@@ -201,13 +214,11 @@ namespace FloodFill.Development.AutoSolver
             EditorGUILayout.LabelField("Solver Status", playback.IsPlaying
                 ? playback.IsPaused ? "AUTO SOLVER – PAUSED" : "AUTO SOLVER – PLAYING"
                 : playback.Status);
-            int totalMoves = playback.TotalMoves > 0 ? playback.TotalMoves : solution != null ? solution.Moves.Length : 0;
-            int move = playback.IsPlaying ? playback.NextMoveIndex : 0;
-            EditorGUILayout.LabelField("Current move", move + " / " + totalMoves);
+            EditorGUILayout.LabelField("Solver moves played", PlaybackProgressLabel);
             EditorGUILayout.LabelField("Captured cubes", adapter.CapturedCount + " / " + adapter.TotalVoxelCount);
             float captured = Mathf.Clamp01(adapter.CapturedPercentage / 100f);
             Rect progressRect = GUILayoutUtility.GetRect(1f, 18f, GUILayout.ExpandWidth(true));
-            EditorGUI.ProgressBar(progressRect, captured, "Captured: " + Mathf.RoundToInt(captured * 100f) + "%");
+            EditorGUI.ProgressBar(progressRect, captured, "Captured: " + adapter.CapturedPercentageLabel);
             EditorGUILayout.LabelField("Remaining moves", Mathf.Max(0, adapter.MoveLimit - adapter.MoveCount) + " / " + adapter.MoveLimit);
             EditorGUILayout.LabelField("Current selected color", DescribeColor(adapter.SelectedColor, adapter.Palette));
             EditorGUILayout.LabelField("Playback speed", SpeedName(playbackSpeed));
@@ -269,6 +280,7 @@ namespace FloodFill.Development.AutoSolver
 
         private void StopAutoSolve()
         {
+            summaryRecorder.Stop(adapter, "Stopped");
             solverSessionStarted = false;
             autoSolveGeneration = adapter != null ? adapter.Generation : -1;
             CancelSearch();
@@ -300,6 +312,7 @@ namespace FloodFill.Development.AutoSolver
                 return;
             }
 
+            if (autoPlay) summaryRecorder.Begin(adapter, boardSnapshot);
             solution = null;
             analysisReport = string.Empty;
             logAnalysisWhenReady = logAnalysis;
@@ -325,6 +338,8 @@ namespace FloodFill.Development.AutoSolver
             {
                 playback.Start(adapter, boardSnapshot, graph, solution, playbackSpeed, animationDuration,
                     enableCaptureAnimation, enableColorTransition, enableCubePop, oneStep, out string error);
+                if (playback.IsPlaying) summaryRecorder.EnsureRun(adapter, boardSnapshot, solution);
+                else if (!string.IsNullOrEmpty(error)) playback.Stop(error);
                 status = string.IsNullOrEmpty(error) ? playback.Status : error;
             }
             else if (oneStep)
@@ -352,6 +367,7 @@ namespace FloodFill.Development.AutoSolver
 
         private void RestartLevel()
         {
+            summaryRecorder.Observe(adapter); summaryRecorder.Finish("Restarted");
             CancelSearch();
             playback.Stop("Restarting through the game's own restart method.");
             if (adapter == null || !adapter.IsAlive) FindActiveGame();
@@ -373,6 +389,7 @@ namespace FloodFill.Development.AutoSolver
 
         private void StartNextLevel()
         {
+            summaryRecorder.Observe(adapter); summaryRecorder.Finish("Next level");
             CancelSearch();
             playback.Stop("Starting the next level in the current category.");
             if (adapter == null || !adapter.IsAlive) FindActiveGame();
@@ -401,6 +418,7 @@ namespace FloodFill.Development.AutoSolver
                 nextConnectionSearch = EditorApplication.timeSinceStartup + 0.5d;
             }
 
+            summaryRecorder.Observe(adapter);
             if (adapter != null && adapter.IsAlive && (observedManager != adapter.Manager || observedGeneration != adapter.Generation))
             {
                 bool hadBoard = observedGeneration >= 0;
@@ -434,7 +452,9 @@ namespace FloodFill.Development.AutoSolver
 
             if (searchTask != null && searchTask.IsCompleted) CompleteSearch();
             bool playbackWasRunning = playback.IsPlaying;
+            int previousMoveIndex = playback.NextMoveIndex;
             playback.Tick(EditorApplication.timeSinceStartup);
+            summaryRecorder.Observe(adapter, Math.Max(0, playback.NextMoveIndex - previousMoveIndex));
             TickAutomation();
             double repaintInterval = playback.IsPlaying || searchTask != null || waitingForRestart ? 0.08d : 0.15d;
             if (adapter != null && adapter.IsAlive && EditorApplication.timeSinceStartup - lastRepaintTime > repaintInterval)
@@ -476,6 +496,7 @@ namespace FloodFill.Development.AutoSolver
             searchCancellation = null;
             if (completed.IsCanceled)
             {
+                summaryRecorder.SearchCancelled();
                 status = "Search cancelled.";
                 autoPlayWhenReady = false;
                 Repaint();
@@ -483,6 +504,7 @@ namespace FloodFill.Development.AutoSolver
             }
             if (completed.IsFaulted)
             {
+                summaryRecorder.SearchFailed();
                 Exception exception = completed.Exception != null ? completed.Exception.GetBaseException() : null;
                 status = "Solver error: " + (exception != null ? exception.Message : "Unknown background search failure.");
                 Debug.LogException(exception ?? new Exception(status));
@@ -501,6 +523,13 @@ namespace FloodFill.Development.AutoSolver
                     solution.Message = "Independent pre-playback validation failed; playback was blocked.";
                 }
             }
+            if (autoPlayWhenReady && solution.ValidationPassed && !solution.FitsMoveBudget && adapter != null &&
+                adapter.TryGetBudgetSolution(boardSnapshot, graph, out var budgetSolution))
+            {
+                budgetSolution.CalculationMilliseconds = solution.CalculationMilliseconds;
+                solution = budgetSolution;
+            }
+            if (autoPlayWhenReady) summaryRecorder.SearchFinished(adapter, solution);
             status = "Search finished: " + AutoSolverDiagnostics.Classify(boardSnapshot, solution) + ". " + solution.Message;
             if (logAnalysisWhenReady)
             {
@@ -516,6 +545,7 @@ namespace FloodFill.Development.AutoSolver
 
         private void CancelSearch()
         {
+            if (searchCancellation != null) summaryRecorder.SearchCancelled();
             if (searchCancellation != null)
             {
                 searchCancellation.Cancel();
@@ -531,6 +561,7 @@ namespace FloodFill.Development.AutoSolver
         {
             if (change == PlayModeStateChange.ExitingPlayMode || change == PlayModeStateChange.EnteredEditMode)
             {
+                summaryRecorder.Observe(adapter); summaryRecorder.Finish("Play Mode ended");
                 CancelSearch();
                 solverSessionStarted = false;
                 playback.Stop("Play Mode ended. Playback cleaned up safely.");
@@ -549,6 +580,7 @@ namespace FloodFill.Development.AutoSolver
 
         private void OnActiveSceneChanged(Scene previous, Scene current)
         {
+            summaryRecorder.Observe(adapter); summaryRecorder.Finish("Scene changed");
             CancelSearch();
             solverSessionStarted = false;
             playback.Stop("Scene changed. Playback stopped and temporary animation settings were restored.");

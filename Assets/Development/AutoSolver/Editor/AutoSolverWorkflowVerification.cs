@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Linq;
 using FloodFill.ThreeD;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -18,6 +19,7 @@ namespace FloodFill.Development.AutoSolver
         private static double deadline,readyAt;
         private static string original;
         private static int stoppedMoves;
+        private static bool liveSummaryChecked;
         private static void Set(string field,object value)=>typeof(AutoSolverWindow).GetField(field,Flags).SetValue(window,value);
         private static T Get<T>(string field)=>(T)typeof(AutoSolverWindow).GetField(field,Flags).GetValue(window);
         private static void Call(string method)=>typeof(AutoSolverWindow).GetMethod(method,Flags).Invoke(window,null);
@@ -67,16 +69,30 @@ namespace FloodFill.Development.AutoSolver
                     if(EditorApplication.timeSinceStartup<readyAt)return;
                     Check(Get<object>("searchTask")==null&&!Get<AutoSolverPlaybackController>("playback").IsPlaying&&manager.MoveCount==0,"Checking Auto Start alone does not solve");
                     Check(!Get<bool>("solverSessionStarted"),"Checkbox does not arm the run");
+                    Check(AutoSolverSummaryStore.Shared.Data.attempts.Count==0,"Idle checkbox creates no summary attempts");
                     Call("StartAutoSolve");Check(Get<bool>("solverSessionStarted"),"Start button arms the run");
+                    var started=AutoSolverLevelSummary.Build(AutoSolverSummaryStore.Shared.Data.attempts).Single(a=>a.LatestAttempt.level==1);
+                    Check(!started.Completed&&started.LatestAttempt.outcome=="Running"&&started.LatestAttempt.moves==0,"Level row appears immediately when solver starts");
                     stage=3;readyAt=0;return;
                 }
                 if(stage==3)
                 {
+                    if(!liveSummaryChecked&&manager.State==FloodFillGameManager3D.GameState.Playing&&manager.MoveCount>0)
+                    {
+                        var live=AutoSolverLevelSummary.Build(AutoSolverSummaryStore.Shared.Data.attempts).Single(a=>a.LatestAttempt.level==1);
+                        Check(!live.Completed&&live.LatestAttempt.moves==manager.MoveCount&&!string.IsNullOrEmpty(live.LatestAttempt.updatedUtc),"Unfinished row updates during actual playback");
+                        liveSummaryChecked=true;
+                    }
                     if(manager.State!=FloodFillGameManager3D.GameState.Won)return;
                     if(readyAt==0)readyAt=EditorApplication.timeSinceStartup+1.5;
                     if(EditorApplication.timeSinceStartup<readyAt)return;
                     Check(manager.NumberedLevel==1&&manager.MoveCount>0,"Auto solve wins; Auto Next off does not advance");
+                    Check(liveSummaryChecked,"Observed live summary before first win");
                     Check(FloodLevelProgression3D.Get(2,0,1).completed,"Auto solve records numbered progression");
+                    var summary=AutoSolverSummaryStore.Shared.Data.attempts.Single(a=>a.level==1);
+                    Check(summary.Won&&summary.moves==manager.MoveCount&&summary.moveBudget==manager.CurrentMoveBudget,"Summary records actual win and budget");
+                    Check(summary.seed==manager.BoardManager.LastGenerationSeed&&summary.mode==2&&summary.difficulty==0,"Summary records identity difficulty and seed");
+                    Check(summary.solverMoves==manager.MoveCount&&summary.searchMilliseconds>0&&summary.finishedUtc!=null,"Summary captures solver moves timing and completion date");
                     Call("StartNextLevel");
                     Check(manager.NumberedLevel==2&&manager.NumberedMode==2&&(int)manager.SelectedDifficulty==0,"Manual Next retains mode and difficulty");
                     stage=4;return;
@@ -102,6 +118,22 @@ namespace FloodFill.Development.AutoSolver
                     if(readyAt==0){stoppedMoves=manager.MoveCount;readyAt=EditorApplication.timeSinceStartup+1;}
                     if(EditorApplication.timeSinceStartup<readyAt)return;
                     Check(Get<object>("searchTask")==null&&!Get<AutoSolverPlaybackController>("playback").IsPlaying&&manager.MoveCount==stoppedMoves,"Stop prevents automatic solving of the next loaded board");
+                    Call("StartAutoSolve");Call("StopAutoSolve");Call("StartAutoSolve");Call("StopAutoSolve");
+                    var tries=AutoSolverSummaryStore.Shared.Data.attempts.Where(a=>a.level==3).ToList();
+                    Check(tries.Count==1&&tries[0].searches==2,"Stopping and restarting solver on same board retains one try");
+                    Call("RestartLevel");stage=60;return;
+                }
+                if(stage==60)
+                {
+                    if(!manager.CanInteract)return;
+                    Call("StartAutoSolve");Call("StopAutoSolve");
+                    Check(AutoSolverSummaryStore.Shared.Data.attempts.Count(a=>a.level==3)==2,"Board restart counts a new try");
+                    Get<AutoSolverSummaryRecorder>("summaryRecorder").Finish("Stopped");
+                    var adapter=AutoSolverAdapter.FindActive();adapter.TryCaptureSnapshot(out var snapshot,out _);
+                    var reopenedRecorder=new AutoSolverSummaryRecorder();reopenedRecorder.Begin(adapter,snapshot);
+                    Check(AutoSolverSummaryStore.Shared.Data.attempts.Count(a=>a.level==3)==2,"Reopening recorder on same board does not add a try");
+                    reopenedRecorder.Finish("Window closed");
+                    AutoSolverSummaryWindow.OpenWindow();
                     typeof(FloodFillGameManager3D).GetField("<NumberedLevel>k__BackingField",Flags).SetValue(manager,100);
                     typeof(FloodFillGameManager3D).GetField("<State>k__BackingField",Flags).SetValue(manager,FloodFillGameManager3D.GameState.Won);
                     Check(!AutoSolverAdapter.FindActive().CanStartNextLevel,"Next disabled at level 100");

@@ -1028,7 +1028,7 @@ namespace FloodFill.ThreeD
                 : $"Moves: {MoveCount} / {currentMoveBudget}";
             int displayedPercentage = MoveCount == 0
                 ? 0
-                : Mathf.RoundToInt(boardManager.CapturedPercentage);
+                : boardManager.DisplayedCapturedPercentage;
             if (capturedText != null) capturedText.text = $"Captured: {displayedPercentage}%";
             if (scoreText != null) scoreText.text = $"Score: {Score:N0}";
             SetColorInputEnabled(CanInteract);

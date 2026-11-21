@@ -148,6 +148,8 @@ namespace FloodFill.ThreeD
         public float CapturedPercentage => TotalVoxelCount > 0
             ? CapturedVoxelCount * 100f / TotalVoxelCount
             : 0f;
+        // Reserve 100% for an actually complete board, even when the ratio rounds up.
+        public int DisplayedCapturedPercentage => IsFullyCaptured ? 100 : Mathf.Min(99, Mathf.RoundToInt(CapturedPercentage));
         public bool IsFullyCaptured => TotalVoxelCount > 0 && CapturedVoxelCount == TotalVoxelCount;
         public bool HasActiveBoard => boardRoot != null && allVoxels.Count > 0;
         public VoxelCell3D StartingVoxel { get; private set; }

@@ -30,6 +30,7 @@ namespace FloodFill.Development.AutoSolver
 
         public bool IsPlaying => isPlaying;
         public bool IsPaused => isPaused;
+        public AutoSolverResult CurrentSolution => result;
         public int NextMoveIndex => nextMoveIndex;
         public int TotalMoves => result != null ? result.Moves.Length : 0;
         public string Status { get; private set; } = "Idle.";
@@ -57,6 +58,11 @@ namespace FloodFill.Development.AutoSolver
             if (game == null || !game.IsAlive || boardSnapshot == null || regionGraph == null)
             {
                 error = "The active game or its board snapshot is no longer available.";
+                return;
+            }
+            if (solution.Moves.Length > boardSnapshot.RemainingMoves)
+            {
+                error = "Playback blocked: the plan needs " + solution.Moves.Length + " moves, but only " + boardSnapshot.RemainingMoves + " remain. No moves were played.";
                 return;
             }
             if (game.GameState != "Playing" || game.MoveCount != boardSnapshot.MoveCount ||

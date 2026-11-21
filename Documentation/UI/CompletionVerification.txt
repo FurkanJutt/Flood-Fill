@@ -1,0 +1,10 @@
+Reported level 20 completion investigation — Unity 6000.5.8f1, isolated project copy
+
+27 checks passed.
+Level 20 / Full Grid / Expert, seed 1212414315, voxels 296. Budget 17, engine solution 17, separate editor search 18.
+Reproduced prior playback: 17 moves, 295 / 296 captured (99.66216%), state Lost.
+Budget solution playback won in 17 / 17 moves, capturing 296 / 296.
+
+3 checks passed. Auto Solver window won reported level 20 in 17 / 17 moves; summary correctly records planned moves, budget and actual win.
+
+Additional display checks: Auto Solver shows 99.66% for 295 / 296; stopped playback retains 17 / 18; a new plan starts at 0 / 12; true completion displays 100%. Original player history was not modified.

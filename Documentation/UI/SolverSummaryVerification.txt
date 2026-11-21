@@ -1,0 +1,7 @@
+All Levels solver summary verification — Unity 6000.5.8f1, isolated project copy
+
+47 store checks passed: all 12 sections, unfinished/failed level 20 visibility, live retries, existing history compatibility, grouping, retries, replay best/latest results, seeds, atomic backup, reload and interrupted runs, damaged-file preservation.
+
+27 checks passed: deterministic numbered restart, manual Next, checkbox idle until Start, Stop disarms continuation, independent automation toggles, actual solver wins on successive Items levels, saved progression, level 100 boundary, and hidden-menu guard.
+
+Existing user history was copied read-only into an isolated fixture. Full Grid / Expert level 20 retains all three lost attempts and appears without any win. New in-progress runs appear at solver start and update with actual moves before completion. Interrupted and failed-only levels remain visible after JSON reload. No player progress or original summary records were reset.
