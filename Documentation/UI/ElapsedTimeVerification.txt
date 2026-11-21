@@ -1,0 +1,2 @@
+PASS — Unity 6000.5.8f1, isolated /tmp/FloodLevelVerify project.
+Verified TIME ELAPSED label and clock value, mm:ss and hh:mm:ss formatting, capture fill bar unchanged, active gameplay counting, pause/menu/loading exclusion, restart reset, saved Continue timer restoration, real-time counting at 4x playback, completed-game freeze, and compatibility with saves lacking elapsedSeconds.

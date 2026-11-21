@@ -88,10 +88,25 @@ namespace FloodFill.ThreeD
         private int currentMoveBudget = 1;
         private bool audioPaused;
         private bool gameSessionActive;
+        private bool elapsedTimerActive, elapsedTimerSuspended, skipElapsedTick;
+        public double ElapsedSeconds { get; private set; }
+        public string ElapsedTimeText => FormatElapsedTime(ElapsedSeconds);
+        public static string FormatElapsedTime(double seconds)
+        {
+            long total = (long)System.Math.Min(int.MaxValue, System.Math.Max(0, System.Math.Floor(seconds)));
+            return total >= 3600 ? $"{total / 3600:00}:{total / 60 % 60:00}:{total % 60:00}" : $"{total / 60:00}:{total % 60:00}";
+        }
+        private void Update()
+        {
+            if (skipElapsedTick) { skipElapsedTick = false; return; }
+            if (elapsedTimerActive && !elapsedTimerSuspended && CanInteract && Time.timeScale > 0)
+                ElapsedSeconds += Time.unscaledDeltaTime;
+        }
+
         private bool isCampaignGame;
         private int activeCampaignLevel = 1;
 
-        public bool CanInteract => !IsLoading && string.IsNullOrEmpty(LoadingError) && State == GameState.Playing && !audioPaused && boardManager != null && !boardManager.IsStartAnimationPlaying;
+        public bool CanInteract => !IsLoading && string.IsNullOrEmpty(LoadingError) && State == GameState.Playing && !audioPaused && boardManager != null && boardManager.HasActiveBoard && !boardManager.IsStartAnimationPlaying;
         public int MoveCount { get; private set; }
         public int Score { get; private set; }
         public GameState State { get; private set; }
@@ -112,6 +127,8 @@ namespace FloodFill.ThreeD
         public event System.Action UIChanged;
         public event System.Action ManagerReady;
         public bool HasSavedSession { get; private set; }
+        private FloodFillSessionSaveData3D availableSession;
+        private bool failedToRestoreSession;
 
         private void Start()
         {
@@ -234,34 +251,53 @@ namespace FloodFill.ThreeD
             }
         }
 
-        public void ContinueSavedGame()
+        public bool RefreshContinueAvailability()
         {
-            if (!HasSavedSession) return;
-            boardManager.RestoreMenuPreview();
-            if (State == GameState.Playing || State == GameState.Calculating)
+            if (failedToRestoreSession) { HasSavedSession = false; availableSession = null; return false; }
+            HasSavedSession = FloodFillSessionPersistence3D.TryLoad(out var saved) && IsResumableSession(saved);
+            availableSession = HasSavedSession ? saved : null;
+            return HasSavedSession;
+        }
+
+        public bool HasSavedNumberedLevel(int mode, int selectedDifficulty, int level)
+        {
+            return RefreshContinueAvailability() && availableSession.numberedLevel == level &&
+                availableSession.numberedMode == mode && availableSession.difficulty == selectedDifficulty;
+        }
+
+        public bool ContinueSavedGame()
+        {
+            if (IsLoading && loadingSavedSession) return boardManager != null && boardManager.HasActiveBoard;
+            if (!RefreshContinueAvailability() || !TryRestoreSavedSession())
             {
-                IsLoading = true;
-                loadingSavedSession = true;
-                LoadingError = null;
-                LoadingStatus = "Getting everything ready…";
-                if (State == GameState.Calculating && solverCoroutine == null) BeginMoveBudgetCalculation(solverGenerationId);
-                boardManager.SetBoardVisible(false);
-                RefreshUI();
-                if (loadingCoroutine != null) StopCoroutine(loadingCoroutine);
-                loadingCoroutine = StartCoroutine(PresentPreparedLevel(solverGenerationId));
+                HasSavedSession = false; availableSession = null;
+                return false;
             }
-            else boardManager.SetBoardVisible(true);
+            boardManager.RestoreMenuPreview();
+            gameSessionActive = true;
+            IsLoading = true; loadingSavedSession = true;
+            LoadingError = null; LoadingStatus = "Getting everything ready…";
+            boardManager.SetBoardVisible(false);
+            RefreshUI();
+            if (loadingCoroutine != null) StopCoroutine(loadingCoroutine);
+            loadingCoroutine = StartCoroutine(PresentPreparedLevel(solverGenerationId));
+            return true;
         }
 
         public void ReturnToMenu()
         {
+            elapsedTimerActive = false;
             if (IsLoading || !string.IsNullOrEmpty(LoadingError))
             {
                 CancelPendingSolver(); solverGenerationId++;
                 IsLoading = false; LoadingError = null;
-                gameSessionActive = loadingSavedSession; HasSavedSession = loadingSavedSession;
-                if (!loadingSavedSession) boardManager.ClearBoard();
+                bool wasSavedSession = loadingSavedSession;
+                RefreshContinueAvailability();
+                gameSessionActive = wasSavedSession && HasSavedSession;
+                loadingSavedSession = false;
+                if (!wasSavedSession) boardManager.ClearBoard();
                 boardManager.SetBoardVisible(false);
+                UIChanged?.Invoke();
                 return;
             }
             boardManager.SetInputEnabled(false);
@@ -276,8 +312,7 @@ namespace FloodFill.ThreeD
             }
             else
             {
-                SaveSession();
-                HasSavedSession = true;
+                if (!SaveSession()) RefreshContinueAvailability();
             }
             UIChanged?.Invoke();
         }
@@ -330,6 +365,8 @@ namespace FloodFill.ThreeD
 
         public void RestartGame()
         {
+            elapsedTimerActive = false; ElapsedSeconds = 0;
+            HasSavedSession = false; availableSession = null; failedToRestoreSession = false;
             CancelPendingSolver();
             solverGenerationId++;
             IsLoading = true;
@@ -386,6 +423,13 @@ namespace FloodFill.ThreeD
         {
             while (generationId == solverGenerationId && State == GameState.Calculating) yield return null;
             if (generationId != solverGenerationId) yield break;
+            if (!boardManager.HasActiveBoard || !boardManager.TryGetWorldBounds(out _))
+            {
+                HasSavedSession = false; availableSession = null;
+                if (loadingSavedSession) failedToRestoreSession = true;
+                FailLoading("The saved board could not be loaded. Return to the menu and select a level.");
+                yield break;
+            }
             LoadingStatus = "Getting everything ready…";
             RefreshUI();
             boardManager.SetBoardVisible(true);
@@ -398,6 +442,7 @@ namespace FloodFill.ThreeD
             IsLoading = false;
             loadingCoroutine = null;
             boardManager.PlayStartAnimation();
+            elapsedTimerActive = true;
             RefreshUI();
             if (boardManager.IsFullyCaptured) ScheduleResult(GameState.Won);
         }
@@ -1041,17 +1086,62 @@ namespace FloodFill.ThreeD
             UIChanged?.Invoke();
         }
 
+        private bool IsResumableSession(FloodFillSessionSaveData3D saved)
+        {
+            if (saved == null || boardManager == null || orbitCamera == null || colors == null ||
+                saved.version != FloodFillSessionSaveData3D.CurrentVersion ||
+                saved.gameState != (int)GameState.Playing && saved.gameState != (int)GameState.Calculating ||
+                double.IsNaN(saved.elapsedSeconds) || double.IsInfinity(saved.elapsedSeconds) || saved.elapsedSeconds < 0 ||
+                saved.moveCount < 0 || saved.score < 0 || saved.currentMoveBudget <= saved.moveCount ||
+                saved.selectedColorIndex < -1 || saved.selectedColorIndex >= colors.Length ||
+                saved.gameState == (int)GameState.Calculating && saved.moveCount != 0 ||
+                !System.Enum.IsDefined(typeof(FloodFillDifficulty),saved.difficulty) ||
+                !System.Enum.IsDefined(typeof(VoxelBoardManager3D.VoxelVolumeMode),saved.selectedBoardMode) ||
+                System.Array.IndexOf(BoardSizeOptions,saved.selectedBoardSize) < 0 || saved.board == null ||
+                saved.board.width != saved.selectedBoardSize || saved.board.height != saved.selectedBoardSize ||
+                saved.board.depth != saved.selectedBoardSize || saved.board.volumeMode != saved.selectedBoardMode ||
+                saved.numberedLevel < 0 || saved.numberedLevel > FloodLevelProgression3D.LevelsPerCategory)
+                return false;
+            if (saved.numberedLevel > 0)
+            {
+                if (saved.isCampaignGame || saved.numberedMode < 0 || saved.numberedMode > 2) return false;
+                var expected = saved.numberedMode == 0 ? VoxelBoardManager3D.VoxelVolumeMode.HollowCube :
+                    saved.numberedMode == 1 ? VoxelBoardManager3D.VoxelVolumeMode.Procedural : VoxelBoardManager3D.VoxelVolumeMode.Items;
+                if (saved.selectedBoardMode != (int)expected) return false;
+            }
+            return boardManager.CanRestoreUnfinishedState(saved.board,colors);
+        }
+
         private bool TryRestoreSavedSession()
         {
-            if (!FloodFillSessionPersistence3D.TryLoad(out FloodFillSessionSaveData3D saved) ||
-                !TryApplySavedSelections(saved) ||
-                !boardManager.RestorePersistentState(saved.board, colors))
+            try { return TryRestoreSavedSessionCore(); }
+            catch (System.Exception exception)
             {
+                HasSavedSession = false; availableSession = null; gameSessionActive = false; failedToRestoreSession = true;
+                Debug.LogWarning("Saved level could not be restored: " + exception.Message,this);
+                return false;
+            }
+        }
+
+        private bool TryRestoreSavedSessionCore()
+        {
+            if (!FloodFillSessionPersistence3D.TryLoad(out FloodFillSessionSaveData3D saved) ||
+                !IsResumableSession(saved) || !TryApplySavedSelections(saved))
+                return false;
+            boardManager.RestoreMenuPreview();
+            if (!boardManager.RestorePersistentState(saved.board, colors))
+            {
+                failedToRestoreSession = true;
                 return false;
             }
 
             CancelPendingSolver();
+            if (resultCoroutine != null) { StopCoroutine(resultCoroutine); resultCoroutine = null; }
             solverGenerationId++;
+            if (audioPaused) FloodAudioSignals.Pause(false);
+            audioPaused = false; LoadingError = null;
+            gameSessionActive = true; HasSavedSession = true; availableSession = saved;
+            elapsedTimerActive = false; ElapsedSeconds = saved.elapsedSeconds;
             MoveCount = Mathf.Max(0, saved.moveCount);
             Score = Mathf.Max(0, saved.score);
             currentMoveBudget = Mathf.Max(1, saved.currentMoveBudget);
@@ -1076,43 +1166,15 @@ namespace FloodFill.ThreeD
                 resultPanel.SetActive(false);
             }
 
-            if (boardManager.TryGetWorldBounds(out Bounds bounds))
+            if (!boardManager.HasActiveBoard || boardManager.IsFullyCaptured || !boardManager.TryGetWorldBounds(out Bounds bounds))
             {
-                orbitCamera.FrameBounds(bounds);
-                orbitCamera.RestorePersistentState(saved.camera);
+                failedToRestoreSession = true; HasSavedSession = false; gameSessionActive = false;
+                return false;
             }
-
-            if (boardManager.IsFullyCaptured)
-            {
-                State = GameState.Won;
-            }
-            else if (State == GameState.Won)
-            {
-                State = GameState.Playing;
-            }
-
-            if (State == GameState.Playing && MoveCount >= currentMoveBudget)
-            {
-                State = GameState.Lost;
-            }
-
+            orbitCamera.FrameBounds(bounds);
+            orbitCamera.RestorePersistentState(saved.camera);
             RefreshUI();
-            if (State == GameState.Calculating ||
-                CurrentMoveBudgetProfile.bestSolutionMoves <= 0)
-            {
-                State = GameState.Calculating;
-                RefreshUI();
-                BeginMoveBudgetCalculation(solverGenerationId);
-            }
-            else if (State == GameState.Won || State == GameState.Lost)
-            {
-                SetColorInputEnabled(false);
-                ShowResultPanel(State);
-                if (State == GameState.Won)
-                {
-                    boardManager.PlayWinCelebration();
-                }
-            }
+            if (State == GameState.Calculating) BeginMoveBudgetCalculation(solverGenerationId);
 
             Debug.Log($"Resumed saved 3D Flood Fill session at move {MoveCount}.", this);
             return true;
@@ -1156,12 +1218,12 @@ namespace FloodFill.ThreeD
             return true;
         }
 
-        private void SaveSession()
+        private bool SaveSession()
         {
             if (!gameSessionActive || !string.IsNullOrEmpty(LoadingError) || (IsLoading && State == GameState.Calculating) || boardManager == null || orbitCamera == null || colors == null ||
                 !boardManager.TryCapturePersistentState(out VoxelBoardSaveData3D boardState))
             {
-                return;
+                return false;
             }
 
             var saved = new FloodFillSessionSaveData3D
@@ -1174,6 +1236,7 @@ namespace FloodFill.ThreeD
                 numberedMode = NumberedMode,
                 campaignLevel = activeCampaignLevel,
                 moveCount = MoveCount,
+                elapsedSeconds = ElapsedSeconds,
                 score = Score,
                 currentMoveBudget = currentMoveBudget,
                 selectedColorIndex = SelectedColorIndex,
@@ -1182,7 +1245,11 @@ namespace FloodFill.ThreeD
                 board = boardState,
                 camera = orbitCamera.CapturePersistentState()
             };
-            FloodFillSessionPersistence3D.Save(saved);
+            bool written = FloodFillSessionPersistence3D.Save(saved);
+            if (written) failedToRestoreSession = false;
+            HasSavedSession = written && State == GameState.Playing && !boardManager.IsFullyCaptured && MoveCount < currentMoveBudget;
+            availableSession = HasSavedSession ? saved : null;
+            return written;
         }
 
         private void ShowResultPanel(GameState state)
@@ -1282,6 +1349,8 @@ namespace FloodFill.ThreeD
 
         private void OnApplicationPause(bool paused)
         {
+            elapsedTimerSuspended = paused;
+            if (!paused) skipElapsedTick = true;
             if (paused)
             {
                 SaveSession();

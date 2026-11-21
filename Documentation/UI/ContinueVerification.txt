@@ -1,0 +1,9 @@
+Continue validation verification — Unity 6000.5.8f1, isolated project and test save identities
+
+202 checks passed. All 12 mode/difficulty continuations, restored empty boards, menu previews, exact snapshots, invalid/completed/missing saves, no phantom Continue or empty HUD.
+
+10 checks passed. Separate-process Continue restores exact unfinished board, identity, moves and budget.
+
+24 checks passed: real in-progress save, matching identity, locked tiles, modal input blocking, unchanged save on Back, confirmed deterministic restart, normal Continue resume, category isolation, repeatable installation and two portrait renders.
+
+Fresh menu navigation does not produce phantom Continue. Exact round trips cover all 12 mode/difficulty combinations and cleared runtime boards. Invalid cases cover won/lost/exhausted games, missing/empty/malformed data, duplicate or disconnected voxels, disconnected capture flags, invalid color/start/identity/difficulty, missing prefab/root and a save removed after menu availability was cached. The separate process resumes saved voxels and the original budget without solver-profile metadata, and clears pause state. Player progress and original user session files were not reset by verification.

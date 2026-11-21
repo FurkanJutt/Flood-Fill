@@ -323,6 +323,45 @@ namespace FloodFill.ThreeD
             return true;
         }
 
+        public bool CanRestoreUnfinishedState(VoxelBoardSaveData3D state, Color[] colors)
+        {
+            if (boardRoot == null || voxelPrefab == null || !TryValidatePersistentState(state,colors,out _,out _)) return false;
+            var occupied = new Dictionary<Vector3Int,VoxelSaveData3D>();
+            int captured = 0; Vector3Int capturedOrigin = default;
+            foreach (var voxel in state.voxels)
+            {
+                var position = new Vector3Int(voxel.x,voxel.y,voxel.z); occupied.Add(position,voxel);
+                if (voxel.captured) { captured++; capturedOrigin = position; }
+            }
+            if (captured == 0 || captured == state.voxels.Length) return false;
+            var visited = new HashSet<Vector3Int>(); var queue = new Queue<Vector3Int>();
+            var first = state.voxels[0];var origin = new Vector3Int(first.x,first.y,first.z);
+            visited.Add(origin);queue.Enqueue(origin);
+            while (queue.Count > 0)
+            {
+                var position = queue.Dequeue();
+                foreach (var direction in Directions)
+                {
+                    var next = position + direction;
+                    if (occupied.ContainsKey(next) && visited.Add(next)) queue.Enqueue(next);
+                }
+            }
+            if (visited.Count != occupied.Count) return false;
+            visited.Clear();visited.Add(capturedOrigin);queue.Enqueue(capturedOrigin);
+            while (queue.Count > 0)
+            {
+                var position = queue.Dequeue();
+                foreach (var direction in Directions)
+                {
+                    var next = position + direction;
+                    if (!occupied.TryGetValue(next,out var neighbor) || neighbor.colorIndex != state.currentPlayerColor) continue;
+                    if (!neighbor.captured) return false;
+                    if (visited.Add(next)) queue.Enqueue(next);
+                }
+            }
+            return visited.Count == captured;
+        }
+
         public bool RestorePersistentState(VoxelBoardSaveData3D state, Color[] colors)
         {
             if (boardRoot == null || voxelPrefab == null || !TryValidatePersistentState(

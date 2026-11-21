@@ -19,6 +19,7 @@ namespace FloodFill.ThreeD
         public int numberedLevel;
         public int numberedMode;
         public int moveCount;
+        public double elapsedSeconds;
         public int score;
         public int currentMoveBudget;
         public int selectedColorIndex = -1;

@@ -62,6 +62,7 @@ namespace FloodFill.EditorTools
                 Text("Title",header,"LEVELS",34,0,790,240,65);
                 var pause=Button("TopRightButton",header,S(2),356,790,112,74);pause.interactable=false;
                 Img("PauseLeft",pause.transform,S(12),-10,0,11,35);Img("PauseRight",pause.transform,S(13),10,0,11,35);
+                pause.gameObject.SetActive(false);
                 var cyan=new Color(0,.85f,1);
                 Img("LeftAccent",header,null,-185,790,70,2).color=cyan;Img("RightAccent",header,null,185,790,70,2).color=cyan;
                 var modeRow=Rect("GameModeTabs",content,0,674,810,94);

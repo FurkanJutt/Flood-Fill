@@ -25,8 +25,12 @@ namespace FloodFill.Development.AutoSolver
                         outcome=outcome,moves=outcome=="Lost"?30:index%3==2?18:20,moveBudget=30});
                 }
             }
+            Check(AutoSolverSummaryWindow.LevelTime(new AutoSolverAttempt())=="—","Legacy rows do not fabricate level duration");
+            Check(AutoSolverSummaryWindow.LevelTime(new AutoSolverAttempt{hasLevelElapsedTime=true,levelElapsedSeconds=125.25})=="00:02:05.2","Level duration formatting preserves tenths");
+            store.Data.attempts[0].hasLevelElapsedTime=true;store.Data.attempts[0].levelElapsedSeconds=125.25;
             store.Save();store.Save();Check(File.Exists(path+".bak"),"Atomic saves keep backup");
             var restored=new AutoSolverSummaryStore(path);Check(restored.Data.attempts.Count==36,"All attempts survive reload");
+            Check(restored.Data.attempts[0].hasLevelElapsedTime && restored.Data.attempts[0].levelElapsedSeconds==125.25,"New duration fields persist alongside legacy history");
             var rows=AutoSolverLevelSummary.Build(restored.Data.attempts).ToList();Check(rows.Count==12,"All mode/difficulty groups independent");
             foreach(var row in rows)
             {
@@ -69,6 +73,7 @@ namespace FloodFill.Development.AutoSolver
             Check(data.attempts.Count>=4,"History survives a separate Unity process");
             Check(data.attempts.Count(a=>a.Won&&a.kind=="Numbered"&&a.mode==2&&a.difficulty==0&&a.level<=2)==2,"Two real solver wins persist");
             Check(data.attempts.Where(a=>a.Won&&a.level<=2).All(a=>a.moves>0&&a.moveBudget>=a.moves&&a.solverMoves==a.moves&&a.searchMilliseconds>0),"Actual moves budget and solver metrics persist");
+            Check(data.attempts.Where(a=>a.Won&&a.level<=2).All(a=>a.hasLevelElapsedTime&&a.levelElapsedSeconds>0),"Per-level completion time survives a fresh Unity process");
             File.WriteAllText("/tmp/FloodSolverSummaryRestartVerification.txt",checks+" separate-process solver history checks passed.\n");
         }
     }

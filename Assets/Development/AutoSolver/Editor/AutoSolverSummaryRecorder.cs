@@ -11,7 +11,7 @@ namespace FloodFill.Development.AutoSolver
         private AutoSolverAttempt current;
         private UnityEngine.Object manager;
         private int generation;
-        private double startedAt;
+        private double startedAt, lastSavedAt;
         public AutoSolverSummaryRecorder() : this(AutoSolverSummaryStore.Shared) { }
         internal AutoSolverSummaryRecorder(AutoSolverSummaryStore target) { store = target; }
 
@@ -46,6 +46,7 @@ namespace FloodFill.Development.AutoSolver
                 manager = adapter.Manager; generation = adapter.Generation;
                 store.Data.attempts.Add(current);
             }
+            CaptureLevelTime();
             current.searches++; current.searchResult = "Searching";
             if (!Terminal(current)) current.outcome = "Running";
             SaveCurrent();
@@ -86,12 +87,13 @@ namespace FloodFill.Development.AutoSolver
             if (current == null) return;
             if (!Matches(adapter)) { Finish("Restarted / level changed"); return; }
             string outcome = adapter.GameState == "Won" ? "Won" : adapter.GameState == "Lost" ? "Lost" : current.outcome;
-            bool changed = current.moves != adapter.MoveCount || current.score != adapter.Score || current.outcome != outcome || appliedMoves > 0;
+            bool changed = (!Terminal(current) && UnityEditor.EditorApplication.timeSinceStartup - lastSavedAt >= 1) || current.moves != adapter.MoveCount || current.score != adapter.Score || current.outcome != outcome || appliedMoves > 0;
             current.moves = adapter.MoveCount; current.score = adapter.Score; current.capturedPercentage = adapter.CapturedPercentage;
             current.solverMoves += Math.Max(0, appliedMoves);
             if (!Terminal(current))
             {
                 current.elapsedSeconds = Math.Max(0, UnityEditor.EditorApplication.timeSinceStartup - startedAt);
+                CaptureLevelTime();
                 current.outcome = outcome;
                 if (Terminal(current)) current.finishedUtc = DateTime.UtcNow.ToString("O");
             }
@@ -118,8 +120,19 @@ namespace FloodFill.Development.AutoSolver
             if (changed) SaveCurrent();
             current = null; manager = null;
         }
+        private void CaptureLevelTime()
+        {
+            // Never read a newly loaded level into the previous attempt.
+            if (current == null || Terminal(current)) return;
+            var game = manager as FloodFill.ThreeD.FloodFillGameManager3D;
+            if (game == null || AutoSolverAdapter.FindActive() is not AutoSolverAdapter active || active.Manager != game || active.Generation != generation) return;
+            current.levelElapsedSeconds = game.ElapsedSeconds;
+            current.hasLevelElapsedTime = true;
+        }
         private void SaveCurrent()
         {
+            CaptureLevelTime();
+            lastSavedAt = UnityEditor.EditorApplication.timeSinceStartup;
             if (current != null) current.updatedUtc = DateTime.UtcNow.ToString("O");
             store.Save();
         }

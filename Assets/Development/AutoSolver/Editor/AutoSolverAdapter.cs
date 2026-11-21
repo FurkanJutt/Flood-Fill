@@ -54,6 +54,8 @@ namespace FloodFill.Development.AutoSolver
         public bool CanStartNextLevel => IsAlive && BoardVisible && GameState == "Won" && NumberedLevel < 100;
         public bool IsAlive => Manager != null && Board != null && Manager.gameObject != null && Board.gameObject != null;
         public string GameState => ReadString(Manager, "State", "Unknown");
+        public double ElapsedSeconds => (Manager as FloodFill.ThreeD.FloodFillGameManager3D)?.ElapsedSeconds ?? 0;
+        public string ElapsedTimeText => FloodFill.ThreeD.FloodFillGameManager3D.FormatElapsedTime(ElapsedSeconds);
         public int MoveCount => ReadInt(Manager, "MoveCount", 0);
         public int Score => ReadInt(Manager, "Score", 0);
         public int MoveLimit => ReadInt(Manager, "CurrentMoveBudget", 0);

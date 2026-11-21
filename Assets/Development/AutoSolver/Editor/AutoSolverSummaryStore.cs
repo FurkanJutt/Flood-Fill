@@ -31,7 +31,8 @@ namespace FloodFill.Development.AutoSolver
     {
         public string id, boardRunId, kind, startedUtc, finishedUtc, updatedUtc, outcome, searchResult, algorithm, unityVersion;
         public int mode, difficulty, level, seed, width, height, depth, voxels, moveBudget, startingMoves, moves, solverMoves, score, searches, plannedMoves;
-        public double searchMilliseconds, elapsedSeconds;
+        public double searchMilliseconds, elapsedSeconds, levelElapsedSeconds;
+        public bool hasLevelElapsedTime;
         public float capturedPercentage;
         public bool provenOptimal;
         public string LevelKey => kind + ":" + mode + ":" + difficulty + ":" + level + (kind == "Custom" ? ":" + seed + ":" + width + ":" + height + ":" + depth + ":" + id : "");

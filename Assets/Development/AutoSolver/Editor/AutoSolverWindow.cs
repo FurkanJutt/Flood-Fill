@@ -214,6 +214,7 @@ namespace FloodFill.Development.AutoSolver
             EditorGUILayout.LabelField("Solver Status", playback.IsPlaying
                 ? playback.IsPaused ? "AUTO SOLVER – PAUSED" : "AUTO SOLVER – PLAYING"
                 : playback.Status);
+            EditorGUILayout.LabelField("Elapsed time", adapter.ElapsedTimeText);
             EditorGUILayout.LabelField("Solver moves played", PlaybackProgressLabel);
             EditorGUILayout.LabelField("Captured cubes", adapter.CapturedCount + " / " + adapter.TotalVoxelCount);
             float captured = Mathf.Clamp01(adapter.CapturedPercentage / 100f);

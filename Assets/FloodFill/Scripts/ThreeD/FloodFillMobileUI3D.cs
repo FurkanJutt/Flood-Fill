@@ -183,7 +183,7 @@ namespace FloodFill.ThreeD
             gameTitle = AddText(hud.transform, "FLOOD FILL 3D", 28, FontStyles.Bold, new Vector2(0, 820), new Vector2(450, 62));
             AddButton(hud.transform, "PAUSE", new Vector2(390, 820), new Vector2(155, 72), Panel, OpenPause, 26);
             BuildStat(hud.transform, "MOVES", new Vector2(-285, 670), out moves);
-            BuildStat(hud.transform, "CAPTURED", new Vector2(0, 670), out captured);
+            BuildStat(hud.transform, "TIME ELAPSED", new Vector2(0, 670), out captured);
             BuildStat(hud.transform, "SCORE", new Vector2(285, 670), out score);
             GameObject barBack = MakeImage("ProgressTrack", hud.transform, new Vector2(0, 570), new Vector2(790, 18), new Color(.16f, .22f, .34f, 1));
             GameObject fill = MakeImage("ProgressFill", barBack.transform, Vector2.zero, new Vector2(790, 18), Accent);
@@ -416,6 +416,12 @@ namespace FloodFill.ThreeD
 
         private void LateUpdate()
         {
+            // The existing center HUD value is now the clock; update without replaying HUD tweens.
+            if (started && captured != null && hud != null && hud.activeInHierarchy && manager != null)
+            {
+                string time = manager.ElapsedTimeText;
+                if (captured.text != time) captured.text = time;
+            }
 
             if (loading != null && loading.activeSelf && manager.IsLoading)
                 loadingIndicator.anchoredPosition = new Vector2(Mathf.PingPong(Time.unscaledTime * 240f, 360f) - 180f, -45f);
@@ -538,8 +544,7 @@ namespace FloodFill.ThreeD
         public void LevelSelectionHome() { started = false; Show(menu); }
         public bool WouldRestartSavedLevel(int mode, int difficulty, int level)
         {
-            return manager != null && manager.HasSavedSession && manager.NumberedLevel == level &&
-                manager.NumberedMode == mode && (int)manager.SelectedDifficulty == difficulty;
+            return manager != null && manager.HasSavedNumberedLevel(mode,difficulty,level);
         }
         public void StartSelectedLevel(int mode, int difficulty, int level)
         {
@@ -550,15 +555,25 @@ namespace FloodFill.ThreeD
 
         private void Continue()
         {
+            if (!manager.ContinueSavedGame())
+            {
+                started = false; Show(menu); RefreshContinue();
+                return;
+            }
             started = true;
-            manager.ContinueSavedGame();
-            Show(manager.State == FloodFillGameManager3D.GameState.Won || manager.State == FloodFillGameManager3D.GameState.Lost ? results : hud);
+            Show(hud);
             Refresh();
         }
         private void RefreshContinue()
         {
             if (manager == null) return;
-            if (continueButton != null) continueButton.SetActive(manager.HasSavedSession);
+            bool available = manager.RefreshContinueAvailability();
+            if (continueButton != null)
+            {
+                continueButton.SetActive(available);
+                var button = continueButton.GetComponent<Button>();
+                if (button != null) button.interactable = available;
+            }
 
             if (!PlayerPrefs.HasKey(SetupModeKey))
             {
@@ -619,7 +634,7 @@ namespace FloodFill.ThreeD
                     ? "LEVEL " + manager.ActiveCampaignLevel
                     : "FLOOD FILL 3D";
             moves.text = manager.State == FloodFillGameManager3D.GameState.Calculating ? "…" : manager.MoveCount + " / " + manager.CurrentMoveBudget;
-            captured.text = manager.BoardManager.DisplayedCapturedPercentage + "%";
+            captured.text = manager.ElapsedTimeText;
             score.text = manager.Score.ToString("N0");
             progress.DOKill(); progress.DOFillAmount(manager.CapturedPercentage / 100f, .25f);
             for (int i = 0; i < colorButtons.Count; i++)

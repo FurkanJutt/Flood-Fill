@@ -97,3 +97,26 @@ Both the level summary and attempt history include **Moves required**, the lengt
 After winning the final numbered level, the primary result action becomes LEVELS and the secondary LEVELS button is hidden. The Vertical Layout Group closes that slot, leaving LEVELS, REPLAY and MAIN MENU with normal spacing. Ordinary wins and losses restore the secondary LEVELS action. Result verification covers both level-100 outcomes and returning to an ordinary result screen.
 
 Result buttons now have `FloodFillResultButtonSlot3D` layout rows that account for the visible body of each sprite, including nine-slice scaling and Canvas overrides. This prevents an invisible primary-button wrapper or glow padding from enlarging the gap above Replay. Hiding an action hides its entire row. Edit ResultActions / Vertical Layout Group Spacing to change the equal visible gaps. After changing a button sprite, run **Tools > Flood Fill > UI > Repair Result Button Spacing** in a graphics-enabled Editor to recalibrate padding without replacing existing fonts, graphics, or Canvas overrides. Result tests now use the actual scene and Canvas overrides and measure visible button bounds.
+
+Continue validation and restoration
+-----------------------------------
+
+Main Menu Continue is visible and interactable only for a saved, unfinished game with moves remaining. Empty, missing, malformed, completed, exhausted, or structurally inconsistent saves do not enable it. Availability is checked against the actual session file when the menu opens and again when Continue is pressed. Merely visiting Levels or returning from a screen without a game no longer creates a false Continue flag.
+
+Continue restores the saved voxel board before opening gameplay, then uses the existing loading presentation and start animation. It restores the saved level identity, seed, colors, captured component, selected color, moves, total budget, score and camera state. A cleared in-memory board is rebuilt from the file; menu-preview parenting is restored before framing it. An unsuccessful restore leaves the menu visible with Continue unavailable. The loading presentation also checks for an actual nonempty board. Older Playing checkpoints retain their saved budget even when solver-profile metadata is absent. Terminal saved sessions are not offered as Continue games. Invalid files are not overwritten just to validate them.
+
+The restart confirmation compares a selected tile to the validated saved identity, rather than assuming the current manager fields still describe that save. Runtime implementation changes are in `FloodFillGameManager3D`, `FloodFillMobileUI3D` and `VoxelBoardManager3D`. `FloodContinueVerification3D.BeginBatch` tests all 12 mode/difficulty combinations, exact restoration after clearing scene voxels, menu previews, stale flags and invalid files. `BeginColdBatch` verifies restoration in a separate Unity process, including old solver metadata and paused-state recovery. Both require an isolated project under `/tmp`. Results are in `ContinueVerification.txt`.
+
+Gameplay elapsed time
+---------------------
+
+The center gameplay HUD card displays **TIME ELAPSED** in mm:ss, switching to hh:mm:ss after an hour. Capture progress remains on the fill bar. The clock counts real active gameplay time, excluding loading, start animations, pause screens, menus and completed games. New levels and restarts reset it. Continue restores the saved elapsed time; older checkpoints without this optional field start at zero. The serialized `captured` text reference is retained to preserve authored Canvas bindings.
+
+`FloodElapsedTimeVerification3D.BeginBatch` verifies the authored HUD, formatting, progress bar, timer lifecycle, persistence, old checkpoints and real-time counting at 4x playback in an isolated `/tmp` project. Results are in `ElapsedTimeVerification.txt`.
+
+Auto Solver elapsed time
+------------------------
+
+Auto Solver live statistics show **Elapsed time**, using the same active gameplay clock as the HUD. Summary level rows and attempt history save **Level time** with tenths of a second; in-progress attempts are checkpointed about once per second, as well as on moves, search changes, stop and completion. A win or loss freezes the recorded duration. Each restarted board records its own time. Level time includes any active play before the solver was started and follows the HUD pause/Continue behavior.
+
+The existing attempt wall duration is retained under **Solver time**, counting time since starting Auto Solve including search and pauses. **Search ms** remains the computation duration. Older history keeps its existing solver duration and shows — for level time when it was never recorded. Existing difficulty sections and summary filters are preserved. `AutoSolverSummaryVerification.VerifyStore` and `AutoSolverWorkflowVerification` cover duration formatting, legacy rows, active attempts, real wins, next-level separation and disk persistence; `VerifySeparateProcess` checks timing after restarting Unity.

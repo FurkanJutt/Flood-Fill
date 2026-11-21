@@ -1,0 +1,5 @@
+PASS — Unity 6000.5.8f1, isolated /tmp/FloodLevelVerify.
+50 summary-store checks passed, including legacy rows, duration formatting and new time field round-trip.
+32 workflow checks passed, including actual solver wins, live attempt timing, exact winning gameplay duration, frozen completion time, HUD/solver clock equality and independent next-level time.
+4 fresh-process checks passed, including persistence of both winning levels and their elapsed times after restarting Unity.
+Original project player saves and solver summary history were not modified by verification.

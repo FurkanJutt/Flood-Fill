@@ -81,6 +81,7 @@ namespace FloodFill.Development.AutoSolver
                     {
                         var live=AutoSolverLevelSummary.Build(AutoSolverSummaryStore.Shared.Data.attempts).Single(a=>a.LatestAttempt.level==1);
                         Check(!live.Completed&&live.LatestAttempt.moves==manager.MoveCount&&!string.IsNullOrEmpty(live.LatestAttempt.updatedUtc),"Unfinished row updates during actual playback");
+                        Check(live.LatestAttempt.hasLevelElapsedTime && live.LatestAttempt.levelElapsedSeconds>0,"In-progress attempt records elapsed clock before completion");
                         liveSummaryChecked=true;
                     }
                     if(manager.State!=FloodFillGameManager3D.GameState.Won)return;
@@ -93,6 +94,10 @@ namespace FloodFill.Development.AutoSolver
                     Check(summary.Won&&summary.moves==manager.MoveCount&&summary.moveBudget==manager.CurrentMoveBudget,"Summary records actual win and budget");
                     Check(summary.seed==manager.BoardManager.LastGenerationSeed&&summary.mode==2&&summary.difficulty==0,"Summary records identity difficulty and seed");
                     Check(summary.solverMoves==manager.MoveCount&&summary.searchMilliseconds>0&&summary.finishedUtc!=null,"Summary captures solver moves timing and completion date");
+                    Check(summary.hasLevelElapsedTime && summary.levelElapsedSeconds > 0 && Math.Abs(summary.levelElapsedSeconds-manager.ElapsedSeconds)<.0001,"Winning attempt saves gameplay elapsed time and freezes after win");
+                    Check(AutoSolverAdapter.FindActive().ElapsedTimeText==manager.ElapsedTimeText,"Solver window clock matches HUD clock");
+                    var disk = new AutoSolverSummaryStore(AutoSolverSummaryStore.Shared.FilePath).Data.attempts.Single(a=>a.level==1);
+                    Check(disk.hasLevelElapsedTime && disk.levelElapsedSeconds==summary.levelElapsedSeconds,"Level duration survives disk reload");
                     Call("StartNextLevel");
                     Check(manager.NumberedLevel==2&&manager.NumberedMode==2&&(int)manager.SelectedDifficulty==0,"Manual Next retains mode and difficulty");
                     stage=4;return;
@@ -101,6 +106,9 @@ namespace FloodFill.Development.AutoSolver
                 {
                     if(manager.State!=FloodFillGameManager3D.GameState.Won)return;
                     Check(manager.NumberedLevel==2&&manager.MoveCount>0,"Auto Start solves the next loaded board");
+                    Get<AutoSolverSummaryRecorder>("summaryRecorder").Observe(AutoSolverAdapter.FindActive());
+                    var second=AutoSolverSummaryStore.Shared.Data.attempts.Single(a=>a.level==2);
+                    Check(second.hasLevelElapsedTime && Math.Abs(second.levelElapsedSeconds-manager.ElapsedSeconds)<.0001,"Next level records its own elapsed time");
                     Set("autoNextLevel",true);stage=5;return;
                 }
                 if(stage==5)
