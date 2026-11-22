@@ -9,7 +9,7 @@ namespace FloodFill.ThreeD
         public Image background, lockIcon;
         public TMP_Text number;
         public Image[] stars;
-        public Sprite available, current, locked, goldStar, grayStar;
+        public Sprite available, current, locked, goldStar, grayStar, redStar;
         private FloodLevelSelection3D owner;
         private int level;
         private void Awake() => button.onClick.AddListener(Select);
@@ -27,7 +27,18 @@ namespace FloodFill.ThreeD
             float glow = next && unlocked ? 15 : 0;
             background.rectTransform.offsetMin = Vector2.one * -glow; background.rectTransform.offsetMax = Vector2.one * glow;
             lockIcon.gameObject.SetActive(!unlocked);
-            for (int i = 0; i < stars.Length; i++) { stars[i].gameObject.SetActive(unlocked); stars[i].sprite = i < result.stars ? goldStar : grayStar; }
+            int secondaryCount = FloodLevelProgression3D.SecondaryStars(owner.Mode, owner.Difficulty, value);
+            for (int i = 0; i < stars.Length; i++)
+            {
+                bool secondaryEarned = i < secondaryCount && redStar != null;
+                bool earned = secondaryEarned || i < result.stars;
+                stars[i].gameObject.SetActive(unlocked);
+                stars[i].sprite = secondaryEarned ? redStar : earned ? goldStar : grayStar;
+                stars[i].color = secondaryEarned && i >= result.stars
+                    ? new Color32(212, 212, 212, 212)
+                    : Color.white;
+                stars[i].rectTransform.sizeDelta = Vector2.one * (earned ? 41.954f : 30f);
+            }
         }
     }
 }

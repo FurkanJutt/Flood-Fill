@@ -103,7 +103,8 @@ namespace FloodFill.EditorTools
                 view.number=Text("LevelNumber",tile,"1",45,0,23,136,65);
                 view.lockIcon=Img("Lock",tile,S(16),0,-32,32,42);
                 view.stars=new Image[3];for(int i=0;i<3;i++)view.stars[i]=Img("Star"+(i+1),tile,S(18),(i-1)*34,-33,30,30);
-                view.available=S(6);view.current=S(7);view.locked=S(8);view.goldStar=S(17);view.grayStar=S(18);
+                view.available=S(6);view.current=S(7);view.locked=S(8);view.goldStar=AssetDatabase.LoadAllAssetsAtPath("Assets/Images/Spritesheets/level_complete_sprite_sheet.png").OfType<Sprite>().Single(sprite=>sprite.name=="level_complete_sprite_sheet_17");view.grayStar=S(18);
+                view.redStar=AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Images/Spritesheets/star_red_512.png");
                 c.levelPrefab=PrefabUtility.SaveAsPrefabAsset(tile.gameObject,Folder+"LevelButton.prefab").GetComponent<FloodLevelButton3D>();UnityEngine.Object.DestroyImmediate(tile.gameObject);
                 for(int i=0;i<30;i++)
                 {

@@ -66,8 +66,9 @@ MonoBehaviour:
   available: {fileID: 1837410807, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
   current: {fileID: -1513461420, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
   locked: {fileID: 2565502, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
-  goldStar: {fileID: -943221720, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
+  goldStar: {fileID: 1953001332, guid: 730d678b2bb3146779443d4a64543752, type: 3}
   grayStar: {fileID: -873492393, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
+  redStar: {fileID: 21300000, guid: dfac9e7cd13d34eb489ef13248fc7d97, type: 3}
 --- !u!114 &4034680822363645733
 MonoBehaviour:
   m_ObjectHideFlags: 0
