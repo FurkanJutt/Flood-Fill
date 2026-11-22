@@ -104,7 +104,13 @@ namespace FloodFill.ThreeD
         public void Refresh()
         {
             for (int i=0;i<3;i++) modeBackgrounds[i].sprite = i==Mode ? tabSelected : tabNormal;
-            for (int i=0;i<4;i++) { difficultyBackgrounds[i].sprite = i==Difficulty ? tabSelected : tabNormal; dotImages[i].sprite = i==Page ? dotSelected : dotNormal; }
+            for (int i=0;i<4;i++)
+            {
+                difficultyBackgrounds[i].sprite = i==Difficulty ? tabSelected : tabNormal;
+                bool activePage = i == Page;
+                dotImages[i].sprite = activePage ? dotSelected : dotNormal;
+                dotImages[i].rectTransform.sizeDelta = Vector2.one * (activePage ? 44.0521f : 22f);
+            }
             int count = FloodLevelProgression3D.Completed(Mode,Difficulty);
             completed.text = count + " / 100 COMPLETED"; percentage.text = count + "%";
             fill.DOKill(); fill.color = rules != null ? rules.progressColor : Color.cyan;
