@@ -18,7 +18,7 @@ namespace FloodFill.EditorTools
                 var existing=hud.GetComponentInChildren<FloodSecondaryGoalsUI3D>(true);
                 if(existing!=null)
                 {
-                    Style(existing);PrefabUtility.SaveAsPrefabAsset(hud,path);return;
+                    InstallRowDiamonds(existing);Style(existing);PrefabUtility.SaveAsPrefabAsset(hud,path);return;
                 }
                 var track=hud.GetComponentsInChildren<RectTransform>(true).First(t=>t.name=="ProgressTrack");
                 var sample=hud.GetComponentInChildren<TMP_Text>(true);
@@ -41,6 +41,7 @@ namespace FloodFill.EditorTools
                 var container=Rect("GoalsContainer",ui.panel,new Vector2(0,-58),new Vector2(950,165));container.pivot=new Vector2(.5f,1);
                 ui.rows=new TMP_Text[3];
                 for(int i=0;i<3;i++) {ui.rows[i]=Label("GoalRow"+(i+1),container,"• Goal",sample,27,new Vector2(0,-27-i*52),new Vector2(950,52));ui.rows[i].rectTransform.anchorMin=ui.rows[i].rectTransform.anchorMax=new Vector2(.5f,1);ui.rows[i].alignment=TextAlignmentOptions.MidlineLeft;ui.rows[i].enableAutoSizing=true;ui.rows[i].fontSizeMin=22;ui.rows[i].fontSizeMax=27;}
+                InstallRowDiamonds(ui);
                 Style(ui);
                 ui.panel.gameObject.SetActive(false);
                 PrefabUtility.SaveAsPrefabAsset(hud,path);
@@ -49,6 +50,27 @@ namespace FloodFill.EditorTools
             if(Resources.Load<FloodSecondaryGoalSettings3D>("FloodSecondaryGoals")==null)
                 AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<FloodSecondaryGoalSettings3D>(),"Assets/FloodFill/Resources/FloodSecondaryGoals.asset");
             AssetDatabase.SaveAssets();
+        }
+        private static void InstallRowDiamonds(FloodSecondaryGoalsUI3D ui)
+        {
+            ui.filledDiamond=AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Images/Spritesheets/diamond_filled_512.png");
+            ui.unfilledDiamond=AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Images/Spritesheets/diamond_unfilled_512.png");
+            if(ui.filledDiamond==null||ui.unfilledDiamond==null)throw new System.InvalidOperationException("Goal diamond sprites are missing.");
+            ui.rowDiamonds=new Image[ui.rows.Length];
+            for(int i=0;i<ui.rows.Length;i++)
+            {
+                var row=ui.rows[i];var child=row.transform.Find("GoalDiamond");Image diamond;
+                if(child!=null)diamond=child.GetComponent<Image>();
+                else
+                {
+                    var go=new GameObject("GoalDiamond",typeof(RectTransform),typeof(CanvasRenderer),typeof(Image));go.layer=row.gameObject.layer;
+                    var rect=go.GetComponent<RectTransform>();rect.SetParent(row.transform,false);rect.anchorMin=rect.anchorMax=new Vector2(0,.5f);rect.anchoredPosition=new Vector2(14,0);rect.sizeDelta=Vector2.one*24;
+                    diamond=go.GetComponent<Image>();diamond.raycastTarget=false;diamond.preserveAspect=true;
+                    var margin=row.margin;margin.x=40;row.margin=margin;
+                }
+                diamond.sprite=ui.unfilledDiamond;diamond.color=new Color32(255,255,255,165);ui.rowDiamonds[i]=diamond;
+                if(row.text=="• Goal")row.text="Goal";
+            }
         }
         private static void Style(FloodSecondaryGoalsUI3D ui)
         {

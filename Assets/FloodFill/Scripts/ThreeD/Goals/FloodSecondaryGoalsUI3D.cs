@@ -14,6 +14,9 @@ namespace FloodFill.ThreeD.Goals
         public TMP_Text triggerLabel, header;
         public RectTransform panel;
         public TMP_Text[] rows;
+        public Image[] rowDiamonds;
+        public Sprite filledDiamond, unfilledDiamond;
+        public Color completedGoalTextColor = new Color32(128, 241, 249, 255);
         public static bool ConsumedPointerThisFrame => consumedFrame == Time.frameCount;
         private static int consumedFrame=-1;
         private FloodFillGameManager3D game;
@@ -52,15 +55,20 @@ namespace FloodFill.ThreeD.Goals
             {
                 rows[i].gameObject.SetActive(i<tracker.Goals.Length);if(i>=tracker.Goals.Length)continue;
                 var g=tracker.Goals[i];var p=tracker.Attempt.progress[i];var state=tracker.State(i,Earned(i),game.ElapsedSeconds);
-                string mark=state==SecondaryGoalState.PreviouslyEarned?"EARNED":state==SecondaryGoalState.CompletedThisAttempt?"DONE":state==SecondaryGoalState.FailedThisAttempt?"MISSED":"•";
+                bool reached=state==SecondaryGoalState.PreviouslyEarned||state==SecondaryGoalState.CompletedThisAttempt;
+                if(rowDiamonds!=null&&i<rowDiamonds.Length&&rowDiamonds[i]!=null)
+                {
+                    rowDiamonds[i].sprite=reached?filledDiamond:unfilledDiamond;
+                    rowDiamonds[i].color=reached?Color.white:new Color32(255,255,255,165);
+                }
                 string progress="";
                 if(g.type==SecondaryGoalType.BigCapture)progress=$"  {p.value}/{g.target}";
                 else if(g.type==SecondaryGoalType.ComboCapture)progress=$"  {p.value}/{g.count}";
                 else if(g.type==SecondaryGoalType.LimitedColorUsage)progress=$"  {p.value}/{g.target}";
                 else if(g.type==SecondaryGoalType.QuickStart||g.type==SecondaryGoalType.FastExpansion)progress=$"  {p.value}/{g.target} cubes";
                 else if(g.type==SecondaryGoalType.SpeedRun)progress="  "+game.ElapsedTimeText;
-                rows[i].text=$"<b>{mark}</b>  {g.Description(game.GoalSettings.colorNames,game.GoalSettings.descriptionFormats)}{progress}";
-                rows[i].color=state==SecondaryGoalState.PreviouslyEarned?new Color(.3f,.85f,1):state==SecondaryGoalState.CompletedThisAttempt?new Color(.4f,1,.65f):state==SecondaryGoalState.FailedThisAttempt?new Color(.85f,.47f,.5f):new Color(.85f,.91f,1);
+                rows[i].text=$"{g.Description(game.GoalSettings.colorNames,game.GoalSettings.descriptionFormats)}{progress}";
+                rows[i].color=reached?completedGoalTextColor:state==SecondaryGoalState.FailedThisAttempt?new Color(.85f,.47f,.5f):new Color(.85f,.91f,1);
             }
         }
         private bool Earned(int i)=>FloodLevelProgression3D.GoalEarned(game.NumberedMode,(int)game.SelectedDifficulty,game.NumberedLevel,tracker.Goals[i].id);

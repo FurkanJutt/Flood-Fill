@@ -1,0 +1,2 @@
+22 checks passed: pending, completed, missed, in-progress and permanent states; no status words; cyan/red text; non-blocking icons; text spacing; installation and state reset.
+Unity 6000.5.8f1, isolated project and player save identity. Original HUD transform geometry preserved; goal-row text gains a left margin for its icon. No gameplay or goal-award rules changed.
