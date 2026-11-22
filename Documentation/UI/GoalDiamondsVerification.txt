@@ -1,0 +1,2 @@
+137 checks passed: independent completion stars and goal diamonds, 0–3 rewards, empty and locked states, exact sprites, sizes, non-blocking input, repeated installation and category reuse.
+Unity 6000.5.8f1; isolated /tmp project and save identity. Actual scene/Canvas and level-tile prefab were used for the 61–90 preview. Original player saves and goal achievements were not changed.

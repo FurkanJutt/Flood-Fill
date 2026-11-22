@@ -8,8 +8,8 @@ namespace FloodFill.ThreeD
         public Button button;
         public Image background, lockIcon;
         public TMP_Text number;
-        public Image[] stars;
-        public Sprite available, current, locked, goldStar, grayStar, redStar;
+        public Image[] stars, goalDiamonds;
+        public Sprite available, current, locked, goldStar, grayStar, filledGoalDiamond, unfilledGoalDiamond;
         private FloodLevelSelection3D owner;
         private int level;
         private void Awake() => button.onClick.AddListener(Select);
@@ -30,15 +30,19 @@ namespace FloodFill.ThreeD
             int secondaryCount = FloodLevelProgression3D.SecondaryStars(owner.Mode, owner.Difficulty, value);
             for (int i = 0; i < stars.Length; i++)
             {
-                bool secondaryEarned = i < secondaryCount && redStar != null;
-                bool earned = secondaryEarned || i < result.stars;
+                bool earned = i < result.stars;
                 stars[i].gameObject.SetActive(unlocked);
-                stars[i].sprite = secondaryEarned ? redStar : earned ? goldStar : grayStar;
-                stars[i].color = secondaryEarned && i >= result.stars
-                    ? new Color32(212, 212, 212, 212)
-                    : Color.white;
+                stars[i].sprite = earned ? goldStar : grayStar;
+                stars[i].color = Color.white;
                 stars[i].rectTransform.sizeDelta = Vector2.one * (earned ? 41.954f : 30f);
             }
+            if (goalDiamonds != null)
+                for (int i = 0; i < goalDiamonds.Length; i++)
+                {
+                    goalDiamonds[i].gameObject.SetActive(unlocked);
+                    goalDiamonds[i].sprite = i < secondaryCount ? filledGoalDiamond : unfilledGoalDiamond;
+                    goalDiamonds[i].color = i < secondaryCount ? Color.white : new Color32(255, 255, 255, 165);
+                }
         }
     }
 }

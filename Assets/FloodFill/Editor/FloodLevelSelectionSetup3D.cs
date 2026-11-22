@@ -100,11 +100,11 @@ namespace FloodFill.EditorTools
                 view.background=Img("Background",tile,S(8),0,0,150,134);view.background.raycastTarget=true;
                 view.button=tile.gameObject.AddComponent<Button>();view.button.targetGraphic=view.background;
                 var colors=view.button.colors;colors.disabledColor=Color.white;view.button.colors=colors;
-                view.number=Text("LevelNumber",tile,"1",45,0,23,136,65);
+                view.number=Text("LevelNumber",tile,"1",45,0,31,136,65);
                 view.lockIcon=Img("Lock",tile,S(16),0,-32,32,42);
-                view.stars=new Image[3];for(int i=0;i<3;i++)view.stars[i]=Img("Star"+(i+1),tile,S(18),(i-1)*34,-33,30,30);
+                view.stars=new Image[3];for(int i=0;i<3;i++)view.stars[i]=Img("Star"+(i+1),tile,S(18),(i-1)*34,-10,30,30);
                 view.available=S(6);view.current=S(7);view.locked=S(8);view.goldStar=AssetDatabase.LoadAllAssetsAtPath("Assets/Images/Spritesheets/level_complete_sprite_sheet.png").OfType<Sprite>().Single(sprite=>sprite.name=="level_complete_sprite_sheet_17");view.grayStar=S(18);
-                view.redStar=AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Images/Spritesheets/star_red_512.png");
+                FloodGoalDiamondsSetup3D.Configure(view);
                 c.levelPrefab=PrefabUtility.SaveAsPrefabAsset(tile.gameObject,Folder+"LevelButton.prefab").GetComponent<FloodLevelButton3D>();UnityEngine.Object.DestroyImmediate(tile.gameObject);
                 for(int i=0;i<30;i++)
                 {
@@ -112,6 +112,7 @@ namespace FloodFill.EditorTools
                     preview.name="LevelButton"+(i+1);var v=preview.GetComponent<FloodLevelButton3D>();v.number.text=(i+1).ToString();
                     v.background.sprite=i==0?v.current:v.locked;v.lockIcon.gameObject.SetActive(i!=0);
                     foreach(var star in v.stars)star.gameObject.SetActive(i==0);
+                    foreach(var diamond in v.goalDiamonds)diamond.gameObject.SetActive(i==0);
                     v.button.interactable=i==0;v.number.color=i==0?Color.white:new Color(.65f,.71f,.81f);
                     if(i==0)v.background.rectTransform.sizeDelta=new Vector2(180,164);
                 }

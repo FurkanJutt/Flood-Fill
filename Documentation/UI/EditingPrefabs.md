@@ -124,7 +124,7 @@ The existing attempt wall duration is retained under **Solver time**, counting t
 Procedural optional secondary goals
 ----------------------------------
 
-Every newly prepared numbered level has up to three optional goals. Capturing the entire board within the move budget remains the only win condition. Goals do not change the budget, allowed colors, scoring, solver, camera, audio, animations or unlocking. Zero-goal wins remain valid. Existing efficiency stars on level tiles are preserved; secondary-goal stars are separate data. Earned secondary goals use the red sprite in the existing level-tile star positions; the result screen remains unchanged.
+Every newly prepared numbered level has up to three optional goals. Capturing the entire board within the move budget remains the only win condition. Goals do not change the budget, allowed colors, scoring, solver, camera, audio, animations or unlocking. Zero-goal wins remain valid. Existing efficiency stars on level tiles are preserved; secondary-goal stars are separate data. Earned secondary goals use a separate diamond row below completion stars; the result screen remains unchanged.
 
 The runtime implementation is under `Assets/FloodFill/Scripts/ThreeD/Goals/`:
 
@@ -178,6 +178,13 @@ Edit GoalsTrigger and FloatingGoalsPanel RectTransforms in `GameplayHUD.prefab` 
 
 Verification results and desktop timing/storage measurements are recorded in `SecondaryGoalsVerification.txt`. Tests use an isolated project and save identity and do not modify the original project's player saves, solver summary, scenes, level selection or result UI. Mobile script compilation checks, when recorded there, do not substitute for APK/IPA installation or human timing calibration on devices.
 
-Level-tile secondary-goal stars use `star_red_512` in the existing star slots, one per permanently earned goal. Red takes priority over yellow in that slot; remaining earned completion stars stay yellow and unearned slots stay gray. Both glowing colors use 41.954 × 41.954; gray stays 30 × 30. Positions are unchanged. `LevelButton.prefab` references the red sprite, and the editor level-selection installer preserves that reference. The red texture imports as a single Sprite. An isolated Unity check verified counts 0–3, asset/prefab references, positions, sizes and resetting recycled slots to gray.
 
-Red secondary-goal stars in slots without an earned completion star use Image tint #D4D4D4 and alpha 212/255. Red stars over earned completion slots retain white tint/full opacity. Binding resets every slot tint, so switching levels or categories does not carry dimming into other stars.
+
+Level-tile goal diamonds
+-----------------------
+
+Yellow/gray completion stars now remain independent of optional-goal rewards. `FloodLevelButton3D.goalDiamonds` displays three separate slots beneath the stars, using `diamond_filled_512` for permanent secondary-goal achievements and `diamond_unfilled_512` for unearned slots. Locked levels hide diamonds and retain the lock icon; unlocked unplayed levels show three empty slots. Existing saved goal IDs are reused without migration. The red-star sprite reference and tint behavior have been removed from the tiles.
+
+`LevelButton.prefab` uses number y=31, star row y=-10, and diamond row y=-43. Diamonds are 24×24 at x=-26, 0, +26; earned yellow stars retain 41.954×41.954 and gray stars retain 30×30. Grid and tile sizes remain unchanged. Edit the GoalDiamond1..3 RectTransforms to adjust the row. **Tools > Flood Fill > UI > Install Goal Diamonds** installs missing objects and references without duplicating them; the full level-selection installer also includes the row. `FloodGoalDiamondsVerification3D.BeginBatch` checks independent counts, saved rewards 0–3, empty/locked levels, tint reset, sizes, category reuse and repeated installation. Results and preview are in `GoalDiamondsVerification.txt` and `GoalDiamondsPreview.png`.
+
+Unfilled goal diamonds use opacity 165/255; filled goal diamonds remain fully opaque. The runtime binding resets alpha for every slot when switching levels or categories.
