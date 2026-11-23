@@ -118,6 +118,8 @@ namespace FloodFill.EditorTools
             var canvas=ui.GetComponent<Canvas>();var originalMode=canvas.renderMode;var originalCamera=canvas.worldCamera;
             var go=new GameObject("Navigation preview camera",typeof(Camera));var camera=go.GetComponent<Camera>();camera.cullingMask=1<<5;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.005f,.018f,.045f);
             var rt=new RenderTexture(432,900,24);camera.targetTexture=rt;canvas.renderMode=RenderMode.ScreenSpaceCamera;canvas.worldCamera=camera;canvas.planeDistance=1;
+            foreach(var text in ui.GetComponentsInChildren<TMP_Text>())text.ForceMeshUpdate(true,true);
+            foreach(var graphic in ui.GetComponentsInChildren<Graphic>())graphic.SetAllDirty();
             Canvas.ForceUpdateCanvases();foreach(var fit in ui.EditorScreens.First(s=>s.activeSelf).GetComponentsInChildren<FloodFillUIFit3D>(true))fit.SendMessage("LateUpdate");Canvas.ForceUpdateCanvases();camera.Render();
             RenderTexture.active=rt;var texture=new Texture2D(432,900,TextureFormat.RGB24,false);texture.ReadPixels(new Rect(0,0,432,900),0,0);texture.Apply();File.WriteAllBytes(path,texture.EncodeToPNG());
             RenderTexture.active=null;canvas.renderMode=originalMode;canvas.worldCamera=originalCamera;camera.targetTexture=null;UnityEngine.Object.DestroyImmediate(go);rt.Release();UnityEngine.Object.DestroyImmediate(rt);UnityEngine.Object.DestroyImmediate(texture);

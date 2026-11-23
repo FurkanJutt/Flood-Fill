@@ -4481,21 +4481,27 @@ MonoBehaviour:
   m_GameObject: {fileID: 6644973516296692870}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f088d5fc73f74ec9905243ee0e42a59c, type: 3}
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.Goals.FloodGoalPanelGraphic3D
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.045, g: 0.075, b: 0.14, a: 0.98}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  radius: 24
-  borderWidth: 2
-  verticalInset: 0
-  borderColor: {r: 0.12, g: 0.65, b: 0.95, a: 0.85}
+  m_Sprite: {fileID: 21300000, guid: 3cadb9155c0d54c958363fc4ac678a5b, type: 3}
+  m_Type: 1
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
 --- !u!1 &8440156950956219793
 GameObject:
   m_ObjectHideFlags: 0
@@ -4597,21 +4603,27 @@ MonoBehaviour:
   m_GameObject: {fileID: 8440156950956219793}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f088d5fc73f74ec9905243ee0e42a59c, type: 3}
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.Goals.FloodGoalPanelGraphic3D
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.045, g: 0.075, b: 0.14, a: 0.98}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  radius: 18
-  borderWidth: 2
-  verticalInset: 16
-  borderColor: {r: 0.12, g: 0.65, b: 0.95, a: 0.85}
+  m_Sprite: {fileID: 21300000, guid: c44373a29b6b44d98a0b140c49ca48be, type: 3}
+  m_Type: 1
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
 --- !u!1 &2689409365831599231
 GameObject:
   m_ObjectHideFlags: 0

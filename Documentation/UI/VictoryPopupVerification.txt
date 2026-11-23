@@ -1,0 +1,16 @@
+48 checks passed: actual wins/loss, stats and stars, fixed rewards, unscaled leaf/star/confetti animations, repeat-refresh protection, finite particles, phone/tablet bounds, level-100 actions, Replay, Next Level, and animation cleanup.
+Unity 6000.5.8f1 in isolated /tmp/FloodLevelVerify with a dedicated player-save identity.
+Real solver-driven wins and a real move-budget loss were used. New popup leaves margins on phone and tablet; old loss popup was retained. Celebration was tested with Time.timeScale=0, and with repeated UI refreshes and early navigation. Confetti uses exactly 60 preauthored images and hides all particles after completion.
+Rewards remain fixed display values +100 and +5; no reward persistence or wallet logic was introduced.
+Canvas integration changes only the safe-area child list and new victoryPopup field, plus the new prefab instance; preexisting user Canvas edits were preserved. Original scene, font fallback edits, solver history and player saves were not overwritten.
+
+After removing the decorative voxel cube and cube drawing script: the existing 48 victory/loss/navigation/animation checks passed again. Glow-only drawing remains in FloodVictoryGlow3D; no cube objects or renderer references remain.
+
+Denser/slower confetti update: 60 particles with 3.5-second base flight time. All 48 existing victory checks passed with the longer cleanup deadline, including cleanup when closing early.
+
+Animated-statistics update: 52 checks passed: actual wins/loss, count-up statistics, refresh protection, counter cancellation, stats and stars, fixed rewards, unscaled leaf/star/confetti animations, repeat-refresh protection, finite particles, phone/tablet bounds, level-100 actions, Replay, Next Level, and animation cleanup.
+The UI fixture seeds elapsed time to 125.25 seconds to exercise minute formatting. Start, intermediate and final counter values were checked while Time.timeScale=0; mid-count refresh and early Replay were checked for reset/cancellation safety.
+
+Reward-sparkle animation update: all 55 checks passed in isolated Unity 6000.5.8f1. Both authored sparkle Images are bound without blocking input; brightness changes and slow rotation were verified with Time.timeScale=0, and rotation continues after confetti completes. Existing win/loss, refresh, counters, navigation and cleanup checks still pass.
+
+Sprite glow replacement: all 60 checks passed in isolated Unity 6000.5.8f1. HeroGlow now uses cube_glow_512 behind the crown, with slow rotation and gentle scale/opacity pulsing on unscaled time. StarRays also uses a standard Image so the procedural glow script and metadata can be removed. Existing component IDs were retained. No old renderer class/GUID references remain under Assets; runtime hierarchy has no missing scripts. Glow animation continues after confetti and restores authored scale, rotation and opacity on early Replay. Phone/tablet previews refreshed.

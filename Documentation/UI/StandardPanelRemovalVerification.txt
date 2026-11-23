@@ -1,0 +1,11 @@
+Unity 6000.5.8f1 — isolated /tmp/FloodLevelVerify project and separate test save identities.
+
+6 panels use standard sliced Images with valid sprites, preserved component IDs and button targets, and no missing scripts. Legacy renderer removed.
+
+23 checks passed: distinct Home/Pause, confirmation cancel/confirm, pause Settings/back, menu Settings/back, pause/audio/clock context, idempotent controls, saved unfinished board and Continue including goal progress.
+
+22 checks passed: pending, completed, missed, in-progress and permanent states; no status words; cyan/red text; non-blocking icons; text spacing; installation and state reset.
+
+48 checks passed: actual wins/loss, stats and stars, fixed rewards, unscaled leaf/star/confetti animations, repeat-refresh protection, finite particles, phone/tablet bounds, level-100 actions, Replay, Next Level, and animation cleanup.
+
+Original component IDs and button target references are retained. No old renderer class or GUID references remain in project scripts, prefabs, scenes or assets. Standard sliced Images preserve geometry, transparent touch padding and rounded styling. Sprite compositing/import was matched to the project color space; Home, Goals and victory previews were visually checked. Unrelated scene edits, font fallback changes and solver history were preserved.

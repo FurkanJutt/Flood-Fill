@@ -75,15 +75,15 @@ namespace FloodFill.EditorTools
         private static void Style(FloodSecondaryGoalsUI3D ui)
         {
             var trigger=ui.trigger.transform as RectTransform;
-            if(trigger.GetComponent<FloodGoalPanelGraphic3D>()!=null)return;
+            if(FloodUIBackgroundSprites3D.IsStyled(trigger.GetComponent<Image>()))return;
             trigger.sizeDelta=new Vector2(250,120);trigger.anchoredPosition=new Vector2(-370,-376);
             ui.panel.anchoredPosition=new Vector2(0,-440);
             foreach(var rect in new[]{trigger,ui.panel})
             {
                 foreach(var outline in rect.GetComponents<Outline>())UnityEngine.Object.DestroyImmediate(outline);
-                var old=rect.GetComponent<Image>();if(old!=null)UnityEngine.Object.DestroyImmediate(old);
-                var graphic=rect.gameObject.AddComponent<FloodGoalPanelGraphic3D>();graphic.color=new Color(.045f,.075f,.14f,.98f);
-                if(rect==trigger){graphic.radius=18;graphic.verticalInset=16;ui.trigger.targetGraphic=graphic;}
+                bool isTrigger=rect==trigger;
+                var image=FloodUIBackgroundSprites3D.Apply(rect,new Color(.045f,.075f,.14f,.98f),new Color(.12f,.65f,.95f,.85f),isTrigger?18:24,2,isTrigger?16:0);
+                if(isTrigger)ui.trigger.targetGraphic=image;
             }
         }
         private static RectTransform Rect(string name,Transform parent,Vector2 position,Vector2 size)

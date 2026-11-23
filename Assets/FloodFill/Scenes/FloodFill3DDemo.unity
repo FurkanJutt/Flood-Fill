@@ -193,6 +193,7 @@ MonoBehaviour:
   resultPanel: {fileID: 0}
   resultText: {fileID: 0}
   colorButtons: []
+  secondaryGoalSettings: {fileID: 0}
 --- !u!4 &110894716
 Transform:
   m_ObjectHideFlags: 0

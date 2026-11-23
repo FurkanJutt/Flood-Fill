@@ -40,6 +40,7 @@ namespace FloodFill.ThreeD
         [SerializeField] private Transform safeRoot;
         [SerializeField] private GameObject menu, setup, howTo, settings, hud, pause, results, loading, homeConfirmation;
         private GameObject homeReturnScreen, settingsReturnScreen;
+        [SerializeField] private FloodVictoryPopup3D victoryPopup;
         [SerializeField] private TMP_Text loadingTitle, loadingStatus;
         [SerializeField] private RectTransform loadingIndicator;
         [SerializeField] private GameObject loadingRetry;
@@ -683,6 +684,12 @@ namespace FloodFill.ThreeD
             if (manager.State == FloodFillGameManager3D.GameState.Won || manager.State == FloodFillGameManager3D.GameState.Lost)
             {
                 bool won = manager.State == FloodFillGameManager3D.GameState.Won;
+                if (won && victoryPopup != null)
+                {
+                    victoryPopup.Present(manager);
+                    if (!victoryPopup.gameObject.activeSelf) Show(victoryPopup.gameObject);
+                    return;
+                }
                 bool categoryComplete = won && manager.NumberedLevel == FloodLevelProgression3D.LevelsPerCategory;
                 // Inactive controls are removed from the ResultActions vertical layout.
                 foreach (var action in results.GetComponentsInChildren<FloodFillUIAction3D>(true))
@@ -706,7 +713,7 @@ namespace FloodFill.ThreeD
                     (manager.BoardManager.IsFullyCaptured ? "100" : Mathf.Min(99.99f, manager.CapturedPercentage).ToString("0.##")) + "%)";
                 Show(results);
             }
-            else if (started && results != null && results.activeSelf && (manager.State == FloodFillGameManager3D.GameState.Calculating || manager.State == FloodFillGameManager3D.GameState.Playing))
+            else if (started && ((results != null && results.activeSelf) || (victoryPopup != null && victoryPopup.gameObject.activeSelf)) && (manager.State == FloodFillGameManager3D.GameState.Calculating || manager.State == FloodFillGameManager3D.GameState.Playing))
             {
                 Show(hud);
             }
@@ -721,12 +728,12 @@ namespace FloodFill.ThreeD
             if (settings != null && settings.activeSelf && target != settings) FloodAudioManager.Instance?.SaveSettings();
             if (audioScreen != target)
             {
-                bool wasPopup = audioScreen == setup || audioScreen == howTo || audioScreen == settings || audioScreen == pause || audioScreen == results || audioScreen == homeConfirmation;
-                bool isPopup = target == setup || target == howTo || target == settings || target == pause || target == results || target == homeConfirmation;
+                bool wasPopup = audioScreen == setup || audioScreen == howTo || audioScreen == settings || audioScreen == pause || audioScreen == results || audioScreen == homeConfirmation || (victoryPopup != null && audioScreen == victoryPopup.gameObject);
+                bool isPopup = target == setup || target == howTo || target == settings || target == pause || target == results || target == homeConfirmation || (victoryPopup != null && target == victoryPopup.gameObject);
                 if (isPopup || wasPopup) FloodAudioSignals.Popup(isPopup);
                 audioScreen = target;
             }
-            FloodAudioSignals.Menu(target != hud && target != pause && target != results && target != homeConfirmation && !(target == settings && settingsReturnScreen == pause));
+            FloodAudioSignals.Menu(target != hud && target != pause && target != results && (victoryPopup == null || target != victoryPopup.gameObject) && target != homeConfirmation && !(target == settings && settingsReturnScreen == pause));
             if (target != setup && fruitDropdownMenu != null) fruitDropdownMenu.SetActive(false);
             HideAll(); target.SetActive(true); target.transform.SetAsLastSibling();
             target.transform.localScale = Vector3.one * .96f; target.transform.DOScale(1f, .22f).SetEase(Ease.OutBack);
@@ -777,7 +784,7 @@ namespace FloodFill.ThreeD
             }
             BuildCubeCluster(menu.transform);
         }
-        private void HideAll() { if (homeConfirmation != null) homeConfirmation.SetActive(false); if (levelSelection != null) levelSelection.gameObject.SetActive(false); menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
+        private void HideAll() { if (victoryPopup != null) victoryPopup.gameObject.SetActive(false); if (homeConfirmation != null) homeConfirmation.SetActive(false); if (levelSelection != null) levelSelection.gameObject.SetActive(false); menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
 
 #if UNITY_EDITOR
         private void HideLegacyUI(Transform canvas)

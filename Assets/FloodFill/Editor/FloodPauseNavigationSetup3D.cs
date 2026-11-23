@@ -1,6 +1,5 @@
 using System.Linq;
 using FloodFill.ThreeD;
-using FloodFill.ThreeD.Goals;
 using TMPro;
 using UnityEditor;
 using UnityEditor.Events;
@@ -45,16 +44,11 @@ namespace FloodFill.EditorTools
             {
                 foreach(var binding in root.GetComponentsInChildren<FloodFillUIAction3D>(true))
                 {
-                    var graphic=binding.GetComponent<FloodGoalPanelGraphic3D>();
-                    if(graphic==null)
+                    if(!FloodUIBackgroundSprites3D.IsStyled(binding.GetComponent<Image>()))
                     {
-                        var image=binding.GetComponent<Image>();if(image!=null)Object.DestroyImmediate(image);
-                        graphic=binding.gameObject.AddComponent<FloodGoalPanelGraphic3D>();
-                        graphic.radius=18;graphic.borderWidth=2;
                         bool primary=binding.action==FloodFillUIAction.ConfirmHome;
-                        graphic.color=primary?new Color(0,.58f,.86f):new Color(.07f,.12f,.21f);
-                        graphic.borderColor=primary?new Color(.15f,.85f,1):new Color(.2f,.32f,.5f);
-                        binding.GetComponent<Button>().targetGraphic=graphic;
+                        var image=FloodUIBackgroundSprites3D.Apply((RectTransform)binding.transform,primary?new Color(0,.58f,.86f):new Color(.07f,.12f,.21f),primary?new Color(.15f,.85f,1):new Color(.2f,.32f,.5f),18,2);
+                        binding.GetComponent<Button>().targetGraphic=image;
                     }
                 }
             });
