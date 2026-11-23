@@ -1,0 +1,18 @@
+1522 checks passed. Unity 6000.5.8f1; GPU Apple M1 Pro. Isolated project; no original saves touched.
+HollowCube 6 cubed: 152 voxels; peak 80 particles; state/timing parity passed.
+HollowCube 8 cubed: 296 voxels; peak 80 particles; state/timing parity passed.
+HollowCube 10 cubed: 488 voxels; peak 80 particles; state/timing parity passed.
+HollowCube 20 cubed: 2168 voxels; peak 80 particles; state/timing parity passed.
+Procedural 6 cubed: 107 voxels; peak 80 particles; state/timing parity passed.
+Procedural 8 cubed: 223 voxels; peak 80 particles; state/timing parity passed.
+Procedural 10 cubed: 367 voxels; peak 80 particles; state/timing parity passed.
+Procedural 20 cubed: 1712 voxels; peak 80 particles; state/timing parity passed.
+Items 6 cubed: 32 voxels; peak 80 particles; state/timing parity passed.
+Items 8 cubed: 60 voxels; peak 80 particles; state/timing parity passed.
+Items 10 cubed: 28 voxels; peak 80 particles; state/timing parity passed.
+Items 20 cubed: 52 voxels; peak 80 particles; state/timing parity passed.
+Default 80-particle budget; 12-particle stress pool; two wave speeds; camera orbit and board rotation; color, callback synchronization, rapid transitions, visual-only preview, pause, disable, reload and clear tested. Mobile hardware profiling remains a device check.
+
+Curved fluid geometry revision: raised 6x6 main fans, narrow 6x2 curved ribbons, faster crest droplets, same-hue lip highlights. All 12 configurations passed with <=80 active particles; enabled/disabled board state and wave duration remain identical.
+12 checks passed in Unity 6000.5.8f1. Actual demo main menu to Level 1, four selected-color/cube-click moves, stable board subscription after menu preview, emitted particles, transient-resource recovery and 420x900 GPU pixel comparison. Peak 71 particles. Isolated player-save identity.
+Portrait gameplay GPU comparison required >=120 changed pixels; captures were also visually inspected for raised crests and detached droplets.

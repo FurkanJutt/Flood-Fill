@@ -112,6 +112,13 @@ namespace FloodFill.ThreeD
         }
 
         public event Action<VoxelCell3D> VoxelClicked;
+        public event Action ColorWaveBeginning;
+        public event Action BoardVisualsCleared;
+        public event Action<VoxelCell3D, Vector3, int, Color, bool> WavefrontScheduled;
+        public Transform BoardTransform => boardRoot;
+        public float VoxelWidth => voxelSize;
+        public float WaveStepDuration => waveStepDelay;
+        public Color GetPaletteColor(int index) => palette.Length > 0 ? palette[Mathf.Clamp(index, 0, palette.Length - 1)] : Color.white;
 
         public int Width => width;
         public VoxelCell3D VoxelPrefab => voxelPrefab;
@@ -556,6 +563,7 @@ namespace FloodFill.ThreeD
                 return false;
             }
 
+            ColorWaveBeginning?.Invoke();
             ResetAudioWaveBounds();
             int originalColorIndex = voxel.ColorIndex;
             int audioRecoloredUncaptured = 0;
@@ -566,6 +574,7 @@ namespace FloodFill.ThreeD
             visited.Add(voxel);
             depthByVoxel.Add(voxel, 0);
             LastRecolorAnimationDuration = 0f;
+            WavefrontScheduled?.Invoke(voxel, Vector3.up, 0, palette[colorIndex], true);
 
             while (queue.Count > 0)
             {
@@ -595,6 +604,7 @@ namespace FloodFill.ThreeD
 
                     visited.Add(neighbor);
                     depthByVoxel.Add(neighbor, currentDepth + 1);
+                    WavefrontScheduled?.Invoke(neighbor, (Vector3)direction, currentDepth + 1, palette[colorIndex], true);
                     queue.Enqueue(neighbor);
                 }
             }
@@ -854,6 +864,7 @@ namespace FloodFill.ThreeD
 
         private IEnumerator ReleaseActiveVoxelsRoutine(bool incremental)
         {
+            BoardVisualsCleared?.Invoke();
             var slice = Stopwatch.StartNew();
             CancelPointerGesture();
             StopWinCelebration(true);
@@ -1296,6 +1307,8 @@ namespace FloodFill.ThreeD
             queue.Enqueue(originVoxel);
             visited.Add(originVoxel);
             depthByVoxel.Add(originVoxel, 0);
+            if (!previouslyCaptured.Contains(originVoxel))
+                WavefrontScheduled?.Invoke(originVoxel, Vector3.up, 0, palette[CurrentPlayerColor], false);
             float originAnimationDuration = originVoxel.SetCaptured(true, !previouslyCaptured.Contains(originVoxel));
             LastRecolorAnimationDuration = Mathf.Max(LastRecolorAnimationDuration, originAnimationDuration);
             if (originAnimationDuration > 0f) RecordAudioWave(0f);
@@ -1322,6 +1335,8 @@ namespace FloodFill.ThreeD
                     int neighborDepth = currentDepth + 1;
                     depthByVoxel.Add(neighbor, neighborDepth);
                     queue.Enqueue(neighbor);
+                    if (!previouslyCaptured.Contains(neighbor))
+                        WavefrontScheduled?.Invoke(neighbor, (Vector3)direction, neighborDepth, palette[CurrentPlayerColor], false);
                     float captureAnimationDuration = neighbor.SetCaptured(
                         true,
                         !previouslyCaptured.Contains(neighbor),
