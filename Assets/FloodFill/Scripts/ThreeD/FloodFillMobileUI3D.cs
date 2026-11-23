@@ -38,7 +38,8 @@ namespace FloodFill.ThreeD
         [Header("Menu Decoration")]
         [SerializeField, Min(0f)] private float decorativeGap = 0.3f;
         [SerializeField] private Transform safeRoot;
-        [SerializeField] private GameObject menu, setup, howTo, settings, hud, pause, results, loading;
+        [SerializeField] private GameObject menu, setup, howTo, settings, hud, pause, results, loading, homeConfirmation;
+        private GameObject homeReturnScreen, settingsReturnScreen;
         [SerializeField] private TMP_Text loadingTitle, loadingStatus;
         [SerializeField] private RectTransform loadingIndicator;
         [SerializeField] private GameObject loadingRetry;
@@ -179,7 +180,7 @@ namespace FloodFill.ThreeD
             hud = Screen("GameplayHUD");
             hud.GetComponent<Image>().color = Color.clear;
             hud.GetComponent<Image>().raycastTarget = false;
-            AddButton(hud.transform, "HOME", new Vector2(-390, 820), new Vector2(155, 72), Panel, OpenPause, 26);
+            AddButton(hud.transform, "HOME", new Vector2(-390, 820), new Vector2(155, 72), Panel, OpenHomeConfirmation, 26);
             gameTitle = AddText(hud.transform, "FLOOD FILL 3D", 28, FontStyles.Bold, new Vector2(0, 820), new Vector2(450, 62));
             AddButton(hud.transform, "PAUSE", new Vector2(390, 820), new Vector2(155, 72), Panel, OpenPause, 26);
             BuildStat(hud.transform, "MOVES", new Vector2(-285, 670), out moves);
@@ -205,14 +206,22 @@ namespace FloodFill.ThreeD
             AddText(settings.transform, "Camera orbit, pan and zoom are enabled during play.", 30, FontStyles.Normal, new Vector2(0, 375), new Vector2(740, 90), Muted, true);
             BuildCurrentBlockToggle(settings.transform);
             BuildAudioSettings(settings.transform);
-            AddButton(settings.transform, "BACK", new Vector2(0, -470), new Vector2(540, 88), Accent, () => Show(menu), 32);
+            AddButton(settings.transform, "BACK", new Vector2(0, -470), new Vector2(540, 88), Accent, CloseSettings, 32);
 
             pause = ModalScreen("PauseMenu");
             pause.GetComponent<Image>().color = new Color(.015f, .025f, .055f, .72f);
             AddText(pause.transform, "PAUSED", 58, FontStyles.Bold, new Vector2(0, 315), new Vector2(760, 90));
             AddButton(pause.transform, "RESUME", new Vector2(0, 150), new Vector2(580, 92), Accent, Resume, 34);
             AddButton(pause.transform, "RESTART", new Vector2(0, 30), new Vector2(580, 92), Panel, Restart, 34);
-            AddButton(pause.transform, "MAIN MENU", new Vector2(0, -90), new Vector2(580, 92), Panel, BackToMenu, 34);
+            AddButton(pause.transform, "SETTINGS", new Vector2(0, -90), new Vector2(580, 92), Panel, OpenSettings, 34);
+            AddButton(pause.transform, "MAIN MENU", new Vector2(0, -210), new Vector2(580, 92), Panel, OpenHomeConfirmation, 34);
+
+            homeConfirmation = ModalScreen("HomeConfirmation");
+            homeConfirmation.transform.Find("Card").GetComponent<RectTransform>().sizeDelta = new Vector2(710, 460);
+            AddText(homeConfirmation.transform, "QUIT TO HOME?", 36, FontStyles.Bold, new Vector2(0, 145), new Vector2(650, 60));
+            AddText(homeConfirmation.transform, "Are you sure you want to quit to home?", 30, FontStyles.Normal, new Vector2(0, 25), new Vector2(620, 150), Color.white, true);
+            AddButton(homeConfirmation.transform, "CONFIRM", new Vector2(-153, -130), new Vector2(280, 82), Accent, ConfirmHome, 28);
+            AddButton(homeConfirmation.transform, "BACK", new Vector2(153, -130), new Vector2(280, 82), Panel, CancelHome, 28);
 
             results = ModalScreen("GameResults");
             results.GetComponent<Image>().color = new Color(.015f, .025f, .055f, .74f);
@@ -468,7 +477,7 @@ namespace FloodFill.ThreeD
         {
             GameObject screen = Screen(name); screen.GetComponent<Image>().color = new Color(.015f, .025f, .055f, .96f);
             GameObject card = MakeImage("Card", screen.transform, Vector2.zero, new Vector2(900, 1200), Panel);
-            SkinImage(card.GetComponent<Image>(), name == "PauseMenu" ? "PausePanel" : name == "GameResults" ? "ResultPanel" : "SettingsPanel");
+            SkinImage(card.GetComponent<Image>(), name == "PauseMenu" ? "PausePanel" : (name == "GameResults" || name == "HomeConfirmation") ? "ResultPanel" : "SettingsPanel");
             card.GetComponent<Image>().raycastTarget = false;
             return screen;
         }
@@ -586,12 +595,32 @@ namespace FloodFill.ThreeD
             if (menu != null && menu.activeSelf) UpdateMenuCenterpiece(false);
         }
         private void OpenPause() { if (manager.State == FloodFillGameManager3D.GameState.Playing) { manager.PauseGame(); Show(pause); } }
+        private void OpenHomeConfirmation()
+        {
+            if (homeConfirmation == null || manager.State != FloodFillGameManager3D.GameState.Playing ||
+                !(hud.activeSelf || pause.activeSelf)) return;
+            homeReturnScreen = pause.activeSelf ? pause : hud;
+            manager.PauseGame();
+            Show(homeConfirmation);
+        }
+        private void ConfirmHome()
+        {
+            if (homeConfirmation != null && homeConfirmation.activeSelf) BackToMenu();
+        }
+        private void CancelHome()
+        {
+            if (homeConfirmation == null || !homeConfirmation.activeSelf) return;
+            if (homeReturnScreen == pause) Show(pause);
+            else Resume();
+        }
         private void OpenSettings()
         {
+            settingsReturnScreen = pause.activeSelf ? pause : menu;
             RefreshShowCurrentBlockToggle();
             RefreshAudioControls();
             Show(settings);
         }
+        private void CloseSettings() { Show(settingsReturnScreen == pause ? pause : menu); }
         private void Resume() { manager.ResumeGame(); Show(hud); }
         private void Restart()
         {
@@ -692,12 +721,12 @@ namespace FloodFill.ThreeD
             if (settings != null && settings.activeSelf && target != settings) FloodAudioManager.Instance?.SaveSettings();
             if (audioScreen != target)
             {
-                bool wasPopup = audioScreen == setup || audioScreen == howTo || audioScreen == settings || audioScreen == pause || audioScreen == results;
-                bool isPopup = target == setup || target == howTo || target == settings || target == pause || target == results;
+                bool wasPopup = audioScreen == setup || audioScreen == howTo || audioScreen == settings || audioScreen == pause || audioScreen == results || audioScreen == homeConfirmation;
+                bool isPopup = target == setup || target == howTo || target == settings || target == pause || target == results || target == homeConfirmation;
                 if (isPopup || wasPopup) FloodAudioSignals.Popup(isPopup);
                 audioScreen = target;
             }
-            FloodAudioSignals.Menu(target != hud && target != pause && target != results);
+            FloodAudioSignals.Menu(target != hud && target != pause && target != results && target != homeConfirmation && !(target == settings && settingsReturnScreen == pause));
             if (target != setup && fruitDropdownMenu != null) fruitDropdownMenu.SetActive(false);
             HideAll(); target.SetActive(true); target.transform.SetAsLastSibling();
             target.transform.localScale = Vector3.one * .96f; target.transform.DOScale(1f, .22f).SetEase(Ease.OutBack);
@@ -748,7 +777,7 @@ namespace FloodFill.ThreeD
             }
             BuildCubeCluster(menu.transform);
         }
-        private void HideAll() { if (levelSelection != null) levelSelection.gameObject.SetActive(false); menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
+        private void HideAll() { if (homeConfirmation != null) homeConfirmation.SetActive(false); if (levelSelection != null) levelSelection.gameObject.SetActive(false); menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
 
 #if UNITY_EDITOR
         private void HideLegacyUI(Transform canvas)

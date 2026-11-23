@@ -1,0 +1,2 @@
+23 checks passed: distinct Home/Pause, confirmation cancel/confirm, pause Settings/back, menu Settings/back, pause/audio/clock context, idempotent controls, saved unfinished board and Continue including goal progress.
+Unity 6000.5.8f1; isolated /tmp project and save identity. Actual authored button callbacks and scene were used. Confirmation and pause-menu previews were visually checked. Existing controls were retained; no player progress or solver summary was modified by verification.

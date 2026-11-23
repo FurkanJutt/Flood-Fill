@@ -12,7 +12,7 @@ namespace FloodFill.ThreeD
 {
     public sealed partial class FloodFillMobileUI3D
     {
-        public GameObject[] EditorScreens => new[] { menu, setup, howTo, settings, hud, pause, results, loading, levelSelection != null ? levelSelection.gameObject : null }.Where(screen => screen != null).ToArray();
+        public GameObject[] EditorScreens => new[] { menu, setup, howTo, settings, hud, pause, results, loading, homeConfirmation, levelSelection != null ? levelSelection.gameObject : null }.Where(screen => screen != null).ToArray();
 
         /// <summary>Explicit one-time editor construction. Runtime only uses the saved references.</summary>
         public void BuildEditableLayoutForEditor()
@@ -78,12 +78,14 @@ namespace FloodFill.ThreeD
                         case "SETTINGS": binding.action = FloodFillUIAction.Settings; break;
                         case "QUIT": binding.action = FloodFillUIAction.Quit; break;
                         case "START GAME": binding.action = FloodFillUIAction.StartGame; break;
-                        case "HOME": case "PAUSE": binding.action = FloodFillUIAction.Pause; break;
+                        case "HOME": binding.action = FloodFillUIAction.Home; break;
+                        case "PAUSE": binding.action = FloodFillUIAction.Pause; break;
+                        case "CONFIRM": binding.action = FloodFillUIAction.ConfirmHome; break;
                         case "RESUME": binding.action = FloodFillUIAction.Resume; break;
                         case "RESTART": case "TRY AGAIN": binding.action = FloodFillUIAction.Restart; break;
-                        case "MAIN MENU": binding.action = FloodFillUIAction.ReturnToMenu; break;
+                        case "MAIN MENU": binding.action = button.transform.IsChildOf(pause.transform) ? FloodFillUIAction.Home : FloodFillUIAction.ReturnToMenu; break;
                         case "PLAY AGAIN": binding.action = FloodFillUIAction.Result; break;
-                        case "BACK": binding.action = button.transform.IsChildOf(loading.transform) ? FloodFillUIAction.ReturnToMenu : FloodFillUIAction.Menu; break;
+                        case "BACK": binding.action = button.transform.IsChildOf(homeConfirmation.transform) ? FloodFillUIAction.CancelHome : button.transform.IsChildOf(settings.transform) ? FloodFillUIAction.SettingsBack : button.transform.IsChildOf(loading.transform) ? FloodFillUIAction.ReturnToMenu : FloodFillUIAction.Menu; break;
                         default: throw new InvalidOperationException("Unmapped UI control: " + label);
                     }
                 }

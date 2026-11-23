@@ -41,6 +41,10 @@ namespace FloodFill.ThreeD
                 case FloodFillUIAction.StartGame: StartGame(); break;
                 case FloodFillUIAction.Menu: Show(menu); break;
                 case FloodFillUIAction.Pause: OpenPause(); break;
+                case FloodFillUIAction.Home: OpenHomeConfirmation(); break;
+                case FloodFillUIAction.ConfirmHome: ConfirmHome(); break;
+                case FloodFillUIAction.CancelHome: CancelHome(); break;
+                case FloodFillUIAction.SettingsBack: CloseSettings(); break;
                 case FloodFillUIAction.Resume: Resume(); break;
                 case FloodFillUIAction.Restart: Restart(); break;
                 case FloodFillUIAction.ReturnToMenu: BackToMenu(); break;
