@@ -1,0 +1,1254 @@
+Title: Flood Fill 3D — Game Functionality Document
+Version: 1.0
+Inspection Date: 25 November 2026
+Audience: Client, product owner, game designer, non-technical stakeholder
+
+# Flood Fill 3D
+
+## Game Functionality Document
+
+**Document version:** 1.0  
+**Inspection date:** 25 November 2026  
+**Scope:** Current Unity project, active 3D player experience, saved authored settings and local level evidence  
+**Change policy:** Documentation only
+
+## Table of contents
+
+1. [Audit scope and reading guide](#chapter-1)
+2. [Game overview](#chapter-2)
+3. [Complete player journey](#chapter-3)
+4. [Main menu and navigation](#chapter-4)
+5. [Game modes and additional play routes](#chapter-5)
+6. [Difficulty system](#chapter-6)
+7. [Numbered levels and progression](#chapter-7)
+8. [Procedural board generation](#chapter-8)
+9. [Seeds, preserved puzzles, and deterministic replay](#chapter-9)
+10. [Core gameplay rules and practical examples](#chapter-10)
+11. [Player controls and camera behavior](#chapter-11)
+12. [Solver: what it verifies and how it searches](#chapter-12)
+13. [Move allowance calculation](#chapter-13)
+14. [Moves, capture progress, and the active-play clock](#chapter-14)
+15. [Complete scoring system](#chapter-15)
+16. [Secondary goals: purpose and all goal types](#chapter-16)
+17. [How procedural goals are selected and calculated](#chapter-17)
+18. [Goal tracking, achievements, and repeat attempts](#chapter-18)
+19. [Gold-star ratings](#chapter-19)
+20. [Goal diamonds and reward presentation](#chapter-20)
+21. [Victory and level-completion sequence](#chapter-21)
+22. [Failure and recovery](#chapter-22)
+23. [Restart, replay, Continue, and abandonment compared](#chapter-23)
+24. [Custom games](#chapter-24)
+25. [Gameplay interface](#chapter-25)
+26. [Screens, popups, and navigation states](#chapter-26)
+27. [Audio experience and music transitions](#chapter-27)
+28. [Settings and preference persistence](#chapter-28)
+29. [Animations and current visual effects](#chapter-29)
+30. [Local saves and persistence](#chapter-30)
+31. [Loading, cancellation, and performance behavior](#chapter-31)
+32. [Development and testing tools](#chapter-32)
+33. [Edge cases and special behavior](#chapter-33)
+34. [Complete worked example from an inspected saved level](#chapter-34)
+35. [Consolidated rules and calculation reference](#chapter-35)
+36. [How the systems work together](#chapter-36)
+37. [Frequently asked questions](#chapter-37)
+38. [Current functionality status](#chapter-38)
+39. [Known limitations and inconsistencies](#chapter-39)
+40. [Glossary](#chapter-40)
+41. [Completeness audit and verification record](#chapter-41)
+42. [Unverified behavior and client acceptance boundaries](#chapter-42)
+
+<a id="chapter-1"></a>
+
+# 1. Audit scope and reading guide
+
+This document describes Flood Fill 3D as inspected on **25 November 2026**, version **1.0** of this functionality document. It is written for a client, product owner, or designer rather than for a programmer. A rule described as active is connected to the current 3D game, not merely represented by an asset in the project.
+
+The inspection covered the enabled startup scene, the authored menu and gameplay screens, their saved configuration and overrides, level and goal tuning, geometry generation, the solver, budgets, scoring, ratings, local persistence, audio, camera controls, victory presentation, and the development tools. The older two-dimensional demo is disabled in the build list. Third-party example scenes and an installed package are not evidence that a corresponding feature is available in this game.
+
+The document distinguishes three kinds of evidence:
+
+| Evidence | What it establishes | What it does not establish |
+| --- | --- | --- |
+| Current rules and saved configuration | The behavior and balancing values the current game requests | That every device or interruption sequence has been tested |
+| A locally saved numbered-level definition | The exact preserved puzzle, allowance, goals, and winning sequence for that local level | That every fresh installation will discover the same solver result |
+| Read-only reconstruction of that winning sequence | Consistent region counts, capture progress, and completion under the inspected rules | A recorded human play session or historical random score |
+
+No gameplay was changed, no saved progress was reset, and no new game session was launched for this documentation task. The worked example uses an inspected local Level 1 definition. Its move/capture sequence is reconstructed from that definition; its score draws are explicitly illustrative. Device performance, listening quality, app-store behavior, and operating-system interruption behavior are not newly certified by this audit.
+
+**Important terminology:** a gold star is a move-efficiency rating. A cyan diamond is a permanently earned optional-goal achievement. Neither is the same as the displayed coin/gem reward cards, which are placeholders. “Captured” refers to the currently active connected component, not necessarily every cube ever included in an earlier component.
+
+<a id="chapter-2"></a>
+
+# 2. Game overview
+
+**Flood Fill 3D** is a single-player spatial color puzzle presented as “A COLORFUL SPATIAL PUZZLE.” The player chooses a paint color, then taps or clicks a cube. All face-connected cubes of the clicked cube's existing color change together. Matching neighboring colors merge into a larger connected region. The primary objective is to make the entire playable object one connected color before the move allowance is exhausted.
+
+The six available colors are green, purple, yellow, orange, blue, and cyan. There is no difficulty-based reduction or expansion of that palette. Color selection is accessible, while the spatial layout, limited allowance, and optional goals create the strategic challenge.
+
+Unlike a flat board, the object has front, back, side, upper, and lower surfaces. The player must orbit it to discover useful connections and avoid leaving small regions out of sight. Empty space does not transmit a connection, and touching corners does not count. A seemingly useful choice on one face can change what becomes accessible on another.
+
+The game is a **free-region flood puzzle**: the player may recolor any reachable cube's region, not only a fixed starting region. This creates an additional strategic choice—continue enlarging the present region, or work on another region to create a better future merge. Previous recolorings remain on the board, but the capture indicator switches to the component of the latest clicked cube.
+
+Replay incentives are higher gold-star ratings, a lower saved move count, a faster saved numbered-level completion time, and missing optional-goal diamonds. The live score offers moment-to-moment feedback, but there is no implemented permanent best-score leaderboard. Android and iOS are the intended mobile targets; desktop mouse controls and Editor play are supported. This audit does not establish a released mobile build or store availability.
+
+<a id="chapter-3"></a>
+
+# 3. Complete player journey
+
+On launch, the game presents the main menu and checks local saved data. If a valid unfinished attempt exists, CONTINUE becomes available; the player is not automatically sent into that attempt. The menu normally displays a rotating decorative cube cluster. With SHOW CURRENT BLOCK enabled and a board available, it can instead display the actual current board as a menu preview.
+
+A normal numbered-level journey is:
+
+1. Press PLAY to open LEVELS.
+2. Choose FULL GRID, RANDOM SHAPE, or ITEMS.
+3. Choose EASY, MEDIUM, HARD, or EXPERT.
+4. Choose an unlocked numbered level. The first level of every category is initially available.
+5. Wait through preparation. A new numbered level needs a board, a verified solution, an allowance, and optional goals; an already saved level restores its preserved definition.
+6. Watch the brief board entrance. Cube and color input remain unavailable until the entrance is complete.
+7. Select a palette color, then tap a cube. Rotate, pan, or zoom to inspect other surfaces as necessary.
+8. Watch moves used, elapsed active-play time, score, and the capture-progress bar. Open GOALS to inspect optional targets.
+9. Continue until the board is completely connected or the allowance is used up.
+10. On a win, receive the current attempt's gold-star rating, save any newly earned goal achievements, save better move/time records, and unlock the next level in that category.
+11. Choose NEXT LEVEL, REPLAY, HOME, or LEVELS. At Level 100, the primary action is LEVELS instead of creating Level 101.
+
+For example, a new player can choose Full Grid/Easy/1, learn the six-color interaction on a 6×6×6 shell, finish a verified puzzle, and unlock Full Grid/Easy/2. This does not unlock Random Shape/Easy/2 or Full Grid/Medium/2. Those categories have independent progression.
+
+Choosing a color, selecting a level, and navigating require player interaction. Generation, validation, capture calculation, score awards, goal tracking, result evaluation, and local completion saving happen automatically. A new level does not play itself; automated solving belongs to a separate development tool.
+
+<a id="chapter-4"></a>
+
+# 4. Main menu and navigation
+
+| Option | Current behavior | Availability and retained information |
+| --- | --- | --- |
+| PLAY | Opens LEVELS, rather than immediately starting a random puzzle | Available on the main menu. An unfinished playable attempt is saved when leaving for level selection. |
+| CONTINUE | Restores the one valid unfinished attempt, including its current board and counters | Hidden and non-interactable when no suitable checkpoint exists. It does not resume a won, lost, fully captured, or exhausted board. |
+| CUSTOM | Opens GAME SETUP | Remembers mode, size, difficulty, and fruit-menu preferences. It does not itself replace the current attempt until a game is started. |
+| HOW TO PLAY | Opens the instructions panel | BACK returns to the menu. |
+| SETTINGS | Opens sound and menu-preview preferences | BACK returns to the main menu when entered from the menu. |
+| QUIT | Requests application exit | Hidden on Android and iOS. Actual process closure depends on the platform; Editor play is not the same as a packaged application. |
+
+PLAY is not the same action as CONTINUE. Selecting a new numbered level begins a fresh attempt. Selecting the same numbered level as the saved unfinished game opens “This will restart the level. are you sure you want to continue” with CONTINUE and BACK. Here CONTINUE confirms a restart; it is not the main-menu resume action. BACK preserves the unfinished attempt.
+
+Only one unfinished-session checkpoint is supported. Starting another level can replace the resumable attempt; there is no list of several suspended games. The special restart confirmation applies to the saved same mode/difficulty/level identity. There is no equivalent general warning for every different-level or custom-game replacement.
+
+During gameplay, HOME opens “Are you sure you want to quit to home?” with CONFIRM and BACK. Confirming returns to the menu and saves a still-playable attempt. Cancelling from gameplay resumes it; cancelling a confirmation opened from Pause returns to the paused screen. Pause's MAIN MENU route uses the same confirmation. The level-selection Home action returns directly to the menu; the level-selection screen has no Pause button.
+
+<a id="chapter-5"></a>
+
+# 5. Game modes and additional play routes
+
+### Full Grid
+
+Full Grid is a hollow cube made from its one-cube-thick outer shell. The interior is not playable geometry. For side length n, playable cubes equal **n³ − (n−2)³**. The shape is regular and remains fixed for a given dimension. Colors are distributed independently over the playable cubes, producing connected color groups by chance rather than by a separate clustering rule.
+
+Opposite faces can connect around the cube's edges, but cannot connect through the empty center. The challenge is to plan across all six surfaces, including small regions hidden behind the object.
+
+### Random Shape
+
+Random Shape first grows a connected solid within a cubic envelope, then identifies its externally exposed skin. Only the largest face-connected surface component is used as playable geometry. Growth is biased toward a center and several lobes, giving irregular outlines rather than simply deleting random cubes from a full grid.
+
+The player sees an irregular object with gaps and protrusions. Internal solid volume and sealed interior cavities are not separate hidden objectives. Surface extraction can leave several skin components even when the temporary solid was connected; retaining the largest playable component is the safeguard against an inaccessible separate island. The final playable surface therefore can contain fewer cubes than either the envelope capacity or the temporary grown solid.
+
+The present scene uses 44–62% solid fill before size simplification, two to three lobes, and three generation attempts at most. Those percentages describe the temporary solid, not the final percentage of playable surface cubes. Large shapes are deliberately made more compact and less intricate as their envelope increases.
+
+### Items
+
+Numbered ITEMS levels use procedurally formed fruit silhouettes: **Apple, Pear, Orange, and Banana**. These are geometric voxel silhouettes, not imported finished colored models. Apple has broad shoulders and a dimple; Pear has a broad lower body and narrower upper portion; Orange is approximately spherical; Banana is a curved tapered tube. Their visible skins are extracted and the largest connected skin is retained.
+
+The level seed selects one of four silhouettes. With the current seed schedule, numbered Items levels repeat Apple, Pear, Orange, Banana in that order, starting at Level 1, independently of difficulty. The silhouette repeats, but size bands and color layouts change. Very low-resolution or narrow features can lose detached tips during connectivity cleanup; the game prioritizes a single playable object over preserving every detail.
+
+The custom setup's FRUITS menu is **not** this active Items entry point. It is marked COMING SOON and does not start a custom fruit puzzle.
+
+| Mode | Geometry and generation | Numbered dimensions | Main strategic distinction | Difficulty influence |
+| --- | --- | --- | --- | --- |
+| FULL GRID | Regular outer shell | 6 through 20, in seven size bands | Connections around six faces and edges | Different seed/allowance/goals; no special shape rule |
+| RANDOM SHAPE | Controlled connected growth, exterior skin, largest component | Same seven bands | Uneven surfaces, gaps, branches and visibility | Different seed/allowance/goals; shared shape tuning |
+| ITEMS | Four analytic fruit skins, largest connected component | Same seven bands | Curved outlines and narrow connecting areas | Different seed/allowance/goals; same silhouette cycle |
+
+### Additional routes and older content
+
+The current main PLAY flow is the 1,200-level catalog. There is also an older sequential campaign reachable indirectly through NEXT LEVEL after winning a custom game. It starts from its separately remembered campaign position, uses Full Grid on most stages and Random Shape on every fifth stage, and progresses through the seven sizes in groups of five. Beyond its first 35 stages it chooses a size for the current campaign stage and remembers that choice. It has no numbered-catalog secondary goals. This route is a current navigation inconsistency, not another 1,200-level category.
+
+An older 2D game remains in the project but is not enabled as the startup build scene. Third-party water, terrain, and other demonstration content are not active Flood Fill 3D modes.
+
+<a id="chapter-6"></a>
+
+# 6. Difficulty system
+
+The numbered-level screen uses EASY, MEDIUM, HARD, and EXPERT. Custom setup uses EASY, NORMAL, HARD, and PERFECT. MEDIUM and NORMAL select the same allowance tier; EXPERT and PERFECT select the same strict tier. This naming difference is currently visible to players.
+
+Difficulty does **not** directly change the numbered dimension band, the six available colors, color-clustering probabilities, or the scene's geometry-growth parameters. It changes the selected move allowance and optional-goal tuning. It also participates in the seed identity, so a fresh Easy board and a fresh Expert board at the same level number normally have different color arrangements and may have different irregular geometry. This is seed variation, not proof of a special Expert shape-complexity rule.
+
+| Numbered name | Custom name | Move allowance relative to verified solution | Capture-goal fraction | Efficiency-goal spare-move fraction | Early-goal fraction of solution length | Estimated human seconds per move |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| EASY | EASY | Largest extra allowance | 0.45 | 0.65 | 0.35 | 10 |
+| MEDIUM | NORMAL | Intermediate extra allowance | 0.65 | 0.50 | 0.30 | 7 |
+| HARD | HARD | Small extra allowance | 0.80 | 0.20 | 0.25 | 6 |
+| EXPERT | PERFECT | Exactly the retained verified solution length | 0.95 | 0 | 0.20 | 5 |
+
+A fraction of 0.45 for a capture goal does not mean “capture 45% of the whole board.” It scales a demonstrated move's capture result. Exact formulas are in Chapters 13 and 17.
+
+All categories have 100 levels and the same dimension schedule. A later Easy level can therefore be physically larger than an early Expert level. Larger size and more initial connected color regions generally increase planning effort, but no strict monotonic guarantee says Level 40 needs more moves than Level 39. The solver-derived allowance depends on the actual arrangement.
+
+Expert's zero-spare allowance is based on a verified best-known solution, not automatically a mathematically shortest one. If a shorter route is discovered later, the original saved allowance does not automatically shrink. Gold-star thresholds remain the same for every difficulty; this creates an important Expert rating limitation discussed in Chapter 19.
+
+<a id="chapter-7"></a>
+
+# 7. Numbered levels and progression
+
+There are **3 modes × 4 difficulties × 100 levels = 1,200 numbered levels**, arranged in 12 independent categories. A level is identified by all three choices: mode, difficulty, and number. Full Grid/Easy/10 and Random Shape/Hard/10 are different puzzles with separate completion, stars, goal achievements, records, and unlock chains.
+
+Level 1 is unlocked in every category. A later level is available when its immediately preceding level is completed, or when that later level already has a completion record. Winning is sufficient; optional goals and a particular gold-star count are not required. Failure does not unlock the following level.
+
+| Numbered level range | Envelope dimensions |
+| --- | --- |
+| 1–15 | 6×6×6 |
+| 16–30 | 8×8×8 |
+| 31–45 | 10×10×10 |
+| 46–60 | 12×12×12 |
+| 61–75 | 15×15×15 |
+| 76–90 | 18×18×18 |
+| 91–100 | 20×20×20 |
+
+LEVELS shows 30 tiles per page: 1–30, 31–60, 61–90, and 91–100. The last page contains ten tiles, not thirty additional levels. Left/right arrows and four page dots navigate. The active dot is larger and cyan; boundary arrows are non-interactable. The last manually chosen page is remembered separately for each category while that selection screen instance exists, rather than being a guaranteed persistent preference across application launches.
+
+Locked tiles show a lock. Available tiles show their number and rating/goal placeholders. Completed tiles retain their best gold stars and earned goal count. The highlighted tile is the first incomplete level in that category; after all 100 are complete it remains Level 100. That highlight is not a promise that an unfinished checkpoint belongs to that tile.
+
+The category counter is completed levels out of 100. Because the denominator is exactly 100, 19 completed means 19%, regardless of their star or diamond totals. Replaying a completed level does not increment that count again.
+
+The catalog keeps the lowest winning move count, highest earned gold-star count, and best recorded numbered completion time. It does not keep a permanent best score. At Level 100, victory's primary button becomes LEVELS and the duplicate lower LEVELS button is hidden; HOME is centered without an empty button slot.
+
+<a id="chapter-8"></a>
+
+# 8. Procedural board generation
+
+A level is generated under constraints rather than as unrestricted random noise. The preparation flow is:
+
+    Select a level
+        ↓
+    Restore its existing saved definition, if valid
+        OR
+    Choose its envelope and seed → construct playable geometry → assign colors
+        ↓
+    Analyze connected regions → find and validate a winning sequence
+        ↓
+    Calculate the allowance → generate compatible optional goals → save the definition
+        ↓
+    Prepare the view → show the entrance → enable play
+
+Full Grid creates its regular outer shell directly. Items creates one of the four fruit solids and extracts a connected skin. Random Shape grows from a seed location, adding neighboring material so the temporary solid stays connected. Growth can favor lobes, centerward positions, brushes of adjacent material, or branches. The scene's base growth chances are brush 35%, branch 18%, directional persistence 19%, center bias 41%, lobe strength 44%, with six weighted candidates per choice and two to three attractors/lobes. These are generation controls, not player probabilities of winning.
+
+Random Shape has no outer margin configured and requires a span of at least four cubes in each axis where the envelope permits. It targets an integer solid population between the ceiling of the minimum fill count and floor of the maximum fill count. It flood-checks outside air and extracts material touching that outside air. Sealed internal cavities are not treated as exterior playable surfaces. The largest face-connected surface component is retained, and the final bounds must still meet the minimum spans.
+
+At most three attempts are made. The third attempt avoids the brush feature; optional notch carving is only attempted on the first attempt when enabled. **Notches are currently disabled**, so their configured 12% chance and one pass are not active gameplay behavior. If irregular generation fails its attempts, the level uses a hollow cube fallback instead of hanging or presenting a disconnected puzzle. A level still passes through solver and numbered-definition validation after that geometric fallback.
+
+For large Random Shape envelopes, let q = 0.65 × clamp((n−8)/12, 0, 1). The solid-fill range becomes 0.44 + 0.08q through 0.62 + 0.05q. At size 20, q is 0.65 and the range is approximately **49.2–65.25%**. Brush growth and central compactness increase, while branching, directional persistence, and lobe strength decrease. This size-dependent simplification applies across difficulties.
+
+| Side length | Envelope capacity | Full Grid playable shell |
+| ---: | ---: | ---: |
+| 6 | 216 | 152 |
+| 8 | 512 | 296 |
+| 10 | 1,000 | 488 |
+| 12 | 1,728 | 728 |
+| 15 | 3,375 | 1,178 |
+| 18 | 5,832 | 1,736 |
+| 20 | 8,000 | 2,168 |
+
+Random Shape and Items counts vary and should not be inferred from this shell table. A 20³ envelope does not imply 8,000 playable cubes. More geometry and more distinct connected color regions can increase preparation cost, but an irregular thin object may have fewer playable cubes than a smaller-looking regular shell.
+
+Initial colors are selected independently from the six-color palette. Numbered levels use a seed-derived color sequence. The initial active component is the face-connected color group containing a deterministic starting cube. It counts toward capture progress but earns no initial score. That starting component is a reference point, not a restriction on which region the player may manipulate next.
+
+<a id="chapter-9"></a>
+
+# 9. Seeds, preserved puzzles, and deterministic replay
+
+A seed is a repeatable input to generation. Numbered identities use a fixed seed schedule. With modes numbered Full Grid 0, Random Shape 1, Items 2, and difficulties Easy 0 through Expert 3:
+
+**Category position = 100 × (4 × mode + difficulty) + level − 1**
+
+**Seed = 1,179,005,764 + 104,729 × category position**
+
+The identity uses numbers internally, but players only need the three visible choices. For example, Full Grid/Easy/1 has seed **1,179,005,764**. Each distinct catalog identity has a different scheduled seed.
+
+More importantly, the first successful preparation saves the **actual initial occupied coordinates and cube colors**, palette, seed, allowance, optional goals, a verified winning sequence, and generation/version information. Replay therefore restores the preserved puzzle rather than depending on regenerating it from a seed alone. Its move allowance and goal definitions are also restored, even if a later search could discover a better solution.
+
+The current attempt is saved separately. Restarting a numbered level discards the attempt's changed colors, moves, score, elapsed time, and temporary goal progress, then reloads the original preserved definition. Permanent completion, best stars, best moves/time, and previously earned goals remain.
+
+The board-generation rules and seed are expected to reproduce an initial numbered board under the same implementation. **Identical budgets and goals on different fresh installations are not guaranteed:** solver refinements and goal-candidate collection are time-bounded, and different search outcomes can change the retained witness. Once a device has a valid definition, its saved replay is the stronger guarantee. There is no server distributing one universal puzzle file to every player.
+
+Saved definitions are versioned and checked against their board integrity and witness. They are not silently overwritten when a definition already exists. If a future update makes an old definition unsupported, the current handling is to preserve the file and show a loading error, not silently substitute a new puzzle. Compatibility across arbitrary future generation updates is therefore not guaranteed.
+
+Custom games have no equivalent immutable numbered definition. Full Grid keeps the same regular geometry at the chosen size but can receive new colors on restart. Random Shape normally gets a fresh seed and geometry on restart. Continuing an unfinished custom game restores its current saved board; starting or restarting a custom game is a different action.
+
+<a id="chapter-10"></a>
+
+# 10. Core gameplay rules and practical examples
+
+A valid move has two parts: choose a palette color, then click or tap a playable cube whose current color differs from that chosen paint. Every cube face-connected to the clicked cube through its original color is recolored. Neighboring regions of the new color then join the resulting component, including all matching regions reached through chains of face adjacency.
+
+There are six possible neighbor directions: left, right, up, down, front, and back. An edge-only or corner-only touch does not connect cubes. A gap does not connect them. Cubes on different visible faces can nevertheless meet across the physical edge of the object through adjacent grid positions.
+
+**Example:** five connected purple cubes touch six connected yellow cubes. Selecting yellow and clicking one of the purple cubes changes all five purple cubes to yellow. The resulting yellow component contains eleven cubes if those two groups are the only connected material involved. If the active component before that move was those five purple cubes, the newly captured count is six. If the player instead moved from a separate active component, more of those eleven may count as newly active.
+
+**Working elsewhere is allowed.** The player can select orange and recolor a remote green region even while a large purple component exists elsewhere. The green region changes, the previous purple paint remains, and the active capture component becomes the component at the newly clicked cube. Capture progress can consequently decrease. There is no permanent ownership of every cube previously called “captured.”
+
+Newly captured cubes are the cubes in the new active component that were not in the immediately preceding active component. They are not the increase in a lifetime total. Revisiting regions can therefore count cubes again after they have left the active component. This definition affects score and optional capture goals.
+
+| Interaction | Consumes a move? | Consequence |
+| --- | --- | --- |
+| Choose a different palette button | No | Changes the paint selection; may count toward a color-selection goal |
+| Choose the already selected palette color | No | Ignored; the selected palette button is disabled |
+| Click a cube already matching the selected paint | No | No recolor and no score |
+| Click a different-color region without touching any selected-color neighbor | Yes | Recolors that component even without an external merge |
+| Recolor another independent region | Yes | Changes the active component and can lower the capture bar |
+| Click outside a cube, or release a camera drag | No | Does not become a paint move |
+| Attempt play while loading, paused, in entrance animation, or after the result | No | Gameplay input is blocked |
+
+The color-state change and move/capture calculations happen immediately when accepted. The wave is a presentation of that already accepted state. Normal recolor waves do not lock all subsequent input; rapid valid moves can be accepted and replace affected visual transitions. The original wave is therefore not a required wait between every move.
+
+Victory means the active connected component contains **every playable cube**. A visually near-complete board is not sufficient. This is checked before the move-limit loss check, so completing the board on the final available move is a win.
+
+<a id="chapter-11"></a>
+
+# 11. Player controls and camera behavior
+
+| Action | Touch | Mouse |
+| --- | --- | --- |
+| Choose paint | Tap a palette button | Click a palette button |
+| Apply paint | Tap a cube without a drag | Click/release on a cube without a drag |
+| Orbit | One-finger drag outside blocking UI | Left-button drag |
+| Pan | Two-finger movement together | Right- or middle-button drag |
+| Zoom | Change two-finger separation | Mouse wheel |
+| Restore framing | Double tap | Double click/tap-style left interaction |
+
+The board selection gesture uses a 12-pixel drag threshold to distinguish a tap from an orbit gesture. A gesture that begins on a color control or other blocking UI does not turn into an unintended cube paint. Camera gestures are also checked against UI. Multi-touch movement is not interpreted as a paint click.
+
+The current scene limits pitch to −75° through +75°. Fresh framing begins at approximately −40° yaw and 28° pitch. The camera fits the board's enclosing volume to the available aspect ratio and uses proportional padding of 1.05, so larger boards and narrow portrait screens can require more distance. It can expand the nominal maximum zoom-out distance to fit a large board safely.
+
+The nominal distance limits are 4 and 30 world units, but the outside-board safety rule can push the actual minimum or maximum beyond them. The inspected scene's surface-clearance value is **14 world units**; an earlier prose note described 0.75, but that is not the current saved scene value. With cubes one world unit wide, 14 is a substantial clearance and may make the initial view or zoom-in limit more distant than expected. This audit records the value rather than changing it.
+
+For balancing reference, the saved scene uses orbit sensitivity 0.2, pan sensitivity 5, and zoom sensitivity 15. These are response settings rather than player-facing speed numbers. Panning scales with camera distance and screen height. Two-finger zoom normalizes movement to screen size.
+
+Double-tap recognition uses a maximum 0.32-second gap, a 36-pixel movement allowance per tap, and an 80-pixel separation allowance. The reset smoothly restores the original center and fitted zoom over 0.45 seconds while keeping the present viewing angle. A new pan or zoom interrupts the reset. A fresh/replayed numbered level is framed again; Continue restores the saved view subject to current safety limits.
+
+Pause, its Settings screen, and Home confirmation stop camera interaction. Board entrance and loading also block it. The floating goals panel consumes an outside tap used to dismiss it so that tap does not paint a cube; an outside drag can close the panel and remain available for camera movement.
+
+<a id="chapter-12"></a>
+
+# 12. Solver: what it verifies and how it searches
+
+The solver exists to demonstrate that a new puzzle has a winning route and to establish a sensible move allowance. Normal players do not have to watch or use it directly. It works during preparation and is bypassed when a valid preserved numbered definition already supplies its winning route.
+
+Conceptually, the solver compresses every initially connected same-color group into a region. It remembers each region's color, cube count, and neighboring regions. It then studies recoloring any region and merging matching neighbors. This matches free-region play, rather than assuming every move must grow a fixed corner.
+
+Its current search combines several strategies:
+
+| Strategy | Plain-language role | Limitation |
+| --- | --- | --- |
+| Initial monotone completion | Establishes a complete route by repeatedly joining regions before trying to improve it | A safe first route is not necessarily short |
+| Multiple greedy strategies | Try moves with immediate benefits: merged cube mass, number of joined groups, or useful frontier exposure | A locally attractive move can be poor later |
+| Memoized lookahead | Compare a few moves ahead and reuse evaluations of repeated positions | Bounded depth/branching cannot inspect every future |
+| Diverse free-region beam search | Retain a limited collection of promising partial routes, including different opening choices | Discarded alternatives may contain a better route |
+| Anchored beam search | Also grow from the starting region and up to three promising large/well-connected origins; compare frontier distance and future merges | This is one additional search route, not a restriction on player moves |
+| Iterative-deepening A* (IDA*) | Search routes below the current best length using a mathematically safe lower bound, increasing the permitted depth | Runs only for suitably small region counts and within limits |
+| Independent replay validation | Apply the complete candidate sequence under the flood rules and confirm that all regions end in one color | Proves that route works, not that no shorter route exists |
+
+Greedy ranking tries six variants. For example, a move that joins six cubes immediately can outrank one joining four under a mass-focused strategy; another strategy can prefer the four-cube choice if it joins more separate regions or exposes a stronger frontier. The actual ranking coefficients are included in Chapter 35. Such scores rank search choices; they are not the player's score.
+
+The solver remembers duplicate positions, rejects candidates that cannot improve the retained route, and uses memory-aware beam widths. It keeps a validated incumbent, meaning the best route demonstrated so far, even if a refinement phase stops early. Shorter candidates are accepted only after validation. The minimum number of globally distinct colors minus one supplies a safe lower bound; a more detailed region estimate is used for ranking but is not misrepresented as a proof.
+
+Current normal-play refinement settings are six greedy runs, beam width 128, lookahead depth 3, branch limit 2, and lookahead node limit 128. Greedy and beam phases each have a 200 ms budget. Exact search is eligible at 128 initial regions or fewer and has a 40 ms budget and nominal 100,000-state limit. Search memory guidance is 32 MB, which can further reduce effective widths/state limits. These are phase controls, not a hard total loading deadline: building the graph, establishing the first completion, validating it, and other preparation also take time.
+
+The developer analysis tool can use larger budgets; ordinary play uses normal-play budgets even in Editor play and development builds. All retained routes are validated by the shared rule model. A fallback may establish a longer monotone route if refinement fails. Numbered content is not published when no within-budget validated witness can be prepared.
+
+Four outcomes must remain distinct:
+
+1. **Valid solution:** this particular sequence wins.
+2. **Best-known solution:** the shortest validated sequence found during this search.
+3. **Proven optimal solution:** the search or a matching safe lower bound proves that a shorter route does not exist.
+4. **Inconclusive search:** available search effort did not establish the desired result; stopping is not proof of impossibility.
+
+Most large boards can be validated without being proven optimal. The game does not promise that every allowance comes from the mathematical minimum, or that a later deeper analysis will rediscover the same or a shorter route within its own time limit.
+
+<a id="chapter-13"></a>
+
+# 13. Move allowance calculation
+
+Let **S** be the retained validated solution length, with a minimum of 1, and **R** the initial connected color-region count. Let **round** mean nearest whole number, with exact halves rounded upward for these non-negative values. The game rounds the percentage contribution first and the complexity-scaled contribution second.
+
+| Initial regions R | Complexity multiplier C |
+| --- | ---: |
+| Fewer than 80 | 1.00 |
+| 80–149 | 1.10 |
+| 150–249 | 1.25 |
+| 250–399 | 1.40 |
+| 400 or more | 1.60 |
+
+Calculate:
+
+- Hard extra = round(max(1, round(0.08 × S)) × C), at least 1.
+- Medium extra = round(max(3, round(0.23 × S)) × C), at least 1.
+- Easy extra = round(max(5, round(0.38 × S)) × C), at least 1.
+- Expert allowance = S.
+- Hard allowance = at least Expert + 1, using S + Hard extra.
+- Medium allowance = at least Hard + 1, using S + Medium extra.
+- Easy allowance = at least Medium + 1, using S + Easy extra.
+
+The configured upper allowance is 1,000,000 moves. To preserve strict tier ordering it leaves two positions below the cap for Hard, one for Medium, and none for Easy. The effective ceiling is at least S + 3, even if a lower ceiling were configured. Current supported puzzles are far below that ceiling; it is not a normal target allowance. There is no separate fixed board-size bonus: board size influences the solution and region count instead.
+
+**Worked example:** S = 14 and R = 101 give C = 1.1. Hard's 8% contribution rounds to 1, then remains 1 after scaling. Medium's 23% rounds to 3, then remains 3. Easy's 38% rounds to 5; 5 × 1.1 = 5.5 rounds to 6. The allowances are Expert 14, Hard 15, Medium 17, and Easy 20.
+
+| S, with R = 101 | EASY | MEDIUM / NORMAL | HARD | EXPERT / PERFECT |
+| ---: | ---: | ---: | ---: | ---: |
+| 5 | 11 | 8 | 6 | 5 |
+| 10 | 16 | 13 | 11 | 10 |
+| 14 | 20 | 17 | 15 | 14 |
+| 20 | 29 | 26 | 22 | 20 |
+
+These comparisons apply the same mathematical board statistics to each tier; actual numbered identities at different difficulties can have different seeds and therefore different S and R. Two boards of equal dimensions can receive different allowances because their region layouts differ.
+
+For a newly published numbered level, the retained winning witness is no longer than its allowance. Saved replay restores that allowance rather than recalculating it. Optional goals do not add or subtract ordinary moves. A developer's later search can return an over-budget plan without invalidating the original stored witness; that later plan simply cannot be played to completion under the current limit.
+
+For custom play only, if no validated preparation result is available, the emergency allowance uses max(1, playable cube count − 1) as a conservative solution-length input to the same tier calculation. This is a recovery bound based on merging connected material, not a saved demonstrated optimal sequence. A numbered level instead stops loading with an error when no validated definition can be established.
+
+<a id="chapter-14"></a>
+
+# 14. Moves, capture progress, and the active-play clock
+
+**Remaining moves = max(0, allowance − moves used).** The HUD displays used / allowance, such as 7 / 20. It updates on accepted moves; choosing paint alone does not consume a move. Once a move wins or exhausts the allowance, further color/cube gameplay input is disabled immediately, before the result popup finishes appearing.
+
+**Capture percentage = 100 × active connected cubes / total playable cubes.** Initially connected cubes count. For a 152-cube board with one active cube, the true starting fraction is about 0.66%. The current mobile HUD's bar uses the actual fraction; it is not limited to cubes gained after the first move. The center HUD box is TIME ELAPSED, not a duplicate numeric capture percentage.
+
+The capture bar animates toward the accepted logical result over 0.25 seconds. It does not wait for every cube in the visual wave before calculating progress. Because players can manipulate another region, both its target and the active capture count can go down. The ordinary whole-number capture display, where used, caps incomplete boards at 99 and reserves 100 for actual full capture. Detailed failure text also shows the actual captured/total count and a capped fractional percentage so a nearly complete failed board is not presented as a true 100% win.
+
+**Elapsed time is active-play time.** It accumulates only after preparation, while gameplay interaction is allowed, the application is not suspended, and game time is running. Loading, the initial entrance, pause, the pause Settings screen, Home confirmation, and completed-result screens do not add to it. Normal color waves do add time because they do not lock the next move. The display drops fractional seconds and uses mm:ss, switching to hh:mm:ss at one hour. It is not a countdown.
+
+The clock survives Continue and resets to zero on restart/new play. It is saved at checkpoints, not written to disk on every displayed second. Losing application focus triggers a save, but focus loss alone is not an explicit in-game pause request. Actual app suspension stops the timer and skips an oversized first tick when returning; device lifecycle details still require platform testing.
+
+Running out of moves with even one disconnected cube is a loss. Completing the final cube on the last move is a win because completion is evaluated first.
+
+<a id="chapter-15"></a>
+
+# 15. Complete scoring system
+
+The initial score is zero. Points are awarded after an accepted recolor only when the newly active cube count is positive. The reward is **not** a fixed number per cube and is **not** a fixed number per move.
+
+For each scoring move, choose an integer base **B uniformly from 21 through 49**, inclusive. Let **N** be newly captured cubes relative to the previous active component. The multiplier is:
+
+| N | Multiplier |
+| --- | ---: |
+| 0 | No award or random draw |
+| 1–3 | 1 |
+| 4–6 | 3 |
+| 7 | 4 |
+| 8 | 5 |
+| 9 | 6 |
+| 10 or more | 7 |
+
+**Move points = B × multiplier.** The total score adds these awards. For example, with a base draw of 30, capturing 3 new cubes gives 30 points, 5 gives 90, 8 gives 150, and either 10 or 100 gives 210. The multiplier has a cap, so doubling a large capture does not necessarily double its score. There is no multiplier of 2 in this rule.
+
+The randomness means two identical winning move sequences can finish with different scores. Chapter 34 uses valid illustrative draws to show a mathematically consistent total; it does not claim those draws were the historical saved result.
+
+“New” is relative to the immediately preceding active component. It is not a global once-per-level collection record. Recoloring within the same component without acquiring cubes can give no points, while choosing a different component can make its cubes newly active and award points even without increasing the board's largest connected region. Repeated region switching can count cubes again if they left and later reentered the active component. The move allowance remains the constraint on such play.
+
+There is currently no implemented score contribution for speed, spare moves, difficulty, mode, board dimension, consecutive combos, gold stars, optional-goal completion, or the final win itself. There is no explicit score deduction for an unproductive move; it simply spends a move and may award nothing. No designed score ceiling is enforced beyond the numeric storage used by the game.
+
+The current score is checkpointed for Continue and appears during play and in the failure result. Restart/new play resets it. The catalog does not store a best score, and the current victory popup emphasizes moves, BEST moves, and time rather than a final-score box. The decorative +100/+5 reward cards do not alter this score.
+
+<a id="chapter-16"></a>
+
+# 16. Secondary goals: purpose and all goal types
+
+Secondary goals are optional challenges attached to a preserved numbered level. The generator requests up to three, but can publish fewer, including none, when appropriate validated candidates are unavailable. Their definitions are fixed on replay. Custom games and the indirectly reachable older campaign do not receive these numbered optional goals.
+
+A goal may be provisionally met during play, but **a win is required to earn it permanently**. Missing a goal does not make the level fail, reduce the move allowance, or prevent unlocking the next level. A player can collect different achievements on different successful attempts.
+
+The following ten goal types are implemented. Players see the descriptive instruction, not necessarily the short category label used here.
+
+| Goal category | Player instruction and progress | When it can no longer succeed in that attempt | Example |
+| --- | --- | --- | --- |
+| Move Saver | Finish within a target number of moves; tracks moves used | Once the target is exceeded | Finish within 17 moves |
+| Final Color | Win with the entire active object in the specified color | Evaluated at the win; it is not earned just by selecting that color earlier | Finish with orange |
+| Big Capture | Make at least one move with the target newly active cube count; tracks the best such count | Not inherently missed until the attempt ends | Capture 9 new cubes in one move |
+| Quick Start | Reach the specified percentage/cube target within an early move deadline; retains the best early count | At its deadline if the target has not been reached | Capture 25% within 4 moves |
+| Combo Capture | Make the requested number of qualifying capture moves; these need not be consecutive | Not inherently missed until the attempt ends | Capture 8+ new cubes on 3 moves |
+| Speed Run | Win within an active-play time target | The goal becomes missed when time exceeds its target, but the level remains playable | Finish within 120 seconds |
+| Limited Color Usage | Select the named palette color at most the target number of times | When actual palette selections exceed the limit | Select purple at most 2 times |
+| Final Sprint | After first reaching the stated capture threshold, win within the specified number of additional moves | Once more than that many moves have elapsed since the crossing | After reaching 70%, finish in 3 more moves |
+| Fast Expansion | A later reach-percentage deadline, using the same progress rule as Quick Start | At its deadline if the target has not been reached | Capture 50% within 7 moves |
+| Final Color Efficiency | Win in the specified color within a move target | Exceeding the move target, or finishing in another color | Finish with cyan within 15 moves |
+
+Final Sprint counts moves **after** the first threshold-crossing move. The crossing move itself is not one of the additional moves. Dropping below the threshold later does not restart its countdown. Big Capture and Combo Capture use the same active-component difference count used by score, not a lifetime unique-cube total.
+
+Limited Color Usage measures palette choices, not uses of paint on cubes. Keeping one selected color for several legal recolors counts as one selection. Switching to the named color and never applying it still counts. Pressing the already selected color is ignored and does not count again.
+
+All goal types are constrained by the mode/difficulty selection pools in Chapter 17. Final Color Efficiency is implemented as a rule but is not ordinarily generated with the current configuration: its only positive selection weights are on Expert, where a zero-spare allowance fails its required one-move saving condition. A theoretically implemented type is not necessarily eligible on every difficulty. Their reward is a persistent goal achievement shown by a diamond. They do not award extra gold stars, coins, gems, score, or moves.
+
+<a id="chapter-17"></a>
+
+# 17. How procedural goals are selected and calculated
+
+Goal generation studies the same verified winning route used to establish the level. Let **L** be its length, **M** the allowance, **N** total playable cubes, **I** initially active cubes, **R** initial color regions, and **d** the difficulty position 0–3. For each witness move it records newly active cubes, active component size, selected color, and the final winning color.
+
+The minimum meaningful capture is **max(2, ceil(0.02 × N))**. Each candidate must be demonstrated by the witness. The generator considers at most 30 candidates and has a configured 30 ms candidate-generation budget; those bounds can cause fewer goals to be offered. Witness validation has a 2,048-move limit.
+
+| Goal | Exact target construction and eligibility |
+| --- | --- |
+| Move Saver | T = L + floor((M−L) × spare-move fraction). Offer only if T ≤ M−1. |
+| Final Color Efficiency | Same T and minimum-saving condition, plus the witness's final color. |
+| Final Color | Witness final color. |
+| Big Capture | Let P be the largest witness new-capture count. T = max(minimum meaningful capture, ceil(P × capture fraction)); require T ≤ P and T < N−I. |
+| Quick Start | Deadline K = max(1, floor(L × early fraction)); require K < L. Take witness active size at move K, convert to percent, round down to a multiple of 5%, then convert that percent back to cubes by rounding up. Require percent between 0 and 100 and target greater than I + minimum meaningful capture. |
+| Fast Expansion | Same calculation, but use min(0.7, early fraction + 0.25) for K. |
+| Combo Capture | Required moves Q = max(2, ceil(L × (0.15 + 0.05d))). Sort witness new-capture counts largest first. Scale the Qth largest by the capture fraction and round up, with the meaningful-capture minimum. Offer only when Q moves can demonstrate the resulting target. These moves need not be consecutive. |
+| Limited Color Usage | Consider a color occupying at least N / 6 initial cubes. It must be selected at least once in the witness, less often than the most-selected color, and at most L / 3 times. Its target is its demonstrated selection count. |
+| Final Sprint | Threshold is 70% of N, rounded up to cubes. Find its first witness crossing. The additional-move deadline is the number of witness moves after that crossing. Require at least two remaining moves and that the initial component was below the threshold. |
+| Speed Run | T = max(60, L × seconds-per-move + cube-root(N) × 8 + R × 0.12). Multiply by 1 for Full Grid, 1.25 for Random Shape, or 1.15 for Items; round upward to a multiple of 5 seconds. |
+
+Capture fraction, spare-move fraction, early fraction, and seconds per move are the per-difficulty values in Chapter 6. Deadline targets are based on active component counts, including initial cubes. The witness's color-selection statistics collapse repeated unchanged selections, matching normal palette behavior.
+
+**Timing is an estimate, not a mathematical human-play guarantee.** The structural goals are replay-validated; a Speed Run target estimates planning and camera time rather than proving that every player or device can complete it in that duration.
+
+### Selection weights
+
+The numbers below are relative weights, not fixed final percentages. A zero disables that goal type for that category. Actual odds also depend on which targets are valid for the board and which families have already been selected.
+
+Abbreviations: MS = Move Saver; FC = Final Color; BC = Big Capture; QS = Quick Start; CC = Combo Capture; SR = Speed Run; LC = Limited Color Usage; FS = Final Sprint; FE = Fast Expansion; FCE = Final Color Efficiency.
+
+| Mode / difficulty | MS | FC | BC | QS | CC | SR | LC | FS | FE | FCE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Full Grid / Easy | 3 | 2 | 3 | 2 | 0 | 1 | 0 | 0 | 0 | 0 |
+| Full Grid / Medium | 3 | 2 | 3 | 2 | 2 | 1 | 0 | 0 | 0 | 0 |
+| Full Grid / Hard | 3 | 0 | 3 | 0 | 3 | 1 | 2 | 0 | 3 | 0 |
+| Full Grid / Expert | 3 | 0 | 3 | 0 | 3 | 0 | 2 | 3 | 0 | 3 |
+| Random Shape / Easy | 2 | 3 | 3 | 2 | 0 | 1 | 0 | 0 | 0 | 0 |
+| Random Shape / Medium | 2 | 2 | 3 | 0 | 3 | 1 | 0 | 0 | 2 | 0 |
+| Random Shape / Hard | 3 | 0 | 3 | 0 | 3 | 0 | 2 | 2 | 3 | 0 |
+| Random Shape / Expert | 3 | 0 | 3 | 0 | 3 | 0 | 2 | 3 | 0 | 3 |
+| Items / Easy | 2 | 3 | 3 | 2 | 0 | 1 | 0 | 0 | 0 | 0 |
+| Items / Medium | 2 | 3 | 3 | 0 | 2 | 1 | 0 | 0 | 0 | 0 |
+| Items / Hard | 3 | 2 | 3 | 0 | 0 | 0 | 2 | 0 | 3 | 0 |
+| Items / Expert | 3 | 0 | 3 | 0 | 3 | 0 | 2 | 3 | 0 | 3 |
+
+After choosing one goal, all other candidates in its family are removed. Move Saver, Final Color, and Final Color Efficiency share a family. Quick Start, Fast Expansion, and Final Sprint share another. Big Capture and Combo Capture share another. Speed Run and Limited Color Usage each have their own family. Thus a level does not get both Big Capture and Combo Capture, or both Quick Start and Final Sprint.
+
+Expert Move Saver and Final Color Efficiency candidates cannot meet the required saving of at least one move because their target equals the allowance. Although those Expert weights are positive, they do not make these candidates eligible. Final Color Efficiency has no positive weights elsewhere, so it is a latent goal type under the current pools.
+
+The seed drives weighted selection, but a time cutoff can change which candidates existed before the choice. Once saved, the chosen goals do not reroll. Because all non-time candidates are checked against the same witness, a selected set has a common demonstrated structural route; this is stronger than testing three unrelated goals separately. It does not convert the Speed Run estimate into a guaranteed human time.
+
+If generation cannot produce three candidates, it saves the smaller valid set. An optional-goal generation failure can leave zero goals without changing the primary win rule. A missing within-budget witness, however, prevents publishing the numbered level.
+
+<a id="chapter-18"></a>
+
+# 18. Goal tracking, achievements, and repeat attempts
+
+Goals track current-attempt progress as palette selections and accepted moves occur. Big Capture keeps the largest newly active count. Combo Capture counts each qualifying move. Early reach goals remember whether their target was met before the deadline. Time goals read the active-play clock. Move/selection limits can become impossible before the attempt ends.
+
+A provisional cyan completed goal is not yet a permanent reward. The final result evaluates every goal again. A permanent award requires both a level win and that goal's rule, with no failed constraint. Losing after a large capture or an early deadline target does not bank those achievements. On failure, the current attempt's unearned goals are marked missed. Previously earned achievements remain intact.
+
+On a successful numbered replay, new goal identities are added to the saved set only if absent. There is no duplicate reward for the same goal. Lower-performing replays cannot erase a previously saved diamond. Because the preserved definitions stay fixed, missing goals can be pursued on later attempts without changing the puzzle.
+
+The GOALS button shows permanent earned goals / assigned goals. It is not a live count of every provisional success in the current attempt. Within the panel, an individual row can show a provisional success before the button's permanent count changes on a win.
+
+**Multiple-attempt example:** on the inspected Easy Level 1, the three goals are finish within 17 moves, capture 9 new cubes on one move, and reach 25% within 4 moves. A successful 16-move route that misses the early target can permanently earn the first two. The next attempt starts with fresh move/capture counters but keeps those two diamonds. A successful 14-move replay can earn the remaining early target and improve gold stars. A later loss neither erases the three diamonds nor adds new ones.
+
+Continue can restore current temporary goal progress when its saved history is consistent. An older or incomplete checkpoint lacking matching move history is not allowed to reconstruct and award partial-attempt goals speculatively; goal tracking may be unavailable for that resumed attempt. This protects achievements at the cost of a legacy-checkpoint limitation.
+
+<a id="chapter-19"></a>
+
+# 19. Gold-star ratings
+
+Gold stars measure move efficiency only. Let **U** be moves used and **M** the allowance, with a minimum denominator of 1.
+
+**Efficiency ratio = U / M**
+
+- Three stars: ratio ≤ 0.70.
+- Two stars: ratio > 0.70 and ≤ 0.90.
+- One star: ratio > 0.90, provided the level was won.
+- Failure: no new completion rating.
+
+Score, elapsed time, mode, difficulty name, and optional diamonds do not otherwise enter this calculation. The rating compares the fraction directly; it does not round a displayed percentage before rating. For whole-number move counts, the practical boundaries are usually floor(0.70M) and floor(0.90M).
+
+| Allowance | Three-star winning moves | Two-star winning moves | One-star winning moves |
+| ---: | --- | --- | --- |
+| 7 | 1–4 | 5–6 | 7 |
+| 11 | 1–7 | 8–9 | 10–11 |
+| 17 | 1–11 | 12–15 | 16–17 |
+| 20 | 1–14 | 15–18 | 19–20 |
+
+These are rating ranges, not claims that every board has a solution in every range. Very small allowances can have empty intermediate star bands. A two-move allowance, for example, gives three stars for a one-move win and one star for a two-move win, with no attainable two-star move count.
+
+For the same 14-move route in Chapter 13, Easy's allowance of 20 yields three stars; Medium's 17 yields two; Hard's 15 yields one; Expert's 14 yields one. This follows the current rules rather than a difficulty-normalized rating scheme.
+
+**Expert limitation:** Expert has no allowance above the retained solution length. Playing that route uses 100% of the allowance and earns one star. A better route may improve the rating if the witness was not optimal. If the allowance is a proven minimum, more than one star is mathematically unattainable under these thresholds. The implementation does not adjust for that conflict.
+
+The victory popup shows the current win's stars. The level tile keeps the highest saved rating, so a one-star replay does not replace an earlier three-star record. Earned tile stars use the glowing gold sprite; unearned positions remain gray. Goal diamonds are a separate row beneath them.
+
+<a id="chapter-20"></a>
+
+# 20. Goal diamonds and reward presentation
+
+Level tiles have up to three cyan/gray diamond positions beneath the gold-star row. The number of filled positions reflects the saved earned-goal count; it is not an additional gold-star rating. A tile fills positions from left to right by count, so a filled first diamond is not a precise declaration that the first panel row was the goal earned. The panel rows identify the actual individual goals.
+
+On the floating goal panel, a reached or previously earned goal uses a filled diamond and cyan text matching the icon family. A pending goal uses an unfilled diamond and neutral text. A goal missed in the current attempt uses an unfilled diamond and red text. Unfilled diamond opacity is 165/255. Previously earned goals remain shown as earned even if the current replay does not satisfy them again.
+
+The panel no longer prints DONE and MISSED as status prefixes. An old explanatory heading still says “OPTIONAL GOALS · Stars saved on a win,” although the displayed secondary-goal indicators are diamonds. That wording is a presentation inconsistency, not an additional reward mechanic.
+
+No score, currency, extra moves, or extra gold stars are awarded by the goal-achievement system. There is no integrated special all-goals completion celebration or dedicated automatic goal sound. The inspected saving behavior does not trigger an additional connected player reward or celebration.
+
+The victory popup displays **+100** coins and **+5** gems on two reward cards. These values are fixed presentation placeholders. No wallet balance is credited, no inventory is updated, and no repeat-reward economy is implemented. They are not a payout derived from goals, stars, score, or difficulty. The current victory popup does not include a separate per-goal achievement breakdown.
+
+<a id="chapter-21"></a>
+
+# 21. Victory and level-completion sequence
+
+The moment an accepted move connects every playable cube, the game sets the outcome to a win before checking exhausted moves. It prevents further painting, freezes the active-play result clock, evaluates optional goals, records new achievements and better completion time where tracking is available, records the lowest winning move count/highest stars, and saves completion. The next level in that same category becomes available even if no optional goal was achieved.
+
+The final recolor wave is allowed to present. The board then performs its win transition: scale to 72% of its resting size, add a 12° tilt and 100° turn over 0.8 seconds, and begin a slower continuing rotation. The result popup is revealed after the last wave duration plus that 0.8-second transition plus the configured 0.45-second result delay.
+
+The large modal says LEVEL COMPLETE! and identifies the level. Its statistics are MOVES, BEST, and TIME ELAPSED. BEST means the saved fewest winning moves for a numbered level; for custom play it falls back to this attempt. MOVES animates its numerator and time counts up from zero for presentation; the denominator and actual result remain fixed. It shows the present win's gold stars and the two placeholder reward cards.
+
+Laurels rise from behind the banner, stars pop in sequentially, side confetti plays once, reward sparkles flicker/spin, and the crown's glow gently pulses and rotates. Decorative animation does not add moves, time, or points to the completed attempt. Result sound is scheduled after the color wave; music remains a ducked gameplay track rather than switching to a separate victory song.
+
+| Action | Result |
+| --- | --- |
+| NEXT LEVEL | Starts the next numbered level in the same mode/difficulty when below 100 |
+| REPLAY | Starts a new attempt at the same level; numbered definition and permanent records remain |
+| HOME | Returns to the main menu |
+| LEVELS | Opens category level selection |
+| Primary LEVELS at Level 100 | Opens selection; no Level 101 is generated; the duplicate lower LEVELS action is hidden |
+
+A worse replay still shows its own current stars but does not reduce stored stars or remove diamonds. A better move count replaces the best-moves record. A faster recorded win replaces the best time. Newly achieved goals add to the saved set. Winning with zero, some, or all goals never changes the basic unlock condition.
+
+For a custom win, NEXT LEVEL currently enters the older sequential campaign described in Chapter 5 instead of producing a new numbered custom category. This distinction should be considered when demonstrating the product to a client.
+
+<a id="chapter-22"></a>
+
+# 22. Failure and recovery
+
+The implemented gameplay loss condition is using the full move allowance while at least one playable cube remains outside the active connected component. A nearly complete board can lose. A Speed Run deadline is only an optional-goal failure, not a time-limit loss for the level. There is no life system, damage model, or paid extra-move mechanic.
+
+Once loss is set, painting stops and current-attempt goal rewards are not granted. The final color wave is followed by the result delay, then OUT OF MOVES appears. The result details include the level where applicable, final score, moves used / allowance, and actual captured / total cubes with a percentage. The main action becomes PLAY AGAIN; LEVELS and MAIN MENU provide navigation. Victory decorations and reward cards do not appear on this loss screen.
+
+Retrying a numbered level restores its saved original geometry, initial colors, allowance, and goals, and resets this attempt's moves, score, time, and temporary goal progress. Previous completed-level records, stars, and earned diamonds are untouched. A lost attempt is not available through Continue. The current failure score is a result of that attempt, not a newly saved high score.
+
+Leaving a still-playable game through Home is not automatically a loss; it normally saves a resumable attempt. Cancelling preparation is not a recorded won/lost catalog result. Generation or saved-data errors are loading failures with TRY AGAIN and BACK, not move-limit failures. Retry cannot necessarily repair an unsupported preserved definition because existing definitions are deliberately not overwritten.
+
+<a id="chapter-23"></a>
+
+# 23. Restart, replay, Continue, and abandonment compared
+
+| Action | Board and allowance | Attempt counters | Permanent numbered records | View |
+| --- | --- | --- | --- | --- |
+| Restart active numbered level | Reload saved initial board, colors, seed, budget and goals | Reset moves, score, clock and temporary goals | Keep completion, bests, stars and earned diamonds | Reframe and replay entrance |
+| Replay completed numbered level | Same preserved definition | Fresh attempt | Can improve bests or add missing achievements; never subtract old ones | Fresh framing |
+| Continue unfinished game | Restore current changed geometry/colors, budget and selection | Keep saved moves, score, clock and compatible goal history | Existing records unchanged until a win | Restore saved camera subject to safety limits |
+| Start another numbered level | Its own saved definition or newly prepared one | Fresh attempt | Other catalog records remain | Fit the new object |
+| Return Home during valid play | Keep board in one resumable checkpoint | Keep saved attempt values | No new completion award | Menu preview optional |
+| Restart custom game | Regenerate under selected settings; not immutable replay | Fresh attempt | No numbered completion or goal award | Reframe |
+| Return Home after win/loss | Finished checkpoint is not resumable; completed-session save is deleted on return | No playable Continue for that result | Won catalog records remain | Main menu |
+| Leave loading | Cancel pending work; a cancelled Continue keeps its previous saved attempt | New unprepared attempt is not made playable | No completion award | Back to navigation |
+
+One session slot means that starting a different puzzle abandons the previous resumable slot when the new attempt is saved. The same-level restart prompt protects the specific already saved numbered identity, not every possible replacement. Preferences and permanent catalog entries survive ordinary restarts.
+
+Closing or backgrounding the app requests a checkpoint save. A forced process termination before a save finishes is not guaranteed to retain the latest fraction of a second or interaction. Continue is conditional on the checkpoint passing validity checks: supported state and dimensions, consistent identity/mode, nonnegative counters/time, remaining moves, valid colors, connected board data, and an incomplete board.
+
+If Continue fails to restore a usable board, it returns to navigation and disables availability instead of deliberately showing an empty playable scene. This check does not supply cloud backup or multiple-session history.
+
+<a id="chapter-24"></a>
+
+# 24. Custom games
+
+CUSTOM opens GAME SETUP. Playable custom modes are RANDOM SHAPE and FULL GRID. The screen also offers FRUITS, but selecting START GAME for that mode displays COMING SOON and does not launch a fruit puzzle. Its selection is remembered as a preference only.
+
+Available sizes are **6, 8, 10, 12, 15, 18, and 20** along each dimension. Available difficulty names are EASY, NORMAL, HARD, PERFECT. The last mode, size, difficulty, and fruit preference are saved when changed. With no existing preferences the scene/custom setup starts in the Normal allowance tier; the numbered level selector independently defaults to Full Grid/Easy.
+
+The fruit menu lists RANDOM FRUIT, APPLE, BANANA, ORANGE, PEAR, STRAWBERRY, GRAPES, PINEAPPLE, LEMON, and MANGO. Selecting any of these does not make a playable custom fruit game. Only Apple/Pear/Orange/Banana have active numbered Items silhouettes. The additional labels must not be presented as completed content.
+
+Custom puzzles use the same flood rules, score calculation, solver/budget tiers, controls, timer, pause, and win/loss presentation. They can be continued as the single unfinished session. They do not create immutable numbered definitions or numbered optional goals, and do not unlock catalog levels or keep permanent catalog ratings. A victory can display attempt stars without persisting them as a numbered record.
+
+Under the current Random Shape setting, restarting custom play creates a fresh seed and usually a new shape. Full Grid restarts keep the same shell shape at that size but reroll colors. The custom solver recovery allowance described in Chapter 13 can be used if verified preparation is unavailable. NEXT LEVEL after a custom win enters the older campaign route, so it should not be described as a numbered-level custom progression system.
+
+<a id="chapter-25"></a>
+
+# 25. Gameplay interface
+
+| Element | Meaning and interaction |
+| --- | --- |
+| HOME | Opens the quit-to-home confirmation; does not immediately discard play |
+| PAUSE | Opens PAUSED with Resume, Restart, Main Menu and Settings |
+| Center title | LEVEL n for numbered/campaign play; FLOOD FILL 3D for ordinary custom play |
+| MOVES | Accepted moves used / allowance; temporarily unavailable/calculating during preparation |
+| TIME ELAPSED | Active-play clock, refreshed as seconds change; not capture percentage |
+| SCORE | Current attempt score, formatted with thousands separators |
+| Thin capture bar | Fraction of playable cubes in the latest active connected component; animates to each accepted result |
+| Six palette buttons | Select paint; selected paint enlarges and its own button becomes non-interactable |
+| Touch/click instruction | “Choose a color to expand your connected region.” The actual rules also allow working on another region. |
+| GOALS | Shows permanently earned / assigned optional goals for a numbered level; opens/closes the floating panel |
+| Floating goal rows | Instructions, supported progress counters, diamond state and completed/pending/missed color |
+| FPS overlay | Editor/development feedback, not a normal release-game performance guarantee |
+
+The palette's selected button grows to approximately 1.12 times its ordinary scale over 0.16 seconds. Button availability follows whether the game can accept input. Choosing paint by itself does not identify a permanent starting region; the next clicked cube identifies what will be recolored.
+
+The goals panel refreshes progress while open, approximately every 0.2 seconds as well as on relevant changes. Big Capture displays best / target; Combo displays qualifying moves / count; Limited Color displays selections / allowance; early reach goals display cubes / target; Speed Run shows elapsed time. Final-color goals can remain pending until victory because merely choosing the correct color is not their completion condition.
+
+The panel opens above the board rather than replacing it. The trigger can close it again. An outside tap closes and is consumed; an outside drag exceeding 12 pixels closes it and remains a camera gesture. With no assigned valid goals, the numbered GOALS control can show GOALS — and be non-interactable. Custom play does not expose numbered goal tracking.
+
+The HUD and menus fit a reference layout to the safe screen area, accounting for notches and aspect changes. This does not constitute a verified accessibility mode: no separate color-blind palette, remappable controls, localization selector, or screen-reader flow was established by this inspection.
+
+<a id="chapter-26"></a>
+
+# 26. Screens, popups, and navigation states
+
+| Screen or panel | Purpose and available actions | What it does to play |
+| --- | --- | --- |
+| Main menu | PLAY, conditional CONTINUE, CUSTOM, HOW TO PLAY, SETTINGS, desktop QUIT; rotating centerpiece | Not an active painting screen |
+| LEVELS | Mode/difficulty tabs, category progress, numbered tiles, page arrows/dots, Home | Opening it saves/leaves a playable attempt; no Pause control |
+| GAME SETUP | Custom choices and START GAME / BACK; FRUITS placeholder controls | Choices alone do not begin a new attempt |
+| HOW TO PLAY | Explains color choice, cube click, joining neighbors, move limit, efficient completion; BACK | Informational menu modal |
+| SETTINGS | Three audio sliders, two audio toggles, SHOW CURRENT BLOCK, BACK | From Pause, returns to Pause without resuming; from menu, returns to menu |
+| LOADING | Status text and moving indicator; BACK; TRY AGAIN on error | Palette, cube and camera interaction blocked |
+| PAUSED | RESUME, RESTART, MAIN MENU, SETTINGS | Gameplay input and active-play clock stop |
+| Quit-to-home confirmation | “Are you sure you want to quit to home?”; CONFIRM / BACK | Pauses interaction pending the answer |
+| Restart-level confirmation | Warns when choosing the same saved unfinished numbered level; CONTINUE / BACK | Underlying level-selection controls are blocked until answered |
+| Optional goals panel | Current and permanent goal status | Does not pause ordinary gameplay time; handles outside taps/drags carefully |
+| LEVEL COMPLETE! | Current result statistics/stars, reward placeholders, Next/Replay/Home/Levels | Result already final; no more painting |
+| OUT OF MOVES | Failure details, PLAY AGAIN, LEVELS, MAIN MENU | No valid Continue for that failed state |
+
+Screens use a brief scale-in presentation, nominally 0.22 seconds. Many ordinary UI button presses also use a small 0.18-second punch. These effects are visual feedback, not a second confirmation unless a named confirmation dialog is actually present.
+
+Pause is an interaction/timer pause, **not a global freeze of every animation**. The inspected pause action does not set global game time to zero. An already running color wave can finish behind the menu, decorative effects can continue, and music can continue. This is distinct from operating-system application suspension, which pauses the audio sources and suspends the gameplay clock.
+
+The authored interface has no active shop, wallet, inventory, level editor for players, online account, multiplayer lobby, paid revive, or extra-move purchase screen. Asset libraries or package dependencies do not establish those features.
+
+<a id="chapter-27"></a>
+
+# 27. Audio experience and music transitions
+
+The game uses looping menu music and three gameplay intensity tracks. Music is chosen by remaining moves, not by capture percentage or elapsed time.
+
+| Priority | Condition during gameplay | Track state |
+| --- | --- | --- |
+| First | Remaining moves ≤ 5 | High intensity |
+| Second | Otherwise, remaining moves ≤ 50% of the starting allowance | Medium intensity |
+| Otherwise | More moves remain | Normal intensity |
+
+High intensity takes priority over the percentage rule. For an allowance of 20, 20–11 remaining uses Normal, 10–6 uses Medium, and 5–0 uses High. A short level with five or fewer moves begins in High even if no move has been spent. If dynamic music is disabled by development configuration, gameplay remains on Normal; that switch is not a separate player Settings control.
+
+The menu track has an authored volume multiplier of 0.8; each gameplay track uses 0.7. Menu fade-in and fade-out are 1.5 seconds. Gameplay crossfades are 1.75 seconds, with a 0.4-second transition cooldown; the high-intensity condition can override the ordinary cooldown. Two music voices overlap during a crossfade, rather than starting unlimited tracks. A missing high track can fall back to Medium or Normal, and a missing Medium can fall back to Normal; gameplay does not substitute menu music as its fallback.
+
+On win or loss, the current gameplay music is reduced to 30% of its normal gain while a result cue is scheduled after the recolor wave. There is **no separately configured victory or failure music track**. In-game Pause currently leaves background music running; app suspension pauses it and remembers which sources were playing for resume.
+
+### Interaction and wave sounds
+
+Assigned cues cover ordinary buttons, confirm/back/cancel, toggles, slider feedback, palette selection, level start, restart, pause/resume, and victory/failure. Typical UI sounds have 0.08-second minimum spacing and at most two overlapping copies; sliders use quieter feedback with 0.12-second minimum spacing and one copy. Some types use slightly randomized pitch without influencing puzzle-generation randomness.
+
+The active recolor sound follows the wave as a short repeating section of the assigned color-change clip. Its repeat section is 0.16 seconds, starts after a 0.105-second clip offset, and speeds from 0.8 to 1.65 times its configured pitch across the wave. It fades near the end, using up to 0.2 seconds and at most 40% of a very short wave. A new move replaces the previous wave voice. This prevents one sound per cube on a large object.
+
+The shared effects pool is configured for 12 voices, with per-sound concurrency and rate limits; flood sounds also have a configured concurrency limit of two. This bounds overlap rather than scaling audio voices with cube count.
+
+There are assigned legacy progress and large-capture clips and older progress thresholds in the audio configuration, but the current automatic flood path uses the synchronized loop rather than scheduling those extra cues on each threshold. Do not promise a separate audible large-capture reward merely because its clip is assigned. Popup-open, popup-close, and flood-end slots currently have no clips. There is no integrated automatic goal-achievement sound. Development preview buttons can play configured cues separately and are not evidence of normal gameplay triggers.
+
+<a id="chapter-28"></a>
+
+# 28. Settings and preference persistence
+
+| Setting | Range / choice | New-install configured value | Player effect |
+| --- | --- | --- | --- |
+| MASTER VOLUME | 0–100% | 100% | Scales all audible game sound |
+| MUSIC VOLUME | 0–100% | 65% | Scales background music before its track multiplier/result duck |
+| SOUND EFFECTS | 0–100% | 80% | Scales interaction and gameplay cues |
+| MUSIC ENABLED | On / off | On | Mutes/restores music without overwriting its stored slider value |
+| SOUND EFFECTS ENABLED | On / off | On | Mutes/restores effects without overwriting their stored slider value |
+| SHOW CURRENT BLOCK | On / off | Off | Uses the available current board as the menu centerpiece rather than the decorative cluster |
+
+Audio changes apply immediately. Their values are saved on audio-manager shutdown, application pause, focus loss, or quit. The inspected slider/toggle setters do not individually force a disk save for every movement. Therefore persistence after a normal lifecycle save is supported; persistence after an abrupt kill immediately following a slider movement is not guaranteed. Setup and SHOW CURRENT BLOCK preferences are explicitly saved when changed.
+
+Approximate steady-state music gain is **Master × Music × track multiplier**, with a further result factor of 0.3 after victory/failure and transition gain during a fade. At configured defaults, ordinary gameplay music has gain 1 × 0.65 × 0.7 = 0.455 before clip content and any mixing details. This is not a measured perceived-loudness percentage.
+
+Audio level zero means silence. The mixer represents very low/zero gain as −80 dB; positive gain uses 20 × log10(gain). Muting a channel preserves its slider, so re-enabling music can restore the earlier 65% or the player's chosen value. The effects-enable toggle has a special confirmation that can be audible while turning its own channel off/on, still respecting Master and the stored effects level.
+
+These preferences apply across all modes. There is no player-facing camera-sensitivity slider, graphics-quality selector, vibration option, language selector, or reset-progress button in the inspected Settings screen. The explanatory line about orbit, pan, and zoom is information, not a toggle that enables those controls.
+
+<a id="chapter-29"></a>
+
+# 29. Animations and current visual effects
+
+The current game retains its original color/scale wave. **The optional liquid splash/wave-particle system has been removed.** No droplets, curved liquid ribbons, or fluid splatter should be described as active features. Victory confetti and UI sparkles are separate effects and remain.
+
+| Effect | Trigger and appearance | Inspected timing / behavior |
+| --- | --- | --- |
+| Board entrance | A prepared board scales/spins into place | 0.55 seconds; input locked until complete |
+| Recolor wave | Connected cubes anticipate darker/smaller, flash toward the selected color, then settle | 0.065 seconds per adjacency depth; anticipation 0.07 s, flash 0.13 s, settle 0.24 s |
+| Color/scale anticipation | 24% darkening and visual scale to 88% | Included in recolor timing |
+| Flash/pop | Flash blends 72% toward white; pop reaches 1.18× the visual resting scale | Selected-color family remains recognizable; transient flash is deliberately lighter |
+| Capture pop | Newly active cubes scale from 82% toward captured scale | 0.28 s after depth delay; captured target scale 1.025× |
+| Capture bar | Fills toward current logical capture fraction | 0.25 s |
+| Selected palette | Selected color grows | 1.12× over 0.16 s |
+| Ordinary button press | Small punch feedback | 0.18 s |
+| Screen presentation | Brief scale-in | Nominally 0.22 s |
+| Level page change | Grid scales from 0.98 to normal | 0.16 s |
+| Category completion bar | Fills to completed/100 | 0.30 s |
+| Restart-level confirmation | Small card scale-in | 0.18 s |
+| Loading indicator | Slides back and forth while genuinely preparing | No invented completion percentage |
+| Win board transition | Shrinks and tilts/turns the board after the wave | 0.8 s; 72% scale, then continuing 7.5-second turn cycle |
+| Victory laurels | Rise/rotate/scale out from behind the banner | 0.65 s after a 0.10-second delay |
+| Victory stars | Staggered pop with overshoot | 0.42 s each, beginning after 0.48 s with 0.16 s staggering |
+| Victory confetti | 60 reusable images arc from the sides, rotate and fade | 3.5 s base duration with variation and stagger; overall about 5 s |
+| Victory statistics | Moves/time count up for presentation, then pulse | 1.2 s after 0.2 s delay; brief 0.22 s completion pulse |
+| Reward sparkles | Random brightness fades and opposite slow rotation | Continue while popup is open; about 8–16° rotation per second |
+| Crown glow | Saved glow image rotates and gently varies scale/opacity | About 6° per second and a 4-second pulse cycle |
+| Menu centerpiece | Decorative cluster or current board rotates | About 12° per second |
+
+Logical moves, score, and capture are calculated before the visual wave finishes. Larger connected regions can have deeper wave paths and therefore longer animation duration. Rapid recolors replace affected ongoing color transitions; they do not enqueue an unlimited stack of full-board effects.
+
+The “selected” palette indicator is active; there is no separate current hovered-cube outline or full-region selection outline established by this audit. Capture scaling is not proof that every previously active cube remains permanently owned. Failure uses the last wave and its existing result panel, without the win's crown/confetti/reward presentation. Goal feedback is the text/diamond state rather than a new world-space particle burst.
+
+Victory animations are cleaned up on popup closure and restarted once on the next opening. Refreshing result statistics does not intentionally replay the entire celebration. The decorative voxel cube formerly above the victory banner and its drawing routine are removed; the independent menu centerpiece and actual gameplay board remain.
+
+<a id="chapter-30"></a>
+
+# 30. Local saves and persistence
+
+Progress is local to the application/device. No account login, cloud synchronization, server validation, shared cross-device progression, or Remote Config integration was established in active gameplay. Internet access is not required by the inspected puzzle, generation, solver, or save flows. Installed packages do not create an implemented store or cloud feature by themselves.
+
+| Saved information | Purpose | When retained or reset |
+| --- | --- | --- |
+| Numbered completion and unlock basis | Remembers won identities; makes later levels available | Retained across app restarts; ordinary replay does not erase it |
+| Best gold stars and fewest winning moves | Preserves improved efficiency | Updated only when a win improves the relevant record |
+| Best recorded numbered completion time | Preserves faster successful play | Saved with numbered goal-result processing where the tracker is available |
+| Goal achievement identities | Keeps earned diamonds without duplicates | Added on successful qualifying wins; never removed by a worse replay |
+| Immutable numbered definition | Exact initial occupancy/colors, palette, seed, budget, witness and goals | Created on first successful preparation; restored on replay |
+| One unfinished checkpoint | Current colors/active flags, moves, score, time, mode/difficulty, selected paint, camera and compatible goal history | Updated after color choices, accepted nonterminal moves, result handling, Home and lifecycle saves |
+| Setup/menu preferences | Custom choices and SHOW CURRENT BLOCK | Saved when changed |
+| Audio preferences | Volumes and enable toggles | Lifecycle/shutdown saves described in Chapter 28 |
+| Older campaign position | Supports the indirect legacy route | Advances on campaign wins |
+| Developer solver history | QA attempts, plans, times and outcomes | Separate Editor-side history, not player catalog progression |
+
+The numbered definition includes a compact representation of the initial cubes and an integrity check. Loading checks its identity, versions, palette, valid geometry, allowance, winning witness, and demonstrable goals. Definitions are cached in memory with an eight-level limit; this is a loading optimization, not a limit of eight saved levels.
+
+Checkpoint saving first writes a temporary file and copies it to the live session path. This reduces partial-write exposure but is not a cloud backup or a guaranteed recovery journal. Invalid/missing session data disables Continue rather than inventing progress. Completed or exhausted sessions are rejected for Continue even if a result-state checkpoint remains until menu return deletes it.
+
+A saved numbered definition that is damaged or unsupported is preserved and reported as an error. It is not overwritten automatically. A damaged catalog can fall back to an empty catalog, so unlocking may appear reset; there is no in-game repair/import tool. Physical storage failures can prevent persistence even when an in-memory win was valid.
+
+There is no visible player reset-progress control, multi-profile selection, cross-device transfer, or general restore-from-backup screen. Removing or changing local application data outside the game can lose progress. This document does not instruct clients to delete their saves as normal recovery.
+
+<a id="chapter-31"></a>
+
+# 31. Loading, cancellation, and performance behavior
+
+First-time numbered preparation can take longer because it must generate geometry/colors, build a region model, demonstrate a solution, calculate an allowance, validate goal targets, and save the definition. A preserved level can restore its definition directly instead. Continue restores the current changed board and uses the same readiness gate before play appears.
+
+During preparation, the loading screen covers the board, shows a meaningful phase message, and disables painting/camera input. Cube acquisition and color setup can be spread across frames, yielding after roughly 4 ms of cooperative main-thread work. That is a scheduling target, not a guarantee that no individual operation or logical-generation phase exceeds 4 ms.
+
+Search work runs away from the main presentation thread, with one solver worker admitted at a time. Restart or Back cancels obsolete work; old results are prevented from appearing over a newer request. This avoids deliberately allowing several rapid restarts to compete indefinitely for solver resources.
+
+After the board and budget are ready, the hidden view is prepared, cube physics positions are synchronized, and the game retains an additional 0.5-second readiness buffer before showing the entrance. The entrance has its own 0.55-second interaction lock. These are in addition to actual work, not a fake fixed loading timer or a misleading percentage.
+
+Saved-level caching reduces repeated reads, pooled cubes reduce repeated object creation, surface-only geometry reduces the number of playable/displayed cubes, and size simplification makes large irregular objects less intricate. Color materials are shared for resting palette states; temporary color transitions still need their own animated presentation. These mechanisms are performance intentions, not a promise of a specific phone frame rate.
+
+If irregular geometry cannot validate, a hollow-cube fallback is available. If the solver cannot provide a publishable numbered witness, preparation ends with an error and TRY AGAIN/BACK. Custom play has a conservative emergency allowance. Optional-goal generation can return fewer goals rather than blocking an otherwise valid numbered puzzle.
+
+Previously recorded desktop verification and performance notes exist, but they use specific fixtures, old tuning, and development conditions. This document makes no new Android/iOS FPS, memory, battery, or loading-time claim. The currently saved camera clearance also differs from an older framing note, so that older visual-performance result must not be presented as a current exact view guarantee.
+
+<a id="chapter-32"></a>
+
+# 32. Development and testing tools
+
+The Unity Editor provides **Tools / Flood Fill / Auto Solver** and **Tools / Flood Fill / Solver Summary**. These are development/QA windows, not buttons offered to ordinary players in a release build. The runtime preparation solver remains part of the game; the interactive developer windows do not.
+
+Auto Solver can connect to the active playable board, analyze it, report whether its proposed route was validated, play the route through normal game interactions, pause/resume, step, stop, restart the current level, or move to the next available numbered level. It displays the current category/level, captures, selected color, remaining moves, elapsed level time, search statistics, and planned sequence. Playback speed and visual-transition controls support debugging; temporary visual overrides are restored on cleanup.
+
+Checking **Auto Start Solver** alone does not start a run. A user must press **Start Auto Solve** to arm the session. After that, Auto Start Solver can analyze/play newly ready levels, and **Auto Next Level** can advance after a win. Advancement is within the category and stops at Level 100; a failed level does not automatically count as complete. Restart and Next use the game's own level flow rather than merely swapping displayed numbers.
+
+A tool route can be valid yet **over budget**. In that case normal gameplay can stop at its move limit before the tool finishes. This does not prove the board has no legal within-budget solution; a preserved level may already contain a shorter witness. The UI and summary distinguish validated, optimal, failed, and over-budget analysis where available.
+
+Solver Summary groups rows by EASY, MEDIUM, HARD, and EXPERT and offers All levels, Attempt history, and Completed levels views. It records in-progress and failed attempts as well as wins. Fields include mode/type/level, status, completed flag, tries to first win, total attempts/losses/wins, moves used, latest planned moves required, given moves, best winning moves, seed, dimensions, playable cube count, capture result, search time, active level time, and solver-session wall time. Search time, active-play time, and solver wall time are different measurements.
+
+One try means a board run on which automated solving starts. Stopping and resuming that same board is not another try; restarting creates another. Analysis alone does not create a play attempt. History updates while running, including periodic approximately one-second updates and move/outcome changes. Earlier unlogged attempts cannot be reconstructed. “Moves required” is the latest analyzed plan length from the analysis position, not a proven minimum and not necessarily the full initial-level route length.
+
+Other Editor tools provide scene/UI installation, authored-screen previews, solver profiling, audio previews, and regression checks for generation, budgets, actual wins/losses, camera framing, Continue, goals, result presentation, and navigation. Audio preview controls can play configured cues that have no normal automatic trigger. The FPS overlay is enabled for Editor/development builds and hidden for normal release builds; it is a debugging indicator rather than a certified performance target. Removed wave-splash preview/installation tools are no longer part of the project.
+
+<a id="chapter-33"></a>
+
+# 33. Edge cases and special behavior
+
+| Situation | Current behavior |
+| --- | --- |
+| Select the already selected palette button | Ignored; no move or additional color-selection-goal count |
+| Click a cube already in the selected paint | No move, no recolor, no score |
+| Recolor without an external merge | Still a valid paid move if its color changes |
+| Switch to a remote region | Its component becomes active; previous paint stays, but capture progress can fall |
+| Join several matching regions | They merge through face connectivity in the same accepted result |
+| Very fast color/cube input | Accepted while ordinary wave animation is running if other interaction conditions permit; affected tweens can be replaced |
+| Pause midway through a wave | Input and active-play clock stop; global animation time is not set to zero, so the wave can finish |
+| Open Settings from Pause | Keeps play paused; BACK returns to PAUSED, not automatically to play |
+| Cancel Home confirmation | Resume if opened from HUD; stay paused if opened from Pause |
+| Restart midway through animation | Cancel/recycle the old presentation and prepare a new attempt; numbered initial definition remains fixed |
+| Leave during first-time loading | Cancel pending generation/search presentation; no unfinished unprepared board is promised through Continue |
+| Leave during Continue loading | Retain the previous valid checkpoint for a future Continue |
+| Close or background the app | Attempt/lifecycle settings saves are requested; abrupt termination can still lose the latest unsaved state |
+| Complete on the final move | Win, because full capture is checked before allowance exhaustion |
+| Reach 99.66% and exhaust moves | Lose if cubes remain; rounded appearance is not the win condition |
+| Meet a goal, then lose | No new permanent achievement; already saved goals remain |
+| Repeat an earned goal | No duplicate achievement/currency grant |
+| Replay with worse stars or time | Old best stars/time/moves remain; current result can display the worse present rating |
+| Solver refinement times out | Retain a validated incumbent if available; do not label it optimal without proof |
+| Fresh numbered definition cannot be verified | Loading error; no unverified numbered puzzle is published |
+| Irregular geometry fails validation | Hollow cube geometry fallback, followed by ordinary preparation |
+| Saved definition is corrupt | Preserve it and show error; Retry is not guaranteed to repair the same bad file |
+| Saved unfinished data is invalid or complete | Continue hidden/unavailable |
+| Old checkpoint lacks valid goal history | Avoid granting speculative current-attempt goal achievements |
+| All 100 category levels complete | Stay within Level 100/LEVELS flow; no 101st level |
+| Incomplete first-level goals | Can be earned on later successful replays; they do not hold Level 2 locked after a win |
+| Application focus loss without suspension | Saves are requested; this is not an explicit gameplay-pause command |
+
+A few behaviors are limitations rather than special rewards. There is no recovery of multiple abandoned attempts, no score leaderboard, no paid extension after failure, no automatic cloud restore, and no global unique-cube scoring protection against repeated component switching. Normal navigation does not expose every legacy mode or developer tool as player functionality.
+
+<a id="chapter-34"></a>
+
+# 34. Complete worked example from an inspected saved level
+
+### The preserved level
+
+This example uses a real locally saved **FULL GRID / EASY / LEVEL 1** definition inspected during the audit. It is a 6×6×6 outer shell with **152 playable cubes**, **101 initial connected color regions**, seed **1,179,005,764**, and **one initially active cyan cube** at the corner represented below as (0,0,0). Coordinates in this chapter are a descriptive way to identify cubes in the reconstruction, not coordinates displayed in the player UI.
+
+Its retained validated witness is **14 moves**, not proven optimal. Complexity multiplier 1.1 gives an Easy allowance of **20**. Its other stored tiers are Medium 17, Hard 15, Expert 14. The three preserved optional goals are:
+
+1. Finish within **17 moves**.
+2. Capture **9 new cubes** in one move.
+3. Capture **25% within 4 moves**; this is a target of **38 cubes** after rounding up.
+
+The example describes a hypothetical play history on that real preserved puzzle, not the current player's actual completion records. A category already completed by the player is not unlocked or counted twice.
+
+The board has six-color independent initial cells. The starting cyan cell's face neighbors are yellow, green, and purple. The complete preserved coordinate/color snapshot was read for this reconstruction; a client does not need to inspect or memorize every initial cube to understand the example.
+
+These targets are consistent with current generation rules. Move Saver is 14 + floor((20−14) × 0.65) = 17. The witness's peak new capture is 19, so the Big Capture target is ceil(19 × 0.45) = 9, above the four-cube meaningful minimum. The early deadline is floor(14 × 0.35) = 4. Its fourth move has 42 active cubes: 27.63% rounds down to the nearest five-percent target, 25%; ceil(152 × 0.25) = 38.
+
+### Move-by-move reconstruction
+
+The capture counts below were reconstructed by replaying the preserved choices against the exact saved board using face adjacency. **Random score draws are illustrative valid values, not a recovered historical score.** This shows what one legal scoring realization of the route would produce. The table does not invent a recorded human completion time.
+
+| Move | Clicked cube | Paint | New active cubes | Active / 152 | Capture | Base draw | Multiplier | Points | Total score | Moves left | Music |
+| ---: | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Start | (0,0,0), cyan component | None | — | 1 / 152 | 0.66% | — | — | 0 | 0 | 20 | Normal |
+| 1 | (0,0,4) | Orange | 13 | 13 / 152 | 8.55% | 30 | 7 | 210 | 210 | 19 | Normal |
+| 2 | (0,0,3) | Cyan | 7 | 20 / 152 | 13.16% | 28 | 4 | 112 | 322 | 18 | Normal |
+| 3 | (0,1,2) | Purple | 7 | 27 / 152 | 17.76% | 35 | 4 | 140 | 462 | 17 | Normal |
+| 4 | (1,0,2) | Blue | 15 | 42 / 152 | 27.63% | 42 | 7 | 294 | 756 | 16 | Normal |
+| 5 | (2,0,0) | Green | 14 | 56 / 152 | 36.84% | 25 | 7 | 175 | 931 | 15 | Normal |
+| 6 | (2,0,0) | Yellow | 14 | 70 / 152 | 46.05% | 49 | 7 | 343 | 1,274 | 14 | Normal |
+| 7 | (1,0,0) | Purple | 11 | 81 / 152 | 53.29% | 21 | 7 | 147 | 1,421 | 13 | Normal |
+| 8 | (1,0,0) | Orange | 19 | 100 / 152 | 65.79% | 32 | 7 | 224 | 1,645 | 12 | Normal |
+| 9 | (1,0,0) | Cyan | 18 | 118 / 152 | 77.63% | 40 | 7 | 280 | 1,925 | 11 | Normal |
+| 10 | (0,0,0) | Green | 13 | 131 / 152 | 86.18% | 29 | 7 | 203 | 2,128 | 10 | Medium |
+| 11 | (0,0,0) | Yellow | 9 | 140 / 152 | 92.11% | 36 | 6 | 216 | 2,344 | 9 | Medium |
+| 12 | (0,0,0) | Blue | 6 | 146 / 152 | 96.05% | 24 | 3 | 72 | 2,416 | 8 | Medium |
+| 13 | (0,0,0) | Purple | 4 | 150 / 152 | 98.68% | 45 | 3 | 135 | 2,551 | 7 | Medium |
+| 14 | (0,0,0) | Orange | 2 | 152 / 152 | 100.00% | 33 | 1 | 33 | 2,584 | 6 | Medium |
+
+Notice that the first click is not the original cyan corner. That is legal free-region play. Its active component contains 13 cubes; the previously active corner is not among them, so “new” is 13, not 12. This is why capture should not be explained as a permanent cumulative collection counter.
+
+The Big Capture goal is provisionally reached on move 1. The 25% goal is reached on move 4 because 42 ≥ 38. At move 14 the object is one orange component, 152/152 is truly 100%, six moves remain, and the level is won. The Move Saver target is satisfied because 14 ≤ 17. Normal music changes to Medium when the remaining count reaches 10 at move 10; the run wins with six left, so it never enters the High track. Result presentation ducks that Medium music and plays the completion cue after the wave.
+
+The illustrated final score is **2,584**, with no extra win, time, goal, or spare-move bonus. The present gold rating is **three stars**, because 14/20 = 0.70. All three goal identities become permanently earned, the category's Level 2 becomes available, and Level 1's completion/best-move record is saved. Its actual active-play duration, whatever the player took, is saved for best-time comparison; it cannot be calculated from the move list alone. The popup's +100 and +5 remain decorative placeholders, not additions to 2,584 or a wallet.
+
+### A replay that improves missing achievements
+
+A deliberately less efficient but valid first attempt can add two unproductive moves at the starting cyan corner: recolor it orange, then cyan again. Its initial neighbors contain no orange, so the first change does not merge anything; the second restores the original board colors. Both are legal color changes and spend moves, but acquire no new active cubes and score zero. The preserved 14-move route can then still be followed.
+
+This attempt wins in **16 moves**. Its early four moves contain the two delays and only the first two witness moves, reaching 20/152, so it misses the 38-cube deadline. It still wins within 17 and makes a 9+ capture, earning two diamonds. Its rating is two stars because 16/20 = 0.80. With the same illustrative scoring draws on the productive moves it can still total 2,584, showing why score does not determine stars.
+
+On replay, follow the original 14-move route without the two delays. The third diamond is added, the saved rating increases from two to three, and best moves improves from 16 to 14. No second copy of the already earned goals is awarded. A later 19-move win would show one star for that attempt but would not erase the saved three stars or diamonds. A failed attempt would add none.
+
+
+<a id="chapter-35"></a>
+
+# 35. Consolidated rules and calculation reference
+
+This chapter collects the balance rules. Examples are calculations, not a list of universal pre-generated level allowances.
+
+| Rule | Formula / configured value | Example or exception |
+| --- | --- | --- |
+| Catalog capacity | 3 × 4 × 100 = 1,200 | Twelve independent unlock chains |
+| Page capacity | 30, with four pages | Final page is 91–100 |
+| Dimension bands | Seven sizes, advancing every 15 numbered levels | Level 16 is 8³; Level 91 is 20³ |
+| Regular shell count | n³ − (n−2)³ | 6³ contains 152 playable cubes |
+| Base irregular solid fill | 44–62% before size adjustment | Not final skin occupancy |
+| Large-shape simplification | q = 0.65 × clamp((n−8)/12,0,1) | q = 0.65 at n = 20 |
+| Adjusted irregular fill | 0.44 + 0.08q through 0.62 + 0.05q | 49.2–65.25% at 20 |
+| Geometry retries | At most 3 | Hollow-cube fallback after irregular failure |
+| Palette | Six colors at every difficulty | Green, purple, yellow, orange, blue, cyan |
+| Initial/new score | 0 initially; B × multiplier only when new count > 0 | B is an integer 21–49 |
+| Capture multiplier | 1 for 1–3; 3 for 4–6; clamp(N−3,4,7) for N ≥ 7 | 9 gives 6; 10+ gives 7 |
+| Remaining moves | max(0,M−U) | 14 used of 20 leaves 6 |
+| Capture fraction | 100 × active / playable | 42/152 = 27.63% |
+| Completion | Active = total and total > 0 | Near-100% is not completion |
+| Gold stars | 3 at U/M ≤ .7; 2 at ≤ .9; otherwise 1 on a win | No score/time/goal factor |
+| Region complexity C | 1 / 1.1 / 1.25 / 1.4 / 1.6 at thresholds 80 / 150 / 250 / 400 | R = 101 uses 1.1 |
+| Hard extra | round(max(1,round(.08S)) × C) | Tier order requires ≥ Expert+1 |
+| Medium extra | round(max(3,round(.23S)) × C) | Tier order requires ≥ Hard+1 |
+| Easy extra | round(max(5,round(.38S)) × C) | Tier order requires ≥ Medium+1 |
+| Expert | S | No spare-move bonus |
+| Allowance ceiling | Configured 1,000,000; effective at least S+3 | Tier guard is described in Chapter 13 |
+| Capture-goal meaningful minimum | max(2,ceil(.02N)) | N = 152 gives 4 |
+| Efficiency-goal target | L + floor((M−L) × slack) | L14/M20/Easy gives 17 |
+| Big Capture target | max(meaningful minimum,ceil(peak × capture fraction)) | Peak19/Easy gives 9 |
+| Early target | Deadline from L × early fraction; witnessed percent rounded down to multiple of 5, cubes rounded up | 27.63% becomes 25%, then 38 cubes |
+| Combo count | max(2,ceil(L × (.15+.05d))) | L14/Hard gives 4 qualifying moves |
+| Sprint threshold | ceil(.70N) | N152 gives 107 cubes |
+| Speed estimate | ceil-to-5(mode factor × max(60,Lh+8 cube-root(N)+.12R)) | Not proof of human feasibility |
+| Goal count and selection | Up to 3; weighted valid candidates; one per family | May be fewer or zero |
+| Goal reward | One permanent identity per newly earned goal on a win | No score/currency/extra gold stars |
+| Goal weights | Twelve rows in Chapter 17 | Zero disables an offered type |
+| Goal time factors | Full Grid 1; Random Shape 1.25; Items 1.15 | Applied after minimum time construction |
+| Goal tuning by tier | Capture .45/.65/.8/.95; slack .65/.5/.2/0; early .35/.3/.25/.2; seconds 10/7/6/5 | Easy through Expert |
+| Goal candidate controls | 30 candidates, 30 ms collection, 2,048 witness moves | Can reduce offered goal count |
+| Music Medium | Remaining ≤ 0.5 × M unless High applies | M20 changes at 10 remaining |
+| Music High | Remaining ≤ 5, higher priority | Small allowances can begin High |
+| Music gain | Master × Music × track factor × transition × result duck | Gameplay factor .7; result duck .3 |
+| Menu/music fades | Menu in/out 1.5 s; gameplay crossfade 1.75 s; cooldown .4 s | Two-track transition, no third simultaneous music track |
+| Wave | Depth × .065 s, then .07 + .13 + .24 s for recolor | Capture pop uses .28 s and its own depth delay |
+| Loading readiness | Actual preparation + one warm frame + .5 s, then .55 s entrance | No false percentage estimate |
+| Result reveal | Last wave + .45 s; add .8 s win transition for victory | Logical outcome is already final |
+| Victory counters | .2 s delay + 1.2 s count-up | Exact final values retained |
+| Displayed currency | +100 coins, +5 gems | Placeholder cards only |
+| Save/replay | Same immutable numbered definition | New custom restart can regenerate |
+| Unlock | Win preceding numbered level | Stars and goals not required |
+
+### Solver ranking reference
+
+For immediate search ranking, let A be neighboring cube mass that would join, G the number of neighboring groups joined, T the resulting component mass, F the exposed future-frontier cube mass, and E the number of frontier groups. Its six greedy variants rank using:
+
+1. 10A + G.
+2. 1,000G + T.
+3. 10T + 20G.
+4. 4T + 2F + 5E.
+5. 150G + 3T + F.
+6. 1,000T + 10G + F, with bounded lookahead where applicable.
+
+These are alternative prioritization heuristics, not extra score awards or guaranteed shortest-path formulas. The ordering estimate combines remaining region count with how much mass is outside the largest component. The proof-oriented lower bound is distinct colors remaining minus one. A ranking estimate is never presented as a mathematical proof of minimum moves.
+
+### Additional worked balancing calculations
+
+For a Medium trace with L = 12, M = 16 and R = 120 on N = 296 cubes, an efficiency target is 12 + floor(4 × 0.5) = 14. If the largest witnessed new capture is 40, the Big Capture target is max(ceil(5.92),ceil(26)) = 26. A Medium Quick Start deadline is floor(12 × .30) = 3; if the witness has 100 active cubes then, 33.78% becomes 30% and its cube target is ceil(.30 × 296) = 89, provided the other eligibility conditions hold.
+
+For the same statistics, the Full Grid Speed Run estimate is 12×7 + 8×cube-root(296) + 120×.12, approximately 151.7 seconds, rounded upward to **155 seconds**. Random Shape multiplies the unrounded estimate by 1.25 and rounds upward to **190 seconds**; Items uses 1.15 and rounds upward to **175 seconds**. These are hypothetical statistics applied to the real formula, not actual assigned targets for a claimed numbered level.
+
+<a id="chapter-36"></a>
+
+# 36. How the systems work together
+
+The systems support one primary outcome: a playable puzzle whose completion can be recognized consistently. A useful product-level flow is:
+
+    Category + level → preserved puzzle or controlled generation
+        → connected-region analysis → validated winning route
+        → difficulty allowance → optional goals from that same route
+        → local preserved level → player interaction
+
+During play:
+
+    Choose paint + tap cube → legal recolor → new active component
+        → move counter + capture bar + capture-based score
+        → optional-goal progress + remaining-move music state
+        → full capture? WIN : allowance exhausted? LOSS : continue
+
+On a win:
+
+    Final moves/time → current stars + goal evaluation
+        → best-record comparisons + new goal identities
+        → local completion save + next-level unlock
+        → board celebration + result popup
+
+Difficulty and board complexity have different roles. Difficulty chooses allowance/goal parameters and a distinct seed identity. Region complexity scales spare moves. Board dimensions influence physical size, generation work, and often the number of regions, without prescribing an exact solution length.
+
+The preserved definition separates replay fairness from search variability: a future solver's deeper or weaker result does not silently replace the local level's original allowance. The current checkpoint separately preserves an ongoing attempt. The catalog separately preserves achievement history. These three notions—puzzle identity, current attempt, permanent result—must not be confused.
+
+The goals share a winning witness so they are consistent with the puzzle. Their actual permanent award still depends on the player's successful attempt. Gold stars use moves/allowance instead, so earning every optional diamond does not automatically mean three gold stars. Score uses random capture rewards, so it does not determine either system. Remaining moves drive music intensity, not score or percentage complete.
+
+<a id="chapter-37"></a>
+
+# 37. Frequently asked questions
+
+**How do I win?** Make all playable cubes one connected color within the allowance. Completing on the last move wins.
+
+**How do colors connect?** Matching cubes must share faces through a chain. Corners, diagonal contacts, and empty space do not count.
+
+**Can I choose any cube?** Yes, any cube that can be reached by the click/tap view, provided its color differs from the selected paint. The game is not restricted to the initial corner region.
+
+**Why did capture progress go down?** You worked on a different component. The bar describes the current component, not all cubes ever visited.
+
+**Does choosing paint spend a move?** No. A legal cube recolor does. Choosing a limited-use goal's named paint can still count as a palette selection even before it is applied.
+
+**Can a move with no added neighbors cost a move?** Yes. Changing a component's color is legal even without a merge.
+
+**Why do same-sized levels have different allowances?** Their colors/regions and verified solutions differ. Allowances use solution length and region complexity.
+
+**Are all numbered levels solvable?** A newly published numbered definition requires a validated within-budget witness. That proves a route, not optimality or freedom from every device/save/runtime failure. Custom emergency allowance is a different recovery case.
+
+**Does the solver always find the shortest route?** No. Only results with a proof are optimal. A bounded validated search normally means best known within the available effort.
+
+**Why might the developer solver fail an Expert level?** Its current plan may be longer than the preserved allowance. A different validated route can exist in the saved definition.
+
+**Why do larger levels take longer to load?** More geometry and regions increase preparation/search work. First-time goal/definition creation also takes time; replay can use a saved definition.
+
+**What distinguishes the modes?** Full Grid is a cube shell; Random Shape is an irregular connected external skin; Items is one of four fruit skins. All share the flood rules and palette.
+
+**What changes with difficulty?** Allowance, goal tuning/pools and the identity seed. Numbered dimensions and palette count do not directly change with difficulty.
+
+**What is my score based on?** A random integer 21–49 times a capture-size band multiplier. It has no time, difficulty or win bonus.
+
+**How do I earn three stars?** Win in no more than 70% of the allowance. The 90% threshold separates two stars from one.
+
+**Can every Expert level earn three stars?** Not necessarily. If its exact-budget witness is a proven minimum, this rating rule allows only one star. That is a current design limitation.
+
+**Are goals mandatory?** No. You can win and unlock the next level without achieving any.
+
+**Can goals be earned across attempts?** Yes, across successful attempts on the same saved numbered definition.
+
+**What if I meet a goal and lose?** It is not newly banked. Previously earned goals remain.
+
+**Does replay generate a different numbered board?** Valid saved definitions restore their exact initial board, allowance and goals. Custom restart is not covered by that guarantee.
+
+**Can a worse replay remove stars?** No. The popup shows that attempt's rating; the tile keeps the maximum saved stars.
+
+**How do I unlock another category?** Every category has Level 1 available; later levels unlock within that category after the preceding win. Success elsewhere does not cross-unlock them.
+
+**Why does the music intensify?** Remaining moves cross 50% or five moves, with the five-move rule taking priority.
+
+**Does Pause freeze everything?** No. It stops gameplay interaction and the active-play clock; existing animation and music can continue. App suspension is handled differently.
+
+**Where are my coins and gems?** The +100/+5 cards are placeholders. No functioning wallet or currency economy is implemented.
+
+**Why is custom fruit play unavailable?** FRUITS is explicitly COMING SOON. The four numbered Items silhouettes are a separate completed route.
+
+**Does it need the internet?** The inspected active puzzle and save systems operate locally. No game account/cloud requirement was found.
+
+**Is progress saved automatically?** Relevant interactions and lifecycle events request local saves. Abrupt termination/storage failure can still lose the latest unsaved change; there is no cloud recovery guarantee.
+
+**Why is Continue missing?** There is no supported, incomplete, restorable checkpoint with remaining moves, or restoration has failed its validity checks.
+
+**Where are the liquid particles?** The optional wave-splash system has been removed. The original color/scale wave remains; victory confetti and UI sparkles are independent.
+
+<a id="chapter-38"></a>
+
+# 38. Current functionality status
+
+| Status | Features and qualification |
+| --- | --- |
+| Implemented and active | Three numbered modes, four difficulty tiers, 1,200 independent identities, regular/irregular/fruit geometry, free-region flood rules, local solver-backed preparation, allowances, current score, active-play clock, capture bar, optional numbered goals, persistent diamonds, gold ratings, best move/time records, Continue, pause/Home confirmation, Settings, dynamic music, result presentation |
+| Implemented but disabled by current configuration | Optional irregular notches; performance logging; release FPS overlay. QUIT is deliberately hidden on mobile. |
+| Partially implemented | Custom FRUITS navigation/preferences without playable launch; placeholder coin/gem reward cards without an economy; some legacy audio cue slots without current automatic triggers; the compound Final Color Efficiency rule exists but its current eligibility/weights prevent ordinary generation |
+| Development-only | Interactive Auto Solver, grouped Solver Summary/history, profiling, regression runners, authored UI/audio previews and diagnostic controls |
+| Present but not the ordinary main PLAY path | Older sequential campaign indirectly reached after a custom win; older 2D demo disabled in the build list; third-party demo content |
+| Removed | Optional liquid wave splash/particle system and its installer/hooks; decorative victory voxel artwork; former procedural victory glow drawing, replaced by an image |
+| Not implemented in inspected active gameplay | Cloud saves, cross-device accounts, network multiplayer, shop/wallet/inventory rewards, paid extra moves/revive, persistent high-score leaderboard, player reset-progress screen, color-blind palette selector |
+| Unverified by this audit | Current signed mobile build behavior; touch feel/legibility across devices; battery/memory/FPS guarantees; perceived audio mix; crash/power-loss recovery; future-version save compatibility; identical fresh-install budgets/goals across devices |
+
+“Implemented” here means the active flow is connected in the inspected project. It is not a claim of exhaustive release certification. The source and saved authored configuration establish intent and current behavior; platform testing must establish delivery quality.
+
+<a id="chapter-39"></a>
+
+# 39. Known limitations and inconsistencies
+
+1. **Gold-star feasibility on strict tiers:** a proven-optimal Expert allowance cannot produce a better-than-one-star win under the global 70%/90% budget ratios.
+2. **Different difficulty names:** numbered MEDIUM/EXPERT correspond to custom NORMAL/PERFECT.
+3. **Custom fruit placeholders:** the dropdown names more fruits than the four active numbered silhouettes, and custom launch is blocked with COMING SOON.
+4. **Currency is decorative:** +100 coins and +5 gems have no connected wallet/reward logic.
+5. **Goal heading terminology:** an optional-goals heading still calls saved secondary achievements “Stars,” while their active presentation is diamonds.
+6. **Score is random and not a permanent best record:** identical routes can have different scores; catalog records do not establish a score leaderboard.
+7. **Component-based capture can fall or repeat:** this is legal free-region behavior and can count previously active cubes again for score/capture goals. The instruction about expanding “your” region can sound more restrictive than the implemented rule.
+8. **Pause is not a global animation/audio freeze:** the clock/input pause and ongoing presentation can behave differently.
+9. **Custom victory's NEXT LEVEL enters the older campaign:** it does not continue an immutable custom catalog.
+10. **One unfinished checkpoint:** there is no multi-save list, and starting another puzzle can replace it without a universal abandonment confirmation.
+11. **Damaged preserved definitions are not automatically repaired:** files are deliberately preserved and not overwritten; Retry can encounter the same issue again.
+12. **Legacy resumed goal history can be disabled:** incompatible or missing partial-attempt history cannot safely earn goals retrospectively.
+13. **Fresh-install content is not server-canonical:** bounded search/goal preparation can vary even when initial seeds are the same. Local saved replay is fixed.
+14. **Goal timing is estimated:** structural witness validation does not prove a human can meet a Speed Run deadline.
+15. **Configured camera differs from an older note:** current surface clearance is 14, not 0.75, which can materially affect view distance and zoom. No correction was made during this documentation task.
+16. **Configured audio slots are not all active triggers:** progress/large-capture legacy clips and silent popup/flood-end slots do not imply those cues are heard automatically.
+17. **Best time depends on available numbered goal-result tracking:** older resumed attempts without valid goal history can still save ordinary completion/stars without the same time-record path.
+18. **Latent compound goal:** Final Color Efficiency has positive weights only on Expert, but Expert supplies no spare moves and the candidate requires at least one saved move. It therefore is not generated by the current ordinary pools.
+19. **Local storage is not guaranteed storage:** failures, unsupported formats or external data removal can affect progress; no cloud or player-facing repair/reset workflow was verified.
+
+These points describe the inspected state. They are not changes made by the audit and are not promises of a future implementation.
+
+<a id="chapter-40"></a>
+
+# 40. Glossary
+
+| Term | Meaning in this game |
+| --- | --- |
+| Voxel / cube | One playable cube occupying a grid position |
+| Envelope | The possible cubic volume in which an object is constructed |
+| Shell / skin | The playable exterior cubes rather than all hidden interior material |
+| Face adjacency | Two cube positions differ by one step along exactly one axis |
+| Region | A face-connected group of the same color |
+| Active component | The connected region at the most recently recolored cube, used for capture tracking |
+| Free-region flood | Rules allowing the player to recolor any chosen region, not only one fixed origin |
+| Newly captured | In the current component but not in the immediately previous component |
+| Palette | The six selectable paint colors |
+| Move allowance / budget | Maximum accepted recolors before failure if the board is still incomplete |
+| Seed | A reproducible input for geometry/color generation |
+| Preserved definition | Saved initial numbered puzzle, palette, allowance, goals and verified route |
+| Checkpoint / session | One saved unfinished attempt with changed colors and counters |
+| Catalog | Permanent completion/record history for the 1,200 numbered identities |
+| Witness | A complete sequence demonstrated to win under the flood rules |
+| Validated | That route was replay-checked successfully |
+| Best known | Shortest validated route found by the search so far |
+| Optimal | No shorter route exists, established by proof rather than hope |
+| Heuristic | A useful estimate/ranking that can guide search without guaranteeing the best answer |
+| Greedy search | Repeatedly take a promising immediate choice |
+| Beam search | Keep a limited collection of promising partial routes |
+| Lookahead | Compare a few future moves before deciding |
+| IDA* | Repeated bounded-depth search using a safe lower bound to seek shorter solutions |
+| Gold stars | Current/best move-efficiency rating, one through three on a win |
+| Goal diamond | An optional challenge earned permanently on a qualifying numbered win |
+| Active-play time | Time when the attempt is actually interactive, excluding loading/pause/results |
+| Solver time | Developer session wall time, which can include analysis and pauses |
+| Crossfade | Fade between two music tracks without an abrupt switch |
+| Fallback | A recovery route when the preferred generation/search process fails |
+
+<a id="chapter-41"></a>
+
+# 41. Completeness audit and verification record
+
+A second review cross-checked the initial description against current saved configuration and edge cases before this document was finalized. In particular:
+
+- The startup build uses the 3D game; the older 2D scene is disabled.
+- Numbered mode/difficulty/page identities were compared against actual selection controls and their runtime behavior.
+- Difficulty names were checked in authored screens, not inferred from internal terminology.
+- The current camera overrides were compared with both defaults and older performance prose; the discrepancy is disclosed.
+- Score award bands, random endpoints, same-color invalid moves, free-region capture switching, final-move victory order and rapid-input handling were traced through the active play path.
+- Allowance percentages, two-stage rounding, complexity thresholds and strict tier-order guards were checked against the saved Level 1 profile.
+- All ten goal types, their twelve weighted pools, family exclusions, witness validation, time-estimate limitation and win-only persistence were reviewed.
+- Star thresholds and the different present-win versus best-tile displays were checked independently from diamonds and placeholder currency.
+- Actual saved initial Level 1 cells were decoded read-only. Its region identities and the 14-step witness were reconstructed, reproducing 152/152 completion. Goal targets and the illustrative scoring table were recalculated.
+- Menu, Continue, pause Settings, Home and same-level restart confirmation routes were compared with their available authored controls.
+- Audio clip assignments were separated from actual automatic triggers; dynamic-music priorities, muting and lifecycle saves were reviewed.
+- Removed wave-particle functionality was excluded from active features, while independent victory confetti/glow/sparkles were retained.
+- Editor-only automation/history and release/development FPS behavior were separated from ordinary player features.
+- Current record structures were inspected before making claims about best scores, best times, cloud transfer or rewards.
+
+This is a functionality audit, not a script-by-script reference manual. No existing gameplay, configuration, UI, material, scene, prefab or save was deliberately modified. The only intended new project deliverable is this document. Reading saved data for an example did not replay that attempt in the live application or change its records.
+
+<a id="chapter-42"></a>
+
+# 42. Unverified behavior and client acceptance boundaries
+
+The current implementation provides a clear set of testable product behaviors, but this document should not be used as a blanket release sign-off. The following remain outside what this read-only audit freshly established:
+
+| Area | What is established | What remains to verify in a product build |
+| --- | --- | --- |
+| Core rules and calculations | Inspected rules, exact saved example and recalculated tables | Broad device/end-to-end coverage for all 1,200 identities |
+| Mobile input | Touch gestures and UI blocking are implemented | Device-specific sensitivity, accessibility, conflicting gestures and orientation changes |
+| Performance | Pooling, bounded search, cooperative preparation and surface-only geometry are implemented | Signed Android/iOS frame time, memory, heat, battery and cold loading |
+| Audio | Current assignments, gains, transitions and missing triggers are identified | Perceived loudness, speaker/headphone balance and platform interruptions |
+| Persistence | Local checkpoint, immutable definition and catalog validation are implemented | Disk-full, abrupt kill, power-loss and migration/recovery behavior under real platform conditions |
+| Content reproducibility | Local saved replay is fixed and witnesses are preserved | Identical first-generation allowances/goals across different device search timing |
+| Future updates | Version rejection/preservation protects against silent overwrite | Successful migration of old saves into unimplemented future formats |
+| Commercial features | No integrated wallet/shop/cloud requirement found | No claim of an economy, store or online service readiness is made |
+
+For client demonstrations, use the exact names and caveats in this document. In particular, present +100/+5 as placeholders, FRUITS as unavailable custom content, diamonds as goal achievements, and validated as different from optimal. Those distinctions prevent a demonstration of the current game from accidentally promising unfinished functionality.
+
