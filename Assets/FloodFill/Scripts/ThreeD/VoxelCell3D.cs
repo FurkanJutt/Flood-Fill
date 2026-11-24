@@ -58,8 +58,6 @@ namespace FloodFill.ThreeD
         public int Z { get; private set; }
         public int ColorIndex { get; private set; }
         public bool IsCaptured { get; private set; }
-        // Visual-only notification at the actual tween phase, rather than a second VFX clock.
-        public event System.Action<VoxelCell3D, bool> WavefrontReached;
         public IReadOnlyList<MeshRenderer> MeshRenderers => meshRenderers;
 
         public void Configure(Transform visualRoot, MeshRenderer[] renderers)
@@ -182,8 +180,6 @@ namespace FloodFill.ThreeD
                         .SetEase(Ease.InQuad));
             }
 
-            if (WavefrontReached != null)
-                colorWaveSequence.AppendCallback(() => WavefrontReached?.Invoke(this, true));
             colorWaveSequence.Append(
                 DOVirtual.Color(
                     anticipationColor,
@@ -307,11 +303,7 @@ namespace FloodFill.ThreeD
                 float safeDelay = Mathf.Max(0f, delay);
                 captureTween = DOTween.Sequence()
                     .AppendInterval(safeDelay)
-                    .AppendCallback(() =>
-                    {
-                        transform.localScale = targetScale * captureStartScale;
-                        WavefrontReached?.Invoke(this, false);
-                    })
+                    .AppendCallback(() => transform.localScale = targetScale * captureStartScale)
                     .Append(transform.DOScale(targetScale, captureDuration)
                         .SetEase(Ease.OutBack))
                     .OnComplete(() => captureTween = null);
