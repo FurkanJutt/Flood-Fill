@@ -1,0 +1,28 @@
+POWER-UP SPRITES — 26 November 2026
+
+1415 checks passed in Unity 6000.5.8f1 on Apple M1 Pro. Isolated save identity; original player saves unchanged.
+Hint camera planned and verified selectable representatives on all six cube faces, including bottom/back, within existing pitch/zoom limits.
+20x20x20 HollowCube hint worker including graph/fallback: 637ms on desktop; not a mobile performance guarantee.
+20x20x20 Procedural hint worker including graph/fallback: 385ms on desktop; not a mobile performance guarantee.
+20x20x20 Items hint worker including graph/fallback: 147ms on desktop; not a mobile performance guarantee.
+84 combinations: all 3 modes, 7 dimensions, 4 difficulty seeds; one-cell Swap, face-only Blast and rebuilt region graph checked.
+Optional automatic execution: preview delay, one normal move/one hint charge, cancellation and stale worker/pause cancellation passed.
+All 12 actual mode/difficulty level-one launches retained budgets and accepted Swap; custom-game availability toggles passed.
+Actual authored UI, target/color order, exact direct edits, inventory spending, current-state hint/camera, cancellation, Continue/restart, write-ahead recovery, geometry variants and goal semantics passed.
+The updated suite explicitly applied normal, selected and disabled states to all
+six background/icon FloodFillUIState3D components and checked Image.sprite against
+the authored reference. Scene missing-script checks and gameplay interactions
+passed after the generated icon script and objects were removed. Serialized object
+IDs are unique; all size overrides are off. No removed icon script/GUID references
+remain anywhere under Assets. git diff --check passed.
+
+Verification used /tmp/FloodLevelVerify with test-only save identities. Package
+assets were synchronized to that copy, and its domain reload option was fixed so
+the static test runner could remain subscribed across entering Play Mode. No
+original player saves or project runtime settings were used as test fixtures.
+
+The isolated copy rendered the board's pre-existing material pink during screenshot
+inspection after its render-pipeline package refresh. Button backgrounds/icons
+rendered correctly and logical tests passed. No board material, shader, render
+pipeline or project setting was modified in the source project by this migration.
+A pre-existing Editor SearchDatabase indexing diagnostic also appeared on startup.

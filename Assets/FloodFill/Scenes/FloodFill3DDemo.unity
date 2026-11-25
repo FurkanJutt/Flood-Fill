@@ -210,6 +210,22 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &110894717
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 110894713}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 531bec7031df44ab9a07cca4ce02937a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.PowerUps.FloodPowerUps3D
+  settings: {fileID: 11400000, guid: 65d224a7030804b82a765af9fe9b7866, type: 2}
+  game: {fileID: 110894715}
+  ui: {fileID: 1627505685}
+  highlights: {fileID: 0}
 --- !u!1 &188707890
 GameObject:
   m_ObjectHideFlags: 0
@@ -925,30 +941,6 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 6972622611867763818, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 6972622611867763818, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 6972622611867763818, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
-      propertyPath: m_LocalScale.x
-      value: 0.9428091
-      objectReference: {fileID: 0}
-    - target: {fileID: 6972622611867763818, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
-      propertyPath: m_LocalScale.y
-      value: 0.9428091
-      objectReference: {fileID: 0}
-    - target: {fileID: 6972622611867763818, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
-      propertyPath: m_LocalScale.z
-      value: 0.9428091
-      objectReference: {fileID: 0}
-    - target: {fileID: 6972622611867763818, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: 0
-      objectReference: {fileID: 0}
     - target: {fileID: 7266443821144038092, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
       propertyPath: manager
       value: 
@@ -1025,10 +1017,6 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 8673235639011361857, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: -1.8989258
-      objectReference: {fileID: 0}
     - target: {fileID: 8788426510199306060, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -1050,6 +1038,17 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
+--- !u!114 &1627505685 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 7266443821144038092, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
+  m_PrefabInstance: {fileID: 1627505684}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5209e8a9bd8b4b1fb226bc0b93e97d9d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.FloodFillMobileUI3D
 --- !u!1 &1690331080
 GameObject:
   m_ObjectHideFlags: 0
@@ -1350,33 +1349,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &110894717
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 110894713}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 531bec7031df44ab9a07cca4ce02937a, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.PowerUps.FloodPowerUps3D
-  settings: {fileID: 11400000, guid: 65d224a7030804b82a765af9fe9b7866, type: 2}
-  game: {fileID: 110894715}
-  ui: {fileID: 1627505685}
-  highlights: {fileID: 0}
---- !u!114 &1627505685 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 7266443821144038092, guid: 233e6477348d348a7af2a2b0eef81c8f, type: 3}
-  m_PrefabInstance: {fileID: 1627505684}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5209e8a9bd8b4b1fb226bc0b93e97d9d, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.FloodFillMobileUI3D
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

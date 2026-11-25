@@ -1,0 +1,29 @@
+POWER-UP SPRITE MIGRATION — 26 November 2026
+
+PowerUpBar.prefab now uses ordinary Unity UI Images and the existing shared
+FloodFillUIState3D component to swap the provided sprites. FloodPowerUpBar3D
+requests visual states, updates quantity/name text and handles button interaction;
+it no longer assigns sprites or generates icon/glow geometry.
+
+Sprite sheet: Assets/Images/Spritesheets/powerups_sprite_sheet.png
+The suffixes below identify the sliced sprite names:
+                    Normal  Selected  Disabled
+Button backgrounds     _0      _1        _2
+Color Swap icon        _5      _8        _11
+Smart Hint icon        _6      _9        _12
+Color Blast icon       _7      _10       _13
+
+Edit each button background and Icon child's FloodFillUIState3D component in
+PowerUpBar.prefab. Both size overrides are off by default, so selection preserves
+the layout dimensions. Icon Images preserve aspect ratio. Backgrounds use Simple
+Images because all three supplied background slices share the same dimensions.
+
+The shared state component gained optional Disabled Sprite/Color fields and
+ApplyState(selected, disabled). Its existing Apply(bool) entry point still has the
+same behavior for other UI. The custom Inspector exposes the new disabled fields.
+
+FloodPowerUpIcon3D.cs and its metadata were deleted. Its three DefaultIcon objects,
+components/references and the old extra Outline effects were removed from the bar.
+The installer creates state-driven sprite Images and never recreates that script.
+Old sprite/icon settings on FloodPowerUps.asset moved to prefab state components;
+inventory, hints, targeting and gameplay remain with their existing controllers.

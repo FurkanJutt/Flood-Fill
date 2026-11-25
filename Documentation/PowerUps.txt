@@ -1,5 +1,5 @@
 FLOOD FILL 3D — POWER-UP IMPLEMENTATION AND CONFIGURATION
-25 November 2026
+Updated 26 November 2026
 
 Installed feature
 -----------------
@@ -170,9 +170,11 @@ Smart Hint Search/Camera/Presentation, Gameplay Integration, UI and optional sou
 settings. Expand each definition for Enabled, Starting/Maximum Quantity, icon,
 Move Cost, highlight, duration/easing, scale pop and activation sound.
 
-Sprite icons can replace the built-in native drop/bulb/bolt UI meshes individually.
-Missing icons use those fallbacks. Quantity/name visibility, font/size/style/color,
-button backgrounds/glow, preferred size/spacing and press duration are editable.
+The provided powerups_sprite_sheet supplies backgrounds and drop/bulb/bolt icons.
+Edit Normal, Selected and Disabled sprites on FloodFillUIState3D components on each
+button background and Icon child in PowerUpBar.prefab. Generated fallback icon
+rendering was removed. Quantity/name visibility, font/size/style/color, preferred
+size/spacing and press duration remain in FloodPowerUps.asset.
 The authored bar inherits the gameplay safe-area Canvas and uses equal flexible
 widths. Its height and instruction position can reflow from the existing palette.
 Very large custom dimensions still require ordinary UI layout review.
@@ -217,7 +219,8 @@ NEW runtime files in Assets/FloodFill/Scripts/ThreeD/PowerUps/:
  FloodPowerUpHighlight3D.cs — one reusable exposed-surface outline mesh.
  FloodFillMobileUI3D.PowerUps.cs — instructions and palette highlight integration.
  FloodPowerUpBar3D.cs — authored button row, inventory and state visuals.
- FloodPowerUpIcon3D.cs — lightweight replaceable fallback icon geometry.
+ FloodPowerUpIcon3D.cs was removed on 26 November; icons are ordinary UI Images
+ controlled by the shared FloodFillUIState3D component.
 
 NEW assets/editor files:
  Assets/FloodFill/Resources/FloodPowerUps.asset

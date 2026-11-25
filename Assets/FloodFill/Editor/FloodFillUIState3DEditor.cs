@@ -18,6 +18,9 @@ namespace FloodFill.EditorTools
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(serializedObject.FindProperty("normalColor"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("selectedColor"));
+            EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("disabledSprite"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("disabledColor"));
             serializedObject.ApplyModifiedProperties();
         }
 

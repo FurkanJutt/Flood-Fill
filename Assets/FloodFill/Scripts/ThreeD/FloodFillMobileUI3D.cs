@@ -705,7 +705,7 @@ namespace FloodFill.ThreeD
                 resultTitle.text = won ? "YOU WIN!" : "OUT OF MOVES";
                 if (resultActionLabel != null)
                 {
-                    resultActionLabel.text = won ? (categoryComplete ? "LEVELS" : "NEXT LEVEL") : "PLAY AGAIN";
+                    resultActionLabel.text = won ? (manager.NumberedLevel <= 0 && !manager.IsCampaignGame ? "PLAY AGAIN" : categoryComplete ? "LEVELS" : "NEXT LEVEL") : "PLAY AGAIN";
                     Transform icon = resultActionLabel.transform.parent.Find("Icon");
                     if (icon != null) icon.GetComponent<FloodFillUIState3D>()?.Apply(won);
                 }

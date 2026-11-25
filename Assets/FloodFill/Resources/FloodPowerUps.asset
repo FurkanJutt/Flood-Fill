@@ -17,7 +17,6 @@ MonoBehaviour:
     enabled: 1
     startingQuantity: 3
     maximumQuantity: 99
-    icon: {fileID: 0}
     moveCost: 0
     animationDuration: 0.22
     animationEasing: 9
@@ -30,7 +29,6 @@ MonoBehaviour:
     enabled: 1
     startingQuantity: 3
     maximumQuantity: 99
-    icon: {fileID: 0}
     moveCost: 0
     animationDuration: 0.22
     animationEasing: 9
@@ -43,7 +41,6 @@ MonoBehaviour:
     enabled: 1
     startingQuantity: 3
     maximumQuantity: 99
-    icon: {fileID: 0}
     moveCost: 0
     animationDuration: 0.32
     animationEasing: 9
@@ -86,14 +83,10 @@ MonoBehaviour:
   allowCompatibleGoalProgressFromPowerUps: 0
   showQuantityIndicators: 1
   showPowerUpNames: 1
-  availableButtonSprite: {fileID: 1946846238, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
-  selectedButtonSprite: {fileID: -646590138, guid: 23924a82e9dcd4e929f5ddf48ffbc770, type: 3}
-  disabledButtonSprite: {fileID: 1946846238, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
   quantityTextColor: {r: 1, g: 1, b: 1, a: 1}
   quantityFont: {fileID: 0}
   quantityFontSize: 25
   quantityFontStyle: 1
-  selectedGlow: {r: 0, g: 0.9, b: 1, a: 1}
   buttonSpacing: 16
   buttonSize: {x: 250, y: 110}
   selectionAnimationDuration: 0.15

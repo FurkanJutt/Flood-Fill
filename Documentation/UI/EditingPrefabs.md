@@ -236,3 +236,8 @@ Power-up controls
 -----------------
 
 GameplayHUD now nests `PowerUpBar.prefab` above ColorDock. Keep the row under the existing gameplay safe-area hierarchy. `FloodPowerUps.asset` controls stock, optional icon sprites, equal-width button layout, hint search/camera behavior, animations and audio. The instruction/touch hint sits above this row. The Demo GameManager binds `FloodPowerUps3D` to the existing board, camera and UI. `Tools/Flood Fill/Power-Ups/Install In Open Scene` installs these bindings idempotently in other scenes. Full usage, persistence and scoring rules are in `Documentation/PowerUps.txt`; test results are in `Documentation/PowerUpsVerification.txt`. No wave particles or splash effects are included.
+
+Power-up sprites (26 November 2026)
+----------------------------------
+
+`PowerUpBar.prefab` now uses the provided `powerups_sprite_sheet` backgrounds and drop/bulb/bolt icons. Each button background and Icon child has `FloodFillUIState3D` with Normal, Selected and Disabled sprite references. Edit these components to change the sprites; both size overrides are off so selected and unselected backgrounds share the same layout dimensions. The power-up bar only requests state changes and updates inventory/text. Generated icon graphics and their `FloodPowerUpIcon3D` script were removed, along with the extra outline effects. Sprite settings formerly on `FloodPowerUps.asset` moved to the prefab state components. The shared state script's original `Apply(bool)` behavior remains unchanged for other UI; power-ups use its new disabled-aware `ApplyState` method.

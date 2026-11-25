@@ -18,7 +18,7 @@ namespace FloodFill.EditorTools
         [MenuItem("Tools/Flood Fill/Power-Ups/Install In Open Scene")]
         public static void Install()
         {
-            var settings=EnsureSettings();RepairBarIcons();InstallHud(settings);
+            var settings=EnsureSettings();RepairBarStates();InstallHud(settings);
             foreach(var game in UnityEngine.Object.FindObjectsByType<FloodFillGameManager3D>(FindObjectsInactive.Include))
             {
                 var component=game.GetComponent<FloodPowerUps3D>();if(component==null)component=Undo.AddComponent<FloodPowerUps3D>(game.gameObject);
@@ -28,14 +28,30 @@ namespace FloodFill.EditorTools
             }
             AssetDatabase.SaveAssets();
         }
-        private static void RepairBarIcons()
+        private static Sprite PowerSprite(int index)=>AssetDatabase.LoadAllAssetsAtPath("Assets/Images/Spritesheets/powerups_sprite_sheet.png").OfType<Sprite>().Single(sprite=>sprite.name=="powerups_sprite_sheet_"+index);
+        private static FloodFillUIState3D AddState(Image image,int normal,int selected,int disabled)
+        {
+            var state=image.gameObject.AddComponent<FloodFillUIState3D>();
+            state.normalSprite=PowerSprite(normal);state.selectedSprite=PowerSprite(selected);state.disabledSprite=PowerSprite(disabled);
+            image.type=Image.Type.Simple;image.color=Color.white;state.Apply(false);return state;
+        }
+        private static void RepairBarStates()
         {
             if(AssetDatabase.LoadAssetAtPath<GameObject>(BarPath)==null)return;
             var root=PrefabUtility.LoadPrefabContents(BarPath);bool changed=false;
             try
             {
-                foreach(var icon in root.GetComponentsInChildren<FloodPowerUpIcon3D>(true))
-                    if(icon.GetComponent<CanvasRenderer>()==null){icon.gameObject.AddComponent<CanvasRenderer>();changed=true;}
+                var bar=root.GetComponent<FloodPowerUpBar3D>();
+                if(bar.backgroundStates==null||bar.backgroundStates.Length!=3||bar.iconStates==null||bar.iconStates.Length!=3)
+                {
+                    bar.backgroundStates=new FloodFillUIState3D[3];bar.iconStates=new FloodFillUIState3D[3];
+                    for(int i=0;i<3;i++)
+                    {
+                        bar.backgroundStates[i]=bar.backgrounds[i].GetComponent<FloodFillUIState3D>()??AddState(bar.backgrounds[i],0,1,2);
+                        bar.iconStates[i]=bar.icons[i].GetComponent<FloodFillUIState3D>()??AddState(bar.icons[i],5+i,8+i,11+i);
+                    }
+                    changed=true;
+                }
                 if(changed)PrefabUtility.SaveAsPrefabAsset(root,BarPath);
             }
             finally{PrefabUtility.UnloadPrefabContents(root);}
@@ -53,8 +69,6 @@ namespace FloodFill.EditorTools
             settings.colorSwap.activationSound=audio.buttonConfirm.clip;settings.colorBlast.activationSound=audio.blockColorChange.clip;
             settings.hintActivationSound=audio.colorSelected.clip;settings.hintRevealedSound=audio.buttonConfirm.clip;
             settings.invalidActionSound=audio.buttonCancel.clip;settings.unavailableSound=audio.buttonCancel.clip;
-            var tabs=AssetDatabase.LoadAssetAtPath<GameObject>("Assets/FloodFill/Prefabs/UI/LevelSelectionPanel.prefab").GetComponent<FloodLevelSelection3D>();
-            settings.availableButtonSprite=tabs.tabNormal;settings.selectedButtonSprite=tabs.tabSelected;settings.disabledButtonSprite=tabs.tabNormal;
             AssetDatabase.CreateAsset(settings,SettingsPath);return settings;
         }
         private static RectTransform Rect(string name,Transform parent,Vector2 size)
@@ -69,21 +83,19 @@ namespace FloodFill.EditorTools
         {
             var root=Rect("PowerUpBar",null,new Vector2(790,110));
             var row=root.gameObject.AddComponent<HorizontalLayoutGroup>();row.spacing=settings.buttonSpacing;row.childControlHeight=row.childControlWidth=true;row.childForceExpandHeight=row.childForceExpandWidth=true;
-            var bar=root.gameObject.AddComponent<FloodPowerUpBar3D>();bar.buttons=new Button[3];bar.backgrounds=new Image[3];bar.icons=new Image[3];bar.fallbackIcons=new FloodPowerUpIcon3D[3];bar.names=new TMP_Text[3];bar.quantities=new TMP_Text[3];bar.outlines=new Outline[3];
+            var bar=root.gameObject.AddComponent<FloodPowerUpBar3D>();bar.buttons=new Button[3];bar.backgrounds=new Image[3];bar.icons=new Image[3];bar.backgroundStates=new FloodFillUIState3D[3];bar.iconStates=new FloodFillUIState3D[3];bar.names=new TMP_Text[3];bar.quantities=new TMP_Text[3];
             string[] labels={"COLOR SWAP","SMART HINT","COLOR BLAST"};
             for(int i=0;i<3;i++)
             {
                 var rect=Rect(labels[i],root,settings.buttonSize);var element=rect.gameObject.AddComponent<LayoutElement>();element.flexibleWidth=1;
-                var image=rect.gameObject.AddComponent<Image>();image.sprite=settings.availableButtonSprite;image.type=Image.Type.Sliced;
+                var image=rect.gameObject.AddComponent<Image>();image.type=Image.Type.Simple;image.preserveAspect=false;
                 var button=rect.gameObject.AddComponent<Button>();button.targetGraphic=image;rect.gameObject.AddComponent<FloodAudioUIOverride>().silent=true;
-                var outline=rect.gameObject.AddComponent<Outline>();outline.effectDistance=new Vector2(3,-3);outline.effectColor=settings.selectedGlow;outline.enabled=false;
                 var icon=Rect("Icon",rect,new Vector2(44,44));icon.anchorMin=icon.anchorMax=new Vector2(.5f,.65f);icon.anchoredPosition=Vector2.zero;
                 var sprite=icon.gameObject.AddComponent<Image>();sprite.preserveAspect=true;sprite.raycastTarget=false;
-                var fallback=Rect("DefaultIcon",rect,new Vector2(44,44));fallback.anchorMin=fallback.anchorMax=icon.anchorMin;fallback.anchoredPosition=Vector2.zero;
-                var graphic=fallback.gameObject.AddComponent<FloodPowerUpIcon3D>();graphic.kind=(FloodPowerUpKind)i;graphic.color=new Color(.7f,.96f,1);graphic.raycastTarget=false;
+                bar.backgroundStates[i]=AddState(image,0,1,2);bar.iconStates[i]=AddState(sprite,5+i,8+i,11+i);
                 var title=Text("Name",rect,font,labels[i],21);title.rectTransform.anchorMin=new Vector2(0,.05f);title.rectTransform.anchorMax=new Vector2(1,.32f);title.rectTransform.sizeDelta=Vector2.zero;title.rectTransform.anchoredPosition=Vector2.zero;
                 var quantity=Text("Quantity",rect,font,"3",25);quantity.rectTransform.anchorMin=quantity.rectTransform.anchorMax=new Vector2(.9f,.75f);quantity.rectTransform.sizeDelta=new Vector2(46,35);quantity.rectTransform.anchoredPosition=Vector2.zero;
-                bar.buttons[i]=button;bar.backgrounds[i]=image;bar.icons[i]=sprite;bar.fallbackIcons[i]=graphic;bar.names[i]=title;bar.quantities[i]=quantity;bar.outlines[i]=outline;
+                bar.buttons[i]=button;bar.backgrounds[i]=image;bar.icons[i]=sprite;bar.names[i]=title;bar.quantities[i]=quantity;
             }
             try{return PrefabUtility.SaveAsPrefabAsset(root.gameObject,BarPath);}finally{UnityEngine.Object.DestroyImmediate(root.gameObject);}
         }

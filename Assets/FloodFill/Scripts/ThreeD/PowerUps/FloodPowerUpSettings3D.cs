@@ -11,7 +11,6 @@ namespace FloodFill.ThreeD.PowerUps
         public bool enabled=true;
         [Min(0)] public int startingQuantity=3;
         [Min(1)] public int maximumQuantity=99;
-        public Sprite icon;
         [Min(0)] public int moveCost;
         [Min(.05f)] public float animationDuration=.22f;
         public Ease animationEasing=Ease.OutCubic;
@@ -63,8 +62,7 @@ namespace FloodFill.ThreeD.PowerUps
         [Tooltip("Opt-in for Big Capture / Combo Capture, whose ordinary wording requires moves.")] public bool allowCompatibleGoalProgressFromPowerUps;
         [Header("UI")]
         public bool showQuantityIndicators=true,showPowerUpNames=true;
-        public Sprite availableButtonSprite,selectedButtonSprite,disabledButtonSprite;
-        public Color quantityTextColor=Color.white,selectedGlow=new Color(0,.9f,1,1);
+        public Color quantityTextColor=Color.white;
         public TMP_FontAsset quantityFont;
         [Min(10)] public float quantityFontSize=25;
         public FontStyles quantityFontStyle=FontStyles.Bold;

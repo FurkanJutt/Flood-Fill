@@ -47,7 +47,7 @@ namespace FloodFill.ThreeD
             int earned=FloodLevelProgression3D.Stars(game.MoveCount,game.CurrentMoveBudget);
             for(int i=0;i<stars.Length;i++){stars[i].sprite=i<earned?goldStar:emptyStar;stars[i].color=Color.white;}
             bool last=game.NumberedLevel==FloodLevelProgression3D.LevelsPerCategory;
-            primaryLabel.text=last?"LEVELS":"NEXT LEVEL";primaryLabel.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,primaryLabel.GetPreferredValues(primaryLabel.text).x+8);levelsButton.SetActive(!last);
+            primaryLabel.text=game.NumberedLevel<=0&&!game.IsCampaignGame?"PLAY AGAIN":last?"LEVELS":"NEXT LEVEL";primaryLabel.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,primaryLabel.GetPreferredValues(primaryLabel.text).x+8);levelsButton.SetActive(!last);
             // Display placeholders only. No wallet, persistence or award calls.
             coinReward.text="+100";gemReward.text="+5";
         }

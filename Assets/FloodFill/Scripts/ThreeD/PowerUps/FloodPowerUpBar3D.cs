@@ -8,9 +8,8 @@ namespace FloodFill.ThreeD.PowerUps
     {
         public Button[] buttons;
         public Image[] backgrounds,icons;
-        public FloodPowerUpIcon3D[] fallbackIcons;
+        public FloodFillUIState3D[] backgroundStates,iconStates;
         public TMP_Text[] quantities,names;
-        public Outline[] outlines;
         private FloodPowerUps3D owner;
         private bool bound;
         private static readonly string[] Labels={"COLOR SWAP","SMART HINT","COLOR BLAST"};
@@ -47,22 +46,20 @@ namespace FloodFill.ThreeD.PowerUps
                 var kind=(FloodPowerUpKind)i;var def=settings.Definition(kind);bool selected=owner.SelectedKind==kind;
                 var element=buttons[i].GetComponent<LayoutElement>();if(element!=null){element.preferredWidth=settings.buttonSize.x;element.flexibleWidth=1;}
                 bool usable=owner.Available(kind);buttons[i].interactable=settings.enablePowerUpSystem&&def.enabled&&((owner.Ready&&usable)||selected&&!owner.IsExecuting);
-                var tint=Color.white;tint.a=buttons[i].interactable?1:.4f;backgrounds[i].color=tint;
-                var sprite=selected?settings.selectedButtonSprite:!usable?settings.disabledButtonSprite:settings.availableButtonSprite;
-                if(sprite!=null)backgrounds[i].sprite=sprite;
-                outlines[i].enabled=selected;outlines[i].effectColor=settings.selectedGlow;
+                bool disabled=!buttons[i].interactable&&!selected;
+                backgroundStates[i].ApplyState(selected,disabled);
+                iconStates[i].ApplyState(selected,disabled);
                 quantities[i].gameObject.SetActive(settings.showQuantityIndicators);quantities[i].color=settings.quantityTextColor;
                 if(settings.quantityFont!=null)quantities[i].font=settings.quantityFont;quantities[i].fontSize=settings.quantityFontSize;quantities[i].fontStyle=settings.quantityFontStyle;
                 quantities[i].text=settings.Unlimited?"∞":FloodPowerUpInventory3D.Quantity(kind).ToString();
                 names[i].gameObject.SetActive(settings.showPowerUpNames);names[i].text=owner.State==FloodPowerUpState.Calculating&&i==1?"CALCULATING…":Labels[i];
-                icons[i].sprite=def.icon;icons[i].enabled=def.icon!=null;fallbackIcons[i].enabled=def.icon==null;
-                if(owner.State!=FloodPowerUpState.Calculating)fallbackIcons[i].rectTransform.localRotation=Quaternion.identity;
+                if(owner.State!=FloodPowerUpState.Calculating)icons[i].rectTransform.localRotation=Quaternion.identity;
             }
         }
         private void Update()
         {
             if(owner==null)return;
-            if(owner.State==FloodPowerUpState.Calculating)fallbackIcons[1].rectTransform.localRotation=Quaternion.Euler(0,0,Mathf.Sin(Time.unscaledTime*4)*10);
+            if(owner.State==FloodPowerUpState.Calculating)icons[1].rectTransform.localRotation=Quaternion.Euler(0,0,Mathf.Sin(Time.unscaledTime*4)*10);
             if(owner.CurrentHint!=null)owner.ui?.PulsePowerUpPalette(owner.settings.highlightPulseSpeed);
         }
     }

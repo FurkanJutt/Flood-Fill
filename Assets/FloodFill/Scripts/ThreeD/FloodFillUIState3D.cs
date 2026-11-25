@@ -15,6 +15,8 @@ namespace FloodFill.ThreeD
         public Vector2 selectedSize = new Vector2(100, 100);
         public Color normalColor = Color.white;
         public Color selectedColor = Color.white;
+        public Sprite disabledSprite;
+        public Color disabledColor = Color.white;
         private bool sizeOverridden;
         private Vector2 originalSizeDelta;
 
@@ -24,11 +26,14 @@ namespace FloodFill.ThreeD
             normalSize = selectedSize = rect.rect.size;
         }
 
-        public void Apply(bool selected)
+        public void Apply(bool selected) => ApplyState(selected, false);
+
+        public void ApplyState(bool selected, bool disabled)
         {
+            if (disabled) selected = false;
             Image image = GetComponent<Image>();
-            image.sprite = selected ? selectedSprite : normalSprite;
-            image.color = selected ? selectedColor : normalColor;
+            image.sprite = disabled && disabledSprite != null ? disabledSprite : selected ? selectedSprite : normalSprite;
+            image.color = disabled ? disabledColor : selected ? selectedColor : normalColor;
             var rect = image.rectTransform;
             if (selected ? selectedOverrideSize : normalOverrideSize)
             {

@@ -33,6 +33,7 @@ namespace FloodFill.EditorTools
         public static void BeginBatch()
         {
             if(!Application.isBatchMode||!Application.dataPath.Contains("/tmp/"))throw new Exception("Use an isolated project.");
+            EditorSettings.enterPlayModeOptionsEnabled=true;EditorSettings.enterPlayModeOptions=EnterPlayModeOptions.DisableDomainReload;
             PlayerSettings.companyName="FloodPowerUpVerification";PlayerSettings.productName="FloodPowerUpVerification";
             PlayerPrefs.DeleteAll();FloodFillSessionPersistence3D.Delete();
             foreach(string suffix in new[]{"",".bak",".tmp"}){string p=FloodPowerUpInventory3D.StorePath+suffix;if(File.Exists(p))File.Delete(p);}
@@ -233,7 +234,14 @@ namespace FloodFill.EditorTools
             settings.colorSwap.moveCost=game.CurrentMoveBudget+1;Check(!powers.Available(FloodPowerUpKind.ColorSwap),"Unaffordable configured move cost is unavailable");settings.colorSwap.moveCost=0;
             settings.enablePowerUpSystem=false;Check(!powers.Ready,"Global disable prevents targeting");settings.enablePowerUpSystem=true;
             powers.enabled=false;powers.enabled=true;Check(powers.Ready,"Controller reactivation restores event bindings");
-            foreach(var icon in ui.GetComponentsInChildren<FloodPowerUpIcon3D>(true))Check(icon.canvasRenderer!=null,"Native optional-sprite fallback has a CanvasRenderer");
+            var states=ui.GetComponentsInChildren<FloodPowerUpBar3D>(true).Single();
+            Check(states.backgroundStates.Length==3&&states.iconStates.Length==3,"Authored power-up backgrounds and icons use shared UI state components");
+            foreach(var state in states.backgroundStates.Concat(states.iconStates))
+            {
+                state.Apply(false);Check(state.GetComponent<Image>().sprite==state.normalSprite,"Normal sprite uses shared state");
+                state.Apply(true);Check(state.GetComponent<Image>().sprite==state.selectedSprite,"Selected sprite uses shared state");
+                state.ApplyState(false,true);Check(state.GetComponent<Image>().sprite==state.disabledSprite,"Disabled sprite uses shared state");state.Apply(false);
+            }
             var bar=ui.GetComponentInChildren<FloodPowerUpBar3D>(true);var buttons=bar.GetComponentsInChildren<Button>();Canvas.ForceUpdateCanvases();
             Check(buttons.Length==3,"Three power-up buttons present");
             float width=((RectTransform)buttons[0].transform).rect.width;
