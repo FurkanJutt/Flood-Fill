@@ -231,3 +231,8 @@ Victory statistics count up from zero when the popup opens: moves used animate w
 The two reward sparkles use independent random brightness fades and slow opposite spins (8–16 degrees per second). They run on unscaled time for the entire time the victory popup is open, including after the one-shot celebration ends. Closing the popup restores their authored colors and rotations. The `rewardSparkles` references bind the existing Images; the installer also wires older prefabs.
 
 The optional flood-wave splash/particle system has been removed, including its scene instance, runtime script, shader/material, prefab, editor installer and callbacks. Voxel recoloring and capture continue to use the original color/scale wave animation. Victory-popup confetti and UI sparkle/glow animations are independent and remain installed.
+
+Power-up controls
+-----------------
+
+GameplayHUD now nests `PowerUpBar.prefab` above ColorDock. Keep the row under the existing gameplay safe-area hierarchy. `FloodPowerUps.asset` controls stock, optional icon sprites, equal-width button layout, hint search/camera behavior, animations and audio. The instruction/touch hint sits above this row. The Demo GameManager binds `FloodPowerUps3D` to the existing board, camera and UI. `Tools/Flood Fill/Power-Ups/Install In Open Scene` installs these bindings idempotently in other scenes. Full usage, persistence and scoring rules are in `Documentation/PowerUps.txt`; test results are in `Documentation/PowerUpsVerification.txt`. No wave particles or splash effects are included.

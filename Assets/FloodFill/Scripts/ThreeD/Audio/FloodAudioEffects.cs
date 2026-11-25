@@ -17,9 +17,9 @@ namespace FloodFill.ThreeD.Audio
         }
         private Voice[] voices;
         private bool poolResizePending;
-        private readonly float[] lastSoundAt=new float[21];
+        private readonly float[] lastSoundAt=new float[22];
         private bool soundTimesInitialized;
-        private readonly int[] soundStartCounts=new int[21];
+        private readonly int[] soundStartCounts=new int[22];
         private Voice spreadVoice;
         private bool spreadPaused;
         private readonly Dictionary<AudioClip,AudioClip> spreadLoops=new Dictionary<AudioClip,AudioClip>();
@@ -55,10 +55,16 @@ namespace FloodFill.ThreeD.Audio
                 case FloodSound.ColorSelected:return colorSelected;case FloodSound.BlockColorChange:return blockColorChange;case FloodSound.FloodProgress:return floodProgress;
                 case FloodSound.FloodEnd:return floodEnd;case FloodSound.LargeCapture:return largeCapture;case FloodSound.LevelStarted:return levelStarted;
                 case FloodSound.LevelCompleted:return levelCompleted;case FloodSound.LevelFailed:return levelFailed;
-                case FloodSound.Restart:return restartLevel;case FloodSound.Pause:return pauseSound;case FloodSound.Resume:return resumeSound;default:return null;
+                case FloodSound.PowerUp:return powerUpCue;case FloodSound.Restart:return restartLevel;case FloodSound.Pause:return pauseSound;case FloodSound.Resume:return resumeSound;default:return null;
             }
         }
         private static bool IsFloodSound(FloodSound kind)=>kind==FloodSound.BlockColorChange||kind==FloodSound.FloodProgress||kind==FloodSound.FloodEnd||kind==FloodSound.LargeCapture;
+        private readonly FloodSoundSettings powerUpCue=new FloodSoundSettings{volume=.65f,minimumInterval=.035f,maximumInstances=2,randomPitch=.01f};
+        public bool PlayPowerUpClip(AudioClip clip)
+        {
+            if(clip==null)return false;
+            powerUpCue.clip=clip;return PlaySound(FloodSound.PowerUp);
+        }
         public bool PlaySound(FloodSound kind,float volumeScale=1f,float pitchScale=1f)
             =>PlaySoundInternal(kind,volumeScale,pitchScale,false);
         private bool PlaySoundInternal(FloodSound kind,float volumeScale,float pitchScale,bool toggleFeedback,float maximumDuration=0f,float clipOffset=0f,AudioClip offsetClip=null)
@@ -133,7 +139,7 @@ namespace FloodFill.ThreeD.Audio
         }
         private void RefreshActiveVoices()
         {
-            var counts=new int[21];int floodCount=0;
+            var counts=new int[22];int floodCount=0;
             for(int i=0;i<voices.Length;i++)
             {
                 var voice=voices[i];if(!voice.Active)continue;

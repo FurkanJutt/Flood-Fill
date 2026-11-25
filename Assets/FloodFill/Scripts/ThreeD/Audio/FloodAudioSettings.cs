@@ -10,7 +10,7 @@ namespace FloodFill.ThreeD.Audio
         PopupOpen, PopupClose, ColorSelected, BlockColorChange, FloodProgress, FloodEnd, LargeCapture,
         LevelStarted, LevelCompleted, LevelFailed,
         // Keep serialized IDs stable after removing the former cue at 17.
-        Restart=18, Pause, Resume
+        Restart=18, Pause, Resume, PowerUp
     }
     [Serializable]
     public sealed class FloodSoundSettings

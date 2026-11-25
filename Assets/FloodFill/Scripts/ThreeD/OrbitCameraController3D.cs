@@ -7,7 +7,7 @@ using UnityEngine.InputSystem;
 
 namespace FloodFill.ThreeD
 {
-    public sealed class OrbitCameraController3D : MonoBehaviour
+    public sealed partial class OrbitCameraController3D : MonoBehaviour
     {
         private static readonly List<RaycastResult> UiRaycastResults = new List<RaycastResult>();
         private static EventSystem uiEventSystem;
@@ -107,6 +107,7 @@ namespace FloodFill.ThreeD
 
         public void FrameBounds(Bounds bounds)
         {
+            CancelHintFocus();
             framedBoundsCenter = bounds.center;
             framedBoundsRadius = Mathf.Max(0f, bounds.extents.magnitude);
             targetPosition = bounds.center;
@@ -177,6 +178,7 @@ namespace FloodFill.ThreeD
 
         public void SetInputEnabled(bool value)
         {
+            if(!value)CancelHintFocus();
             inputEnabled = value;
             if (value) return;
             orbitDragging = panDragging = mouseTapCandidate = touchTapCandidate = false;
@@ -188,6 +190,7 @@ namespace FloodFill.ThreeD
 
         public void ResetZoom()
         {
+            CancelHintFocus();
             if (!inputEnabled) return;
             float targetDistance = Mathf.Clamp(
                 defaultDistance, minimumDistance, maximumDistance);
@@ -225,6 +228,7 @@ namespace FloodFill.ThreeD
 #elif ENABLE_LEGACY_INPUT_MANAGER
             HandleLegacyInput();
 #endif
+            TickHintFocus(Time.unscaledDeltaTime);
             UpdateZoomReset(Time.unscaledDeltaTime);
             ApplyCameraTransform();
         }
@@ -468,6 +472,7 @@ namespace FloodFill.ThreeD
 
         private void Orbit(Vector2 delta)
         {
+            if(delta.sqrMagnitude>0 && inputEnabled)CancelHintFocus();
             if (!inputEnabled) return;
             yaw += delta.x * orbitSensitivity;
             pitch = Mathf.Clamp(
@@ -478,6 +483,7 @@ namespace FloodFill.ThreeD
 
         private void Pan(Vector2 delta)
         {
+            if(delta.sqrMagnitude>0 && inputEnabled)CancelHintFocus();
             if (!inputEnabled) return;
             if (targetCamera == null)
             {
@@ -492,6 +498,7 @@ namespace FloodFill.ThreeD
 
         private void Zoom(float amount)
         {
+            if(!Mathf.Approximately(amount,0) && inputEnabled)CancelHintFocus();
             if (!inputEnabled) return;
             zoomResetAnimating = false;
             float outsideDistance = GetMinimumOutsideDistance();

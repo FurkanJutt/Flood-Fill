@@ -1,0 +1,275 @@
+FLOOD FILL 3D — POWER-UP IMPLEMENTATION AND CONFIGURATION
+25 November 2026
+
+Installed feature
+-----------------
+The Demo scene is configured with FloodPowerUps3D on GameManager3D. GameplayHUD
+contains one nested PowerUpBar prefab immediately above ColorDock. Its order is
+Color Swap | Smart Hint | Color Blast. Starting stock is three of each. Stock is
+shared across numbered and custom games; restarting never refunds spent stock.
+The existing board, palette, camera, goals, results and audio managers remain the
+authorities. No particle, splash or wave-particle system has been added.
+
+1. Using Color Swap
+-------------------
+Press Color Swap, choose a cube and a palette color in either order. Targeting
+starts with no inherited color, so selecting a cube first cannot accidentally
+paint it. Exactly one occupied cube changes directly. Touching same-color cubes
+join its region; changing a bridge can split its old region. Selecting its current
+color is invalid and free. Camera gestures remain available. Press the selected
+power-up again, another power-up, Escape, Pause, Restart or leave gameplay to
+cancel. Successful execution spends one Swap and normally costs zero moves.
+
+The target outline, eased recolor and optional scale punch reuse existing cell
+rendering. Scale returns to the authored resting scale. Cancelling an already
+committed animation finishes its display without applying or refunding it twice.
+
+2. Using Color Blast
+--------------------
+Choose Color Blast, a color and a cube in either order. The center plus occupied
+neighbors at +/-X, +/-Y and +/-Z change directly, at most seven cubes. Diagonals,
+empty cells and distant same-color regions do not change directly. All logical
+colors commit together, followed by one component recalculation. The center
+animates first and neighbors follow after the configured delay. A blast whose
+entire target set already has the chosen color is free and does not execute.
+Default cost: one Blast, zero normal moves, zero artificial score.
+
+3. Smart Hint calculation and use
+--------------------------------
+Press Smart Hint. An immutable snapshot of CURRENT occupancy and colors is sent
+to a cancellable worker using the shared runtime FloodFillMoveSolver3D and its
+region graph, greedy/beam/exact strategies. It uses free-region gameplay rules,
+not a fixed origin or the level-generation solution. Swaps, blasts and arbitrary
+normal moves are included in that snapshot. No Unity objects are accessed by the
+worker and no UnityEditor dependency is introduced into runtime scripts.
+
+The preferred recommendation is the first move of the shortest validated winning
+continuation found by the existing solver within its budget. It is described as
+best-known, not mathematically optimal unless the solver proved optimality.
+If that search times out or its first recommendation cannot be revealed, ranked
+legal progress alternatives may be used. The message explicitly says when a
+winning continuation was not verified. An over-budget continuation is reported
+alongside the remaining allowance; displaying a hint is not a promise of victory.
+
+The current connected region receives a pulsing white surface outline. Neighbor
+regions that would merge receive a weaker target-colored outline (configurable).
+The matching palette button pulses without replacing its actual color. Instructions
+name the color, resulting connected count, newly connected count and available
+solution length. Hint is spent only after a valid representative is actually
+visible/selectable and the recommendation is displayed. Invalid, cancelled,
+stale or inaccessible recommendations do not spend stock.
+
+Default is reveal-only. Following it uses ordinary SelectColor/cube input, costs
+one normal move and awards the original normal-move score. Optional automatic
+execution waits 0.75 seconds AFTER display, then executes through that same normal
+move path. Changing the board, pausing, cancelling or navigating invalidates it.
+Manual camera input cancels automatic focus and pending auto-execution, while
+keeping an already displayed recommendation visible and charging no second hint.
+
+Defaults: 250ms target search budget, 1,000ms cancellation ceiling, 30,000 exact
+expanded states and 16MB search memory setting. Extended search is opt-in.
+These are algorithm budgets, not measured mobile frame-time guarantees. Graph
+construction, fallback ranking, camera planning and cooperative cancellation can
+add wall-clock time. A semaphore serializes full searches. A cached continuation
+is reused only when occupancy/logical indices and all current colors exactly match
+the cached state or its next state, and the remaining sequence validates again.
+
+4. How the hint camera chooses a view
+------------------------------------
+The existing OrbitCameraController3D is extended; there is no competing camera
+controller and no logical board rotation. It samples up to 96 exposed-face points
+from the recommended region. It evaluates the current view first. If the target
+is already sufficiently visible, it keeps that view. Otherwise it evaluates eight
+yaws and three pitches, constrained by the existing limits, with optional centered
+pan/fit zoom candidates. Occupancy-grid ray traversal rejects occluded samples
+without a physics ray per cube. Candidate scoring balances visible samples,
+rotation distance and placement in the middle gameplay area. Final disclosure
+requires a real camera ray to hit the representative cube first.
+
+Focus eases through the original camera fields, obeys a per-frame maximum angular
+speed and preserves pan/zoom where practical. Existing touch/mouse orbit, pan,
+zoom and reset cancel focus immediately. When a region is inaccessible under the
+existing restrictions, another legal candidate is attempted; otherwise the hint
+is cancelled free. Configurable duration is 0.6 seconds, speed 240 degrees/second,
+minimum rotation 4 degrees and minimum sampled visibility 0.15 by default.
+
+5. Regions, revision safety and execution
+----------------------------------------
+BoardManager edits at most seven direct targets, sets their logical colors before
+rebuilding the active connected component once, and increments a board revision.
+A fresh solver graph is built from a snapshot after changes, so splits and merges
+are both represented correctly. Old level solution data is invalidated after a
+paid direct change; the level's original budget is never recalculated or replaced.
+Board revision checks discard obsolete worker results and pending hint execution.
+
+Targeting consumes palette/cube events before normal painting. Existing UI hit
+testing, drag suppression and goal-panel pointer consumption remain in use.
+Temporary execution blocks normal paint while its short animation settles. The
+existing elapsed timer continues during execution. Loading, finalized wins/losses,
+paused gameplay and incompatible entrance/recolor animations reject activation.
+
+6. Inventory, Continue and crash recovery
+----------------------------------------
+Shared inventory lives at Application.persistentDataPath/power-up-inventory-v1.json
+with a version, quantities and monotonic revision. First use with an older save
+initializes stock without deleting progression. Maximum stock defaults to 99.
+No inventory is stored in immutable level definitions. Existing attempt saves add
+usage, score protection and inventory revision fields, compatible with older JSON.
+
+Each paid activation writes a complete post-operation attempt into the inventory
+journal together with the stock decrement, using temporary-file replacement and
+a backup. The normal session checkpoint is then saved and acknowledges the journal.
+If checkpoint writing is interrupted, Continue rolls the pending attempt forward
+before loading it. An explicit hasPendingSession flag avoids Unity JsonUtility's
+null-object serialization ambiguity. Winning journal recovery records normal
+completion/goals idempotently before clearing the pending transaction.
+
+If the first durable write fails, direct recolor, score, moves, goal progress,
+usage, random state and previous solver result are restored. Stock is not consumed.
+If the subsequent session write fails, the already durable journal remains for
+recovery. Broken primary inventory attempts its backup; unrecoverable existing
+inventory is unavailable rather than reset to starter stock. This is local save
+consistency, not a server-backed purchase or tamper-protection system.
+
+Continue restores modified cube colors and attempt usage. Restart/replay restores
+the original numbered puzzle and resets attempt usage, while spent stock remains
+spent. Original seed, occupancy, colors, move allowance and procedural goals stay
+in the numbered level definition. Save Inventory=false intentionally makes stock
+session-only; leave it enabled for production persistence.
+
+7. Moves, scoring, stars and goals
+---------------------------------
+Swap/Blast default to zero moves. Configurable positive costs update the real move
+counter and result thresholds; unaffordable actions are unavailable. Smart Hint
+itself never plays a move. Following/auto-executing it plays one normal move.
+Power-ups cannot revive a finalized loss. A complete board triggers the existing
+victory scheduling, saving, unlocks, stars and presentation exactly once.
+
+Completion stars use the original efficiency thresholds (three at <=70% of the
+allowance, two at <=90%, otherwise one). Assistance imposes no star cap.
+Current-attempt usage is tracked separately for all three types (configurable).
+
+Normal scoring keeps its existing formula and random score bands. Before assistance,
+it behaves as before. A saved per-attempt rewarded-cube ledger prevents repeated
+free splitting/reconnection from farming the same progress after assistance.
+Direct power-up captures award no score by default. Award Score For Power-Up
+Captures enables the existing formula only for eligible, previously unrewarded
+captured cubes. Hint display never awards points. Stock use creates no move bonus.
+
+Goal definitions and prior achievements remain unchanged. Move-saver/final-color/
+time goals evaluate real final moves/color/time. Percentage/deadline progress and
+sprint goals can observe actual captures at the current normal move count. Big
+Capture and Combo Capture do not treat a power-up as a normal move by default.
+Allow Compatible Goal Progress From Power-Ups opts those capture trackers in.
+Score goals, if added later, must use actual score; no new goal types were created.
+
+8. Inspector configuration and sound
+------------------------------------
+Select Assets/FloodFill/Resources/FloodPowerUps.asset for General, Color Blast,
+Smart Hint Search/Camera/Presentation, Gameplay Integration, UI and optional sound
+settings. Expand each definition for Enabled, Starting/Maximum Quantity, icon,
+Move Cost, highlight, duration/easing, scale pop and activation sound.
+
+Sprite icons can replace the built-in native drop/bulb/bolt UI meshes individually.
+Missing icons use those fallbacks. Quantity/name visibility, font/size/style/color,
+button backgrounds/glow, preferred size/spacing and press duration are editable.
+The authored bar inherits the gameplay safe-area Canvas and uses equal flexible
+widths. Its height and instruction position can reflow from the existing palette.
+Very large custom dimensions still require ordinary UI layout review.
+
+Selection, cancellation, activation, hint reveal, invalid and unavailable clips
+are optional and routed through the existing pooled Sound Manager and its master/
+SFX/mute controls. One activation cue is used, not one sound per cube. The PowerUp
+sound category is appended to preserve old serialized audio enum values. Existing
+music and normal flood-wave audio are retained. No particle effects are created.
+
+9. Development controls and reinstallation
+------------------------------------------
+On the scene GameManager3D / FloodPowerUps3D component, NaughtyAttributes exposes:
+Add Color Swap, Add Smart Hint, Add Color Blast, Refill All, Clear Inventory,
+Calculate Smart Hint, Preview Smart Hint Camera, Preview Color Swap/Blast,
+Cancel Active Power-Up, Reload Power-Up Settings, Reset Visual States.
+Use them in Play Mode. They are Inspector tools, with no production gameplay UI.
+Unlimited Power-Ups Development Mode is honored only in Editor/development builds.
+
+Calculate Smart Hint is free and does not automatically execute. Swap/Blast
+previews animate display only: logical colors, score, moves, goals, stock and
+progression remain unchanged. Reset Visual States restores normal cell display,
+scale, palette highlights and selection. Reload applies configuration without
+refilling inventory. Refill deliberately sets quantities to configured starter
+stock; it is a persistent development mutation when Save Inventory is enabled.
+
+Tools/Flood Fill/Power-Ups/Install In Open Scene repairs/installs the shared settings,
+bar and game component for another authored scene. It is idempotent and never runs
+automatically on script reload. The Demo scene is already connected. Runtime
+disable/reactivation safely unsubscribes/rebinds board/game/camera/inventory events.
+
+10. Implementation map
+----------------------
+NEW runtime files in Assets/FloodFill/Scripts/ThreeD/PowerUps/:
+ FloodPowerUpSettings3D.cs — definitions, configuration and attempt data.
+ FloodPowerUpInventory3D.cs — persistent stock and write-ahead recovery.
+ FloodPowerUps3D.cs — interaction state, async hint lifecycle and developer controls.
+ FloodHintService3D.cs — shared-solver adapter, validation and continuation cache.
+ VoxelBoardManager3D.PowerUps.cs — direct edits, revisions, cell visual transitions.
+ FloodFillGameManager3D.PowerUps.cs — score ledger, usage and transactional execution.
+ OrbitCameraController3D.Hints.cs — visibility planning and existing-orbit focus.
+ FloodPowerUpHighlight3D.cs — one reusable exposed-surface outline mesh.
+ FloodFillMobileUI3D.PowerUps.cs — instructions and palette highlight integration.
+ FloodPowerUpBar3D.cs — authored button row, inventory and state visuals.
+ FloodPowerUpIcon3D.cs — lightweight replaceable fallback icon geometry.
+
+NEW assets/editor files:
+ Assets/FloodFill/Resources/FloodPowerUps.asset
+ Assets/FloodFill/Art/PowerUps/PowerUpOutline.shader and .mat
+ Assets/FloodFill/Prefabs/UI/PowerUpBar.prefab
+ Assets/FloodFill/Editor/FloodPowerUpSetup3D.cs
+ Assets/FloodFill/Editor/FloodPowerUpVerification3D.cs
+ Corresponding Unity .meta files.
+
+EXISTING integration files:
+ FloodFillGameManager3D.cs — input, interaction/timer, checkpoint capture/restore.
+ FloodFillMobileUI3D.cs — targeting palette availability.
+ FloodFillSessionPersistence3D.cs — attempt fields and journal recovery/acknowledgment.
+ VoxelBoardManager3D.cs — revision events, settled time, optional capture animation.
+ VoxelCell3D.cs — partial declaration to reuse its existing rendering internals.
+ OrbitCameraController3D.cs — focus tick and manual-interruption hooks.
+ Goals/FloodSecondaryGoalTracker3D.cs — direct-change semantics for existing goals.
+ Audio/FloodAudioSettings.cs and FloodAudioEffects.cs — pooled optional power-up cue.
+ GameplayHUD.prefab — one nested row and nearby instruction placement.
+ FloodFill3DDemo.unity — one controller and its existing manager/UI/settings bindings.
+ Documentation/UI/EditingPrefabs.md — editing note.
+
+11. Performance design
+----------------------
+Direct target collection is bounded at one/seven cells. Connected-component
+recalculation may traverse the changed region, once after atomic logical edits.
+No idle full-board scans or repeated idle solves are added. Solver work uses pure
+snapshots on a cancellable worker, bounded search settings and guarded caching.
+Camera planning uses limited candidates/samples and occupancy DDA instead of one
+Physics ray per cube. Final selectability uses one representative ray.
+
+Highlights use a single reusable mesh/shared material with vertex colors and a
+MaterialPropertyBlock pulse. Only exposed faces are emitted; depth testing handles
+occlusion. There is no effect GameObject/material instantiated per cube or per
+activation. Target lists, mesh buffers and palette outlines are reused. Whole
+attempt JSON cloning occurs only at transaction boundaries for save consistency,
+not every frame. UI state refreshes through events; animation ticks run only for
+active focus/highlights/calculation/palette effects. Device CPU/GC/GPU profiling
+is still required before mobile performance claims.
+
+12. Verification and limits
+---------------------------
+See PowerUpsVerification.txt for exact executed results and artifacts. Verification
+runs only in /tmp/FloodLevelVerify with test-only company/product/save identities;
+original player progression, inventory and session files are not test fixtures.
+The geometry matrix covers 3 modes x 7 sizes x 4 difficulty seeds, plus actual
+level-one launches for every mode/difficulty. It is not an exhaustive campaign
+playthrough or proof every generated puzzle is solvable after arbitrary assistance.
+
+Android/iOS device performance, device-specific file-replacement/crash behavior,
+touch hardware gestures, audible mix quality and full platform builds remain
+unverified. Logical/persistence/camera/render checks run in desktop Unity. Search
+budgets are cooperative and hints can be legal fallbacks rather than guaranteed
+wins. Local file replacement protects ordinary interrupted writes; it is not a
+claim of power-loss durability on every filesystem or protection against tampering.

@@ -1,0 +1,84 @@
+FLOOD FILL 3D — POWER-UP VERIFICATION
+25 November 2026
+
+1410 checks passed in Unity 6000.5.8f1 on Apple M1 Pro. Isolated save identity; original player saves unchanged.
+Hint camera planned and verified selectable representatives on all six cube faces, including bottom/back, within existing pitch/zoom limits.
+20x20x20 HollowCube hint worker including graph/fallback: 676ms on desktop; not a mobile performance guarantee.
+20x20x20 Procedural hint worker including graph/fallback: 434ms on desktop; not a mobile performance guarantee.
+20x20x20 Items hint worker including graph/fallback: 145ms on desktop; not a mobile performance guarantee.
+84 combinations: all 3 modes, 7 dimensions, 4 difficulty seeds; one-cell Swap, face-only Blast and rebuilt region graph checked.
+Optional automatic execution: preview delay, one normal move/one hint charge, cancellation and stale worker/pause cancellation passed.
+All 12 actual mode/difficulty level-one launches retained budgets and accepted Swap; custom-game availability toggles passed.
+Actual authored UI, target/color order, exact direct edits, inventory spending, current-state hint/camera, cancellation, Continue/restart, write-ahead recovery, geometry variants and goal semantics passed.
+The assertion count includes missing-script checks on the authored scene hierarchy;
+it does not mean 1,410 independent feature scenarios. Geometry fixtures cover all
+seven dimensions (6,8,10,12,15,18,20), all three modes and four difficulty seeds.
+Additionally each of the twelve actual mode/difficulty combinations was launched
+through gameplay at level one, with direct Swap, budget and usage assertions.
+The three large-board hint timings use a 220ms summed stage budget with a 1s
+cancellation ceiling; graph/fallback work is included. They are desktop results.
+
+Further passed checks include:
+- Existing saved games without power-up data initialize shared stock safely.
+- Authored button row and native fallback icon CanvasRenderers; equal button widths.
+- Cube-first and color-first targeting, same-color rejection and toggle cancellation.
+- Atomic direct-target colors, rebuilt adjacency and actual bridge-region splitting.
+- No default score/move cost; stock decremented once and attempt usage recorded.
+- Previously rewarded cubes cannot be repeatedly split/reconnected to farm score.
+- Positive configurable move cost synchronizes saved goal move history.
+- Optional power-up scoring cannot reward already rewarded cells twice.
+- Development previews leave board/moves/score/inventory unchanged; reload never refills.
+- Current-state hint after both direct power-ups; exact region-color membership.
+- Six-face camera view planning followed by real first-hit ray selectability checks.
+- Manual orbit interruption retains displayed hint without another charge.
+- Pending worker invalidation after a normal move and pause before display.
+- Optional automatic execution waits for preview, spends one hint/one normal move.
+- Cancelling the preview suppresses pending execution.
+- Continued attempt restores modified board and all three usage counters.
+- Restart restores original numbered colors without inventory refund.
+- Interrupted write-ahead transaction rolls forward without refund.
+- Power-up completion schedules exactly one result, saves stars/unlocks next level.
+- Immutable numbered definition remains byte-for-byte identical after assistance.
+- Missing/disabled stock, disabled definition/system and custom-game toggle checks.
+- Controller disable/re-enable restores event binding.
+
+Production compilation:
+PASS: non-development StandaloneOSX player scripts compiled without UNITY_EDITOR. 64 assemblies. This is script compilation, not an Android/iOS device build.
+
+Isolation:
+Project /tmp/FloodLevelVerify. Test-only company/product identities:
+FloodPowerUpVerification, FloodVictoryPopupVerification, FloodAudioVerification.
+No tests ran in the original open Unity project or used original player saves.
+Screenshots: PowerUps/Gameplay.png, PowerUps/Hint.png, PowerUps/Victory.png.
+
+Diagnostics and unverified areas:
+- The pre-existing victory regression suite stopped on its stale exact-two-sparkles
+  assertion. FloodFillCanvas currently overrides that array to five sparkles.
+  No victory layout or sparkle count was changed for the power-up task. The
+  dedicated power-up suite separately passes actual victory, saving, stars and
+  unlock assertions, but this old suite cannot be reported as fully passing.
+- Unity Editor SearchDatabase emitted a cached search-index ArgumentOutOfRange
+  diagnostic during startup. It did not prevent the power-up suite from passing.
+- Existing obsolete Unity API warnings are outside this change.
+- Full campaign enumeration, mobile device builds/profiling, native touch hardware,
+  speaker-level audio review, power-loss stress tests and idle GC measurements
+  have not been performed. No device frame-time or zero-allocation claim is made.
+- Search results are best-known/validated when possible, otherwise legal fallbacks.
+  The solver does not prove all hint recommendations will fit the remaining moves.
+- Portrait screenshot rendering was inspected on the desktop test camera; exhaustive
+  phone/tablet safe-area simulation is still a device validation item.
+
+Existing audio regression attempt:
+The suite passed menu initialization, looping, routing, source-count and popup
+continuity checks, then stopped on "Loading screen appears immediately before
+board work". That test invokes the main PLAY button and expects immediate board
+launch. The current PlayConfiguredGame deliberately opens Level Selection. This
+flow predates the power-up change and was preserved; the old audio suite therefore
+cannot be reported as fully passing. Its enum/settings enumeration did accept the
+new pooled PowerUp sound category before this stale navigation assertion.
+
+Final source check:
+PASS: non-development StandaloneOSX player scripts compiled without UNITY_EDITOR. 64 assemblies. This is script compilation, not an Android/iOS device build.
+git diff --check passed. New runtime/art files have Unity metadata. Authored
+PowerUpBar, GameplayHUD and Demo scene have unique serialized object IDs. The
+Play Mode suite checked missing MonoBehaviours across the authored scene.

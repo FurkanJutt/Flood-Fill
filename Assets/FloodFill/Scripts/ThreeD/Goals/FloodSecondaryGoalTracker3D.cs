@@ -47,6 +47,31 @@ namespace FloodFill.ThreeD.Goals
             }
             Changed?.Invoke();
         }
+        public void PowerUpChange(int moves,int newly,int captured,bool allowMoveCaptureGoals)
+        {
+            // Explicit move costs synchronize the checkpoint; zero-cost edits do not invent a move.
+            Attempt.lastMove=Math.Max(Attempt.lastMove,moves);
+            for(int i=0;i<Goals.Length;i++)
+            {
+                var g=Goals[i];var p=Attempt.progress[i];
+                switch(g.type)
+                {
+                    case SecondaryGoalType.BigCapture:
+                        if(allowMoveCaptureGoals){p.value=Math.Max(p.value,newly);p.met=p.value>=g.target;}break;
+                    case SecondaryGoalType.ComboCapture:
+                        if(allowMoveCaptureGoals&&newly>=g.target){p.value++;p.met=p.value>=g.count;}break;
+                    case SecondaryGoalType.QuickStart:case SecondaryGoalType.FastExpansion:
+                        if(moves<=g.deadline){p.value=Math.Max(p.value,captured);if(p.value>=g.target){p.met=true;p.failed=false;}}
+                        if(moves>g.deadline&&!p.met)p.failed=true;break;
+                    case SecondaryGoalType.FinalSprint:
+                        if(p.sprintStart<0&&captured>=g.target)p.sprintStart=moves;
+                        if(p.sprintStart>=0){p.value=moves-p.sprintStart;p.failed=p.value>g.deadline;}break;
+                    case SecondaryGoalType.MoveSaver:case SecondaryGoalType.FinalColorEfficiency:
+                        p.value=moves;p.failed=moves>g.target;break;
+                }
+            }
+            Changed?.Invoke();
+        }
         public bool[] Complete(bool won,int moves,int finalColor,double seconds)
         {
             var earned=new bool[Goals.Length];

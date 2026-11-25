@@ -672,6 +672,7 @@ namespace FloodFill.ThreeD
                 colorButtons[i].interactable = manager.CanInteract && i != manager.SelectedColorIndex;
                 colorButtons[i].transform.DOScale(i == manager.SelectedColorIndex ? 1.12f : 1f, .16f).SetEase(Ease.OutSine);
             }
+            RefreshPowerUpPaletteAvailability();
             if (manager.IsLoading || !string.IsNullOrEmpty(manager.LoadingError))
             {
                 if (!loadingHudPrepared && manager.State == FloodFillGameManager3D.GameState.Playing)

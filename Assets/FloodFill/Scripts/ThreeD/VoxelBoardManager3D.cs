@@ -14,7 +14,7 @@ using UnityEngine.InputSystem;
 
 namespace FloodFill.ThreeD
 {
-    public sealed class VoxelBoardManager3D : MonoBehaviour
+    public sealed partial class VoxelBoardManager3D : MonoBehaviour
     {
         public enum VoxelVolumeMode
         {
@@ -272,6 +272,7 @@ namespace FloodFill.ThreeD
             ResetAudioWaveBounds();
             CurrentPlayerColor = StartingVoxel.ColorIndex;
             CaptureInitialRegion();
+            MarkPowerUpBoardChanged();
             Debug.Log(
                 $"3D board generated: {width}x{height}x{depth}. Mode: {volumeMode}. " +
                 $"Voxels generated: {TotalVoxelCount}. Starting voxel: " +
@@ -390,6 +391,7 @@ namespace FloodFill.ThreeD
             LastTargetSolidVoxelCount = state.voxels.Length;
             LastSolidVoxelCount = state.voxels.Length;
             LastRecolorAnimationDuration = 0f;
+            VisualsSettledAt = 0;
 
             float spacing = voxelSize + voxelGap;
             Vector3 centerOffset = activeBounds.Center * spacing;
@@ -423,6 +425,7 @@ namespace FloodFill.ThreeD
 
             ResetAudioWaveBounds();
             CurrentPlayerColor = state.currentPlayerColor;
+            MarkPowerUpBoardChanged();
             LastNewlyCapturedCount = 0;
             Debug.Log(
                 $"Restored 3D board: {width}x{height}x{depth}, " +
@@ -600,6 +603,8 @@ namespace FloodFill.ThreeD
             }
 
             RecalculateCapturedRegion(voxel);
+            VisualsSettledAt = Time.time + LastRecolorAnimationDuration;
+            MarkPowerUpBoardChanged();
             FloodAudioSignals.BeginFlood(new FloodAudioSignals.FloodWave(
                 visited.Count + LastNewlyCapturedCount - audioRecoloredUncaptured, LastNewlyCapturedCount,
                 LastRecolorAnimationDuration, audioLastWaveStart, waveStepDelay, float.IsPositiveInfinity(audioFirstWaveStart) ? 0f : audioFirstWaveStart));
@@ -817,6 +822,7 @@ namespace FloodFill.ThreeD
 
         public void ClearBoard()
         {
+            MarkPowerUpBoardChanged();
             ReleaseActiveVoxels();
             ResetLogicalBoardState();
         }
@@ -875,6 +881,7 @@ namespace FloodFill.ThreeD
 
         private void ResetLogicalBoardState()
         {
+            VisualsSettledAt=0;
             cells = null;
             activeMask = null;
             activeBounds = VoxelShapeBounds.Invalid;
@@ -1279,7 +1286,7 @@ namespace FloodFill.ThreeD
             LastNewlyCapturedCount = 0;
         }
 
-        private void RecalculateCapturedRegion(VoxelCell3D originVoxel)
+        private void RecalculateCapturedRegion(VoxelCell3D originVoxel, bool animateCaptures = true)
         {
             var previouslyCaptured = new HashSet<VoxelCell3D>(capturedVoxels);
             for (int i = 0; i < capturedVoxels.Count; i++)
@@ -1296,7 +1303,7 @@ namespace FloodFill.ThreeD
             queue.Enqueue(originVoxel);
             visited.Add(originVoxel);
             depthByVoxel.Add(originVoxel, 0);
-            float originAnimationDuration = originVoxel.SetCaptured(true, !previouslyCaptured.Contains(originVoxel));
+            float originAnimationDuration = originVoxel.SetCaptured(true, animateCaptures && !previouslyCaptured.Contains(originVoxel));
             LastRecolorAnimationDuration = Mathf.Max(LastRecolorAnimationDuration, originAnimationDuration);
             if (originAnimationDuration > 0f) RecordAudioWave(0f);
             capturedVoxels.Add(originVoxel);
@@ -1324,7 +1331,7 @@ namespace FloodFill.ThreeD
                     queue.Enqueue(neighbor);
                     float captureAnimationDuration = neighbor.SetCaptured(
                         true,
-                        !previouslyCaptured.Contains(neighbor),
+                        animateCaptures && !previouslyCaptured.Contains(neighbor),
                         neighborDepth * waveStepDelay);
                     if (captureAnimationDuration > 0f)
                         RecordAudioWave(neighborDepth * waveStepDelay);

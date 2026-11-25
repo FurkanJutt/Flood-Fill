@@ -1,0 +1,105 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df906631c779402ab7b4e237b3ed8297, type: 3}
+  m_Name: FloodPowerUps
+  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.PowerUps.FloodPowerUpSettings3D
+  enablePowerUpSystem: 1
+  colorSwap:
+    enabled: 1
+    startingQuantity: 3
+    maximumQuantity: 99
+    icon: {fileID: 0}
+    moveCost: 0
+    animationDuration: 0.22
+    animationEasing: 9
+    enableScalePop: 1
+    scalePopIntensity: 0.06
+    highlightColor: {r: 0.2, g: 0.9, b: 1, a: 1}
+    highlightIntensity: 1
+    activationSound: {fileID: 8300000, guid: 82921726e3cf84d42a8f226a9135324d, type: 3}
+  smartHint:
+    enabled: 1
+    startingQuantity: 3
+    maximumQuantity: 99
+    icon: {fileID: 0}
+    moveCost: 0
+    animationDuration: 0.22
+    animationEasing: 9
+    enableScalePop: 1
+    scalePopIntensity: 0.06
+    highlightColor: {r: 0.2, g: 0.9, b: 1, a: 1}
+    highlightIntensity: 1
+    activationSound: {fileID: 0}
+  colorBlast:
+    enabled: 1
+    startingQuantity: 3
+    maximumQuantity: 99
+    icon: {fileID: 0}
+    moveCost: 0
+    animationDuration: 0.32
+    animationEasing: 9
+    enableScalePop: 1
+    scalePopIntensity: 0.06
+    highlightColor: {r: 0.2, g: 0.9, b: 1, a: 1}
+    highlightIntensity: 1
+    activationSound: {fileID: 8300000, guid: 8aee5c9220d3042cda7d1881506acc47, type: 3}
+  unlimitedPowerUpsDevelopmentMode: 0
+  saveInventory: 1
+  allowPowerUpsInCustomGames: 1
+  trackPowerUpUsage: 1
+  debugLogging: 0
+  neighborHighlightColor: {r: 0.4, g: 0.7, b: 1, a: 0.6}
+  centerCubeTransitionDuration: 0.2
+  neighborWaveDelay: 0.07
+  calculationTimeBudgetMs: 250
+  maximumSearchBudgetMs: 1000
+  enableExtendedSearch: 0
+  maximumSearchStates: 30000
+  searchMemoryMegabytes: 16
+  enableAutomaticHintRotation: 1
+  rotationDuration: 0.6
+  rotationEasing: 4
+  maximumRotationSpeed: 240
+  minimumRotationThreshold: 4
+  visibilityThreshold: 0.15
+  allowCameraPanAdjustment: 1
+  allowCameraZoomAdjustment: 1
+  targetScreenPosition: {x: 0.5, y: 0.5}
+  regionHighlightColor: {r: 1, g: 1, b: 1, a: 1}
+  regionHighlightIntensity: 1
+  highlightPulseSpeed: 2
+  highlightRecommendedPaletteColor: 1
+  previewConnectedNeighboringRegions: 1
+  autoExecuteRecommendedMove: 0
+  automaticExecutionPreviewDuration: 0.75
+  hintRevealedSound: {fileID: 8300000, guid: 82921726e3cf84d42a8f226a9135324d, type: 3}
+  awardScoreForPowerUpCaptures: 0
+  allowCompatibleGoalProgressFromPowerUps: 0
+  showQuantityIndicators: 1
+  showPowerUpNames: 1
+  availableButtonSprite: {fileID: 1946846238, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
+  selectedButtonSprite: {fileID: -646590138, guid: 23924a82e9dcd4e929f5ddf48ffbc770, type: 3}
+  disabledButtonSprite: {fileID: 1946846238, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
+  quantityTextColor: {r: 1, g: 1, b: 1, a: 1}
+  quantityFont: {fileID: 0}
+  quantityFontSize: 25
+  quantityFontStyle: 1
+  selectedGlow: {r: 0, g: 0.9, b: 1, a: 1}
+  buttonSpacing: 16
+  buttonSize: {x: 250, y: 110}
+  selectionAnimationDuration: 0.15
+  selectionSound: {fileID: 8300000, guid: 52f53406449a041cbaae153cba1203d7, type: 3}
+  cancellationSound: {fileID: 8300000, guid: 4cfcf4ea58c8049b3825b2c91fcf8e51, type: 3}
+  hintActivationSound: {fileID: 8300000, guid: 52f53406449a041cbaae153cba1203d7, type: 3}
+  invalidActionSound: {fileID: 8300000, guid: 4cfcf4ea58c8049b3825b2c91fcf8e51, type: 3}
+  unavailableSound: {fileID: 8300000, guid: 4cfcf4ea58c8049b3825b2c91fcf8e51, type: 3}
+  outlineMaterial: {fileID: 2100000, guid: 956450225488e463caf2a38f8c98f140, type: 2}

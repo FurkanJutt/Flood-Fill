@@ -100,14 +100,14 @@ namespace FloodFill.ThreeD
         private void Update()
         {
             if (skipElapsedTick) { skipElapsedTick = false; return; }
-            if (elapsedTimerActive && !elapsedTimerSuspended && CanInteract && Time.timeScale > 0)
+            if (elapsedTimerActive && !elapsedTimerSuspended && (CanInteract || PowerUps != null && PowerUps.IsExecuting && State == GameState.Playing && !IsLoading && !audioPaused) && Time.timeScale > 0)
                 ElapsedSeconds += Time.unscaledDeltaTime;
         }
 
         private bool isCampaignGame;
         private int activeCampaignLevel = 1;
 
-        public bool CanInteract => !IsLoading && string.IsNullOrEmpty(LoadingError) && State == GameState.Playing && !audioPaused && boardManager != null && boardManager.HasActiveBoard && !boardManager.IsStartAnimationPlaying;
+        public bool CanInteract => (PowerUps == null || !PowerUps.IsExecuting) && !IsLoading && string.IsNullOrEmpty(LoadingError) && State == GameState.Playing && !audioPaused && boardManager != null && boardManager.HasActiveBoard && !boardManager.IsStartAnimationPlaying;
         public int MoveCount { get; private set; }
         public int Score { get; private set; }
         public GameState State { get; private set; }
@@ -320,6 +320,7 @@ namespace FloodFill.ThreeD
 
         public void SelectColor(int colorIndex)
         {
+            if (PowerUps != null && PowerUps.HandlePalette(colorIndex)) return;
             if (Goals.FloodSecondaryGoalsUI3D.ConsumedPointerThisFrame || !CanInteract ||
                 colorIndex < 0 || colors == null || colorIndex >= colors.Length ||
                 colorIndex == SelectedColorIndex)
@@ -337,11 +338,9 @@ namespace FloodFill.ThreeD
 
         private void HandleVoxelClicked(VoxelCell3D voxel)
         {
-            if (!CanInteract ||
-                SelectedColorIndex < 0)
-            {
-                return;
-            }
+            if (!CanInteract) return;
+            if (PowerUps != null && PowerUps.HandleCube(voxel)) return;
+            if (SelectedColorIndex < 0) return;
 
             if (!boardManager.RecolorConnectedRegion(voxel, SelectedColorIndex))
             {
@@ -350,7 +349,7 @@ namespace FloodFill.ThreeD
 
             MoveCount++;
             SecondaryGoals?.Move(MoveCount, boardManager.LastNewlyCapturedCount, boardManager.CapturedVoxelCount);
-            AwardScore(boardManager.LastNewlyCapturedCount);
+            AwardScore(PowerUpScoreCount(boardManager.LastNewlyCapturedCount));
             RefreshUI();
             if (boardManager.IsFullyCaptured)
             {
@@ -368,6 +367,7 @@ namespace FloodFill.ThreeD
 
         public void RestartGame()
         {
+            ResetPowerUpAttempt();
             elapsedTimerActive = false; ElapsedSeconds = 0;
             ActiveLevelDefinition = null; SecondaryGoals = null; preparedGoalTrace = null;
             HasSavedSession = false; availableSession = null; failedToRestoreSession = false;
@@ -1166,6 +1166,7 @@ namespace FloodFill.ThreeD
             audioPaused = false; LoadingError = null;
             gameSessionActive = true; HasSavedSession = true; availableSession = saved;
             elapsedTimerActive = false; ElapsedSeconds = saved.elapsedSeconds;
+            RestorePowerUpAttempt(saved.powerUpAttempt);
             MoveCount = Mathf.Max(0, saved.moveCount);
             Score = Mathf.Max(0, saved.score);
             currentMoveBudget = Mathf.Max(1, saved.currentMoveBudget);
@@ -1251,6 +1252,21 @@ namespace FloodFill.ThreeD
                 return false;
             }
 
+            var saved = CreatePowerUpCheckpoint(boardState);
+            bool written = FloodFillSessionPersistence3D.Save(saved);
+            if (written) failedToRestoreSession = false;
+            HasSavedSession = written && State == GameState.Playing && !boardManager.IsFullyCaptured && MoveCount < currentMoveBudget;
+            availableSession = HasSavedSession ? saved : null;
+            return written;
+        }
+
+        public FloodFillSessionSaveData3D CapturePowerUpCheckpoint()
+        {
+            if(boardManager==null||orbitCamera==null||!boardManager.TryCapturePersistentState(out var boardState))return null;
+            return CreatePowerUpCheckpoint(boardState);
+        }
+        private FloodFillSessionSaveData3D CreatePowerUpCheckpoint(VoxelBoardSaveData3D boardState)
+        {
             var saved = new FloodFillSessionSaveData3D
             {
                 selectedBoardMode = (int)SelectedBoardMode,
@@ -1261,6 +1277,8 @@ namespace FloodFill.ThreeD
                 numberedMode = NumberedMode,
                 campaignLevel = activeCampaignLevel,
                 moveCount = MoveCount,
+                powerUpRevision = FloodFill.ThreeD.PowerUps.FloodPowerUpInventory3D.Revision,
+                powerUpAttempt = CapturePowerUpAttempt(),
                 elapsedSeconds = ElapsedSeconds,
                 secondaryGoalAttempt = SecondaryGoals?.Attempt,
                 score = Score,
@@ -1271,11 +1289,7 @@ namespace FloodFill.ThreeD
                 board = boardState,
                 camera = orbitCamera.CapturePersistentState()
             };
-            bool written = FloodFillSessionPersistence3D.Save(saved);
-            if (written) failedToRestoreSession = false;
-            HasSavedSession = written && State == GameState.Playing && !boardManager.IsFullyCaptured && MoveCount < currentMoveBudget;
-            availableSession = HasSavedSession ? saved : null;
-            return written;
+            return saved;
         }
 
         private void ShowResultPanel(GameState state)

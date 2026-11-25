@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 namespace FloodFill.ThreeD
 {
     [RequireComponent(typeof(BoxCollider))]
-    public sealed class VoxelCell3D : MonoBehaviour
+    public sealed partial class VoxelCell3D : MonoBehaviour
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int FlatKitShadedColorId = Shader.PropertyToID("_ColorDim");

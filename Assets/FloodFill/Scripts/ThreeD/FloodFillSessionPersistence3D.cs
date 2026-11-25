@@ -19,6 +19,8 @@ namespace FloodFill.ThreeD
         public int numberedLevel;
         public int numberedMode;
         public int moveCount;
+        public long powerUpRevision;
+        public PowerUps.FloodPowerUpAttempt3D powerUpAttempt;
         public double elapsedSeconds;
         public int score;
         public int currentMoveBudget;
@@ -74,6 +76,7 @@ namespace FloodFill.ThreeD
         public static bool TryLoad(out FloodFillSessionSaveData3D data)
         {
             data = null;
+            PowerUps.FloodPowerUpInventory3D.RecoverPendingSession();
             try
             {
                 if (!File.Exists(SavePath))
@@ -113,6 +116,7 @@ namespace FloodFill.ThreeD
                 File.WriteAllText(temporaryPath, json);
                 File.Copy(temporaryPath, SavePath, true);
                 File.Delete(temporaryPath);
+                PowerUps.FloodPowerUpInventory3D.Acknowledge(data.powerUpRevision);
                 return true;
             }
             catch (Exception exception)
