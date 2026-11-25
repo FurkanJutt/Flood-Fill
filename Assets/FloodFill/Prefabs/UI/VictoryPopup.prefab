@@ -225,6 +225,7 @@ GameObject:
   - component: {fileID: 2704187536629021212}
   - component: {fileID: 1819679180934848003}
   - component: {fileID: 7814153214984796730}
+  - component: {fileID: 9150000000000000001}
   m_Layer: 5
   m_Name: Star2
   m_TagString: Untagged
@@ -3496,6 +3497,7 @@ GameObject:
   - component: {fileID: 8325178823418210982}
   - component: {fileID: 3969515560401681126}
   - component: {fileID: 6362528164090305362}
+  - component: {fileID: 9150000000000000002}
   m_Layer: 5
   m_Name: Star3
   m_TagString: Untagged
@@ -5248,8 +5250,6 @@ MonoBehaviour:
   primaryLabel: {fileID: 5653225698759339052}
   coinReward: {fileID: 6492660554993817512}
   gemReward: {fileID: 1294223740223117583}
-  goldStar: {fileID: 1953001332, guid: 730d678b2bb3146779443d4a64543752, type: 3}
-  emptyStar: {fileID: -873492393, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
   stars:
   - {fileID: 4374238629482023249}
   - {fileID: 7814153214984796730}
@@ -5497,6 +5497,7 @@ GameObject:
   - component: {fileID: 7494524013916845224}
   - component: {fileID: 1905570363912075939}
   - component: {fileID: 4374238629482023249}
+  - component: {fileID: 9150000000000000000}
   m_Layer: 5
   m_Name: Star1
   m_TagString: Untagged
@@ -10192,3 +10193,69 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &9150000000000000000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5771375608101301965}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac4b10dcf35d4053b11b96e1b03d619e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.FloodFillUIState3D
+  normalSprite: {fileID: -873492393, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
+  normalOverrideSize: 1
+  normalSize: {x: 100.75, y: 100.75}
+  selectedSprite: {fileID: 1953001332, guid: 730d678b2bb3146779443d4a64543752, type: 3}
+  selectedOverrideSize: 0
+  selectedSize: {x: 130, y: 130}
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  selectedColor: {r: 1, g: 1, b: 1, a: 1}
+  disabledSprite: {fileID: 0}
+  disabledColor: {r: 1, g: 1, b: 1, a: 1}
+--- !u!114 &9150000000000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 892971219190182682}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac4b10dcf35d4053b11b96e1b03d619e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.FloodFillUIState3D
+  normalSprite: {fileID: -873492393, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
+  normalOverrideSize: 1
+  normalSize: {x: 100.75, y: 100.75}
+  selectedSprite: {fileID: 1953001332, guid: 730d678b2bb3146779443d4a64543752, type: 3}
+  selectedOverrideSize: 0
+  selectedSize: {x: 150, y: 150}
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  selectedColor: {r: 1, g: 1, b: 1, a: 1}
+  disabledSprite: {fileID: 0}
+  disabledColor: {r: 1, g: 1, b: 1, a: 1}
+--- !u!114 &9150000000000000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4043764075917339782}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac4b10dcf35d4053b11b96e1b03d619e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.FloodFillUIState3D
+  normalSprite: {fileID: -873492393, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
+  normalOverrideSize: 1
+  normalSize: {x: 100.75, y: 100.75}
+  selectedSprite: {fileID: 1953001332, guid: 730d678b2bb3146779443d4a64543752, type: 3}
+  selectedOverrideSize: 0
+  selectedSize: {x: 130, y: 130}
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  selectedColor: {r: 1, g: 1, b: 1, a: 1}
+  disabledSprite: {fileID: 0}
+  disabledColor: {r: 1, g: 1, b: 1, a: 1}

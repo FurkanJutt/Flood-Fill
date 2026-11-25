@@ -10,7 +10,6 @@ namespace FloodFill.ThreeD
     {
         public TMP_Text level, moves, best, primaryLabel, coinReward, gemReward;
         [FormerlySerializedAs("captured")] public TMP_Text elapsedTime;
-        public Sprite goldStar, emptyStar;
         public Image[] stars;
         public RectTransform leftLaurel, rightLaurel;
         public GameObject levelsButton;
@@ -45,7 +44,7 @@ namespace FloodFill.ThreeD
             int bestMoves=game.NumberedLevel>0?FloodLevelProgression3D.Get(game.NumberedMode,(int)game.SelectedDifficulty,game.NumberedLevel).bestMoves:game.MoveCount;
             best.text=(bestMoves>0?bestMoves:game.MoveCount).ToString();
             int earned=FloodLevelProgression3D.Stars(game.MoveCount,game.CurrentMoveBudget);
-            for(int i=0;i<stars.Length;i++){stars[i].sprite=i<earned?goldStar:emptyStar;stars[i].color=Color.white;}
+            for(int i=0;i<stars.Length;i++)stars[i].GetComponent<FloodFillUIState3D>()?.Apply(i<earned);
             bool last=game.NumberedLevel==FloodLevelProgression3D.LevelsPerCategory;
             primaryLabel.text=game.NumberedLevel<=0&&!game.IsCampaignGame?"PLAY AGAIN":last?"LEVELS":"NEXT LEVEL";primaryLabel.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,primaryLabel.GetPreferredValues(primaryLabel.text).x+8);levelsButton.SetActive(!last);
             // Display placeholders only. No wallet, persistence or award calls.

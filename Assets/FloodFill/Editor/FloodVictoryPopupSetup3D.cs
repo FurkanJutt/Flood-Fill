@@ -38,12 +38,21 @@ namespace FloodFill.EditorTools
             finally{PrefabUtility.UnloadPrefabContents(canvas);}
             AssetDatabase.SaveAssets();
         }
+        private static Sprite EmptyStar()=>AssetDatabase.LoadAllAssetsAtPath("Assets/Images/Spritesheets/levels_sprite_sheet.png").OfType<Sprite>().Single(s=>s.name=="levels_sprite_sheet_18");
+        private static void ConfigureStar(Image image,Sprite earned,Sprite empty)
+        {
+            var state=image.gameObject.AddComponent<FloodFillUIState3D>();
+            state.normalSprite=empty;state.selectedSprite=earned;
+            state.normalSize=state.selectedSize=image.rectTransform.rect.size;
+        }
         private static void UpgradeConfetti()
         {
             var root=PrefabUtility.LoadPrefabContents(Folder+"VictoryPopup.prefab");
             try
             {
                 var view=root.GetComponent<FloodVictoryPopup3D>();bool changed=false;
+                foreach(var star in view.stars)
+                    if(star.GetComponent<FloodFillUIState3D>()==null){ConfigureStar(star,S(17),EmptyStar());changed=true;}
                 if(view.heroGlow==null)
                 {view.heroGlow=root.GetComponentsInChildren<Image>(true).Single(image=>image.name=="HeroGlow");changed=true;}
                 if(view.rewardSparkles==null||view.rewardSparkles.Length==0)
@@ -91,8 +100,12 @@ namespace FloodFill.EditorTools
             view.elapsedTime=Text("ElapsedTime",stats,"00:00",50,280,25,260,74,new Color(.34f,.90f,.60f));
             Line("StatsDivider1",stats,-140,63,3,126,new Color(.17f,.23f,.36f));Line("StatsDivider2",stats,140,63,3,126,new Color(.17f,.23f,.36f));Line("StatsRule",stats,0,-22,810,3,new Color(.17f,.23f,.36f));
             Glow("StarRays",stats,0,-90,800,140);Img("StarRail",stats,S(4),0,-90,805,110);
-            view.goldStar=S(17);view.emptyStar=AssetDatabase.LoadAllAssetsAtPath("Assets/Images/Spritesheets/levels_sprite_sheet.png").OfType<Sprite>().Single(s=>s.name=="levels_sprite_sheet_18");
-            view.stars=new Image[3];for(int i=0;i<3;i++)view.stars[i]=Img("Star"+(i+1),stats,view.goldStar,(i-1)*145,-88,i==1?150:130,i==1?150:130);
+            var goldStar=S(17);var emptyStar=EmptyStar();
+            view.stars=new Image[3];for(int i=0;i<3;i++)
+            {
+                var star=Img("Star"+(i+1),stats,goldStar,(i-1)*145,-88,i==1?150:130,i==1?150:130);
+                ConfigureStar(star,goldStar,emptyStar);view.stars[i]=star;
+            }
             Text("RewardsHeader",card,"REWARDS",36,0,-185,500,65,Muted);
             var coin=Img("CoinRewardCard",card,S(5),-178,-340,300,212).rectTransform;
             Img("Coins",coin,S(19),0,32,140,88);view.coinReward=Text("CoinReward",coin,"+100",44,0,-58,230,65,new Color(1,.98f,.85f));

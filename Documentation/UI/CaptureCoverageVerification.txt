@@ -1,0 +1,19 @@
+CUMULATIVE CAPTURE COVERAGE — 26 November 2026
+
+15 checks passed: separate regions, no duplicates, invalid moves, legacy checkpoint, JSON round-trip, normal victory, restart and clear.
+
+The gameplay capture bar uses the union of cubes covered during the attempt.
+Moving to a separate region retains previous coverage; revisits cannot double
+count a cube. Both normal captures and successful Swap/Blast component updates
+record coverage. The per-voxel covered field survives session checkpoints and
+power-up transaction rollback/recovery. Older saves initialize from their saved
+captured cells because they do not contain historical coverage data.
+
+The active connected component remains separate for solver logic, scoring, goals,
+completion and result component counts. Cumulative coverage can reach 100% before
+all colors are unified; winning still requires the existing fully connected board.
+Restarting from the original board resets attempt coverage. No original puzzle
+colors, budgets or goal definitions are changed.
+
+Tests ran only on an isolated board fixture in /tmp/FloodLevelVerify. Original
+player saves were not touched. Unity exited successfully; git diff --check passed.

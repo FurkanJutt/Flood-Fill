@@ -52,6 +52,7 @@ namespace FloodFill.ThreeD
         public int z;
         public int colorIndex;
         public bool captured;
+        public bool covered;
         public bool starting;
     }
 

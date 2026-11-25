@@ -73,6 +73,7 @@ namespace FloodFill.ThreeD
 
         private readonly List<VoxelCell3D> allVoxels = new List<VoxelCell3D>();
         private readonly List<VoxelCell3D> capturedVoxels = new List<VoxelCell3D>();
+        private readonly HashSet<VoxelCell3D> coveredVoxels = new HashSet<VoxelCell3D>();
         private readonly List<VoxelCell3D> voxelPool = new List<VoxelCell3D>();
         private int[] initialColorIndices = Array.Empty<int>();
         private VoxelCell3D[,,] cells;
@@ -140,6 +141,9 @@ namespace FloodFill.ThreeD
         public int CurrentPlayerColor { get; private set; } = -1;
         public int CapturedVoxelCount => capturedVoxels.Count;
         public int TotalVoxelCount => allVoxels.Count;
+        // Attempt coverage is cumulative; capturedVoxels remains the current connected component.
+        public int CoveredVoxelCount => coveredVoxels.Count;
+        public float CoveredPercentage => TotalVoxelCount > 0 ? CoveredVoxelCount * 100f / TotalVoxelCount : 0f;
         public int LastNewlyCapturedCount { get; private set; }
         private float audioLastWaveStart;
         private float audioFirstWaveStart;
@@ -307,6 +311,7 @@ namespace FloodFill.ThreeD
                     z = voxel.Z,
                     colorIndex = voxel.ColorIndex,
                     captured = voxel.IsCaptured,
+                    covered = coveredVoxels.Contains(voxel),
                     starting = voxel == StartingVoxel
                 };
             }
@@ -411,6 +416,7 @@ namespace FloodFill.ThreeD
                 voxel.SetColor(savedVoxel.colorIndex, palette[savedVoxel.colorIndex]);
                 cells[savedVoxel.x, savedVoxel.y, savedVoxel.z] = voxel;
                 allVoxels.Add(voxel);
+                if (savedVoxel.covered) coveredVoxels.Add(voxel);
                 if (savedVoxel.starting)
                 {
                     StartingVoxel = voxel;
@@ -420,6 +426,7 @@ namespace FloodFill.ThreeD
                 {
                     voxel.SetCaptured(true, false);
                     capturedVoxels.Add(voxel);
+                    coveredVoxels.Add(voxel);
                 }
             }
 
@@ -881,6 +888,7 @@ namespace FloodFill.ThreeD
 
         private void ResetLogicalBoardState()
         {
+            coveredVoxels.Clear();
             VisualsSettledAt=0;
             cells = null;
             activeMask = null;
@@ -1259,6 +1267,7 @@ namespace FloodFill.ThreeD
             visited.Add(StartingVoxel);
             StartingVoxel.SetCaptured(true, false);
             capturedVoxels.Add(StartingVoxel);
+            coveredVoxels.Add(StartingVoxel);
 
             while (queue.Count > 0)
             {
@@ -1280,6 +1289,7 @@ namespace FloodFill.ThreeD
                     queue.Enqueue(neighbor);
                     neighbor.SetCaptured(true, false);
                     capturedVoxels.Add(neighbor);
+                    coveredVoxels.Add(neighbor);
                 }
             }
 
@@ -1307,6 +1317,7 @@ namespace FloodFill.ThreeD
             LastRecolorAnimationDuration = Mathf.Max(LastRecolorAnimationDuration, originAnimationDuration);
             if (originAnimationDuration > 0f) RecordAudioWave(0f);
             capturedVoxels.Add(originVoxel);
+            coveredVoxels.Add(originVoxel);
 
             while (queue.Count > 0)
             {
@@ -1339,6 +1350,7 @@ namespace FloodFill.ThreeD
                         LastRecolorAnimationDuration,
                         captureAnimationDuration);
                     capturedVoxels.Add(neighbor);
+                    coveredVoxels.Add(neighbor);
                 }
             }
 

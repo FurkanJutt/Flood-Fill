@@ -711,7 +711,7 @@ namespace FloodFill.ThreeD
                 }
                 string levelDetails = manager.NumberedLevel > 0 ? "Level: " + manager.NumberedLevel + "\n" : manager.IsCampaignGame ? "Level: " + manager.ActiveCampaignLevel + "\n" : string.Empty;
                 resultDetails.text = levelDetails + "Final score: " + manager.Score.ToString("N0") + "\nMoves used: " + manager.MoveCount + " / " + manager.CurrentMoveBudget + "\nCaptured: " + manager.BoardManager.CapturedVoxelCount + " / " + manager.BoardManager.TotalVoxelCount + " (" +
-                    (manager.BoardManager.IsFullyCaptured ? "100" : Mathf.Min(99.99f, manager.CapturedPercentage).ToString("0.##")) + "%)";
+                    (manager.BoardManager.IsFullyCaptured ? "100" : Mathf.Min(99.99f, manager.BoardManager.CapturedPercentage).ToString("0.##")) + "%)";
                 Show(results);
             }
             else if (started && ((results != null && results.activeSelf) || (victoryPopup != null && victoryPopup.gameObject.activeSelf)) && (manager.State == FloodFillGameManager3D.GameState.Calculating || manager.State == FloodFillGameManager3D.GameState.Playing))

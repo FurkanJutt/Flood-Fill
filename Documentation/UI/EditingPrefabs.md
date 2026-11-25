@@ -241,3 +241,8 @@ Power-up sprites (26 November 2026)
 ----------------------------------
 
 `PowerUpBar.prefab` now uses the provided `powerups_sprite_sheet` backgrounds and drop/bulb/bolt icons. Each button background and Icon child has `FloodFillUIState3D` with Normal, Selected and Disabled sprite references. Edit these components to change the sprites; both size overrides are off so selected and unselected backgrounds share the same layout dimensions. The power-up bar only requests state changes and updates inventory/text. Generated icon graphics and their `FloodPowerUpIcon3D` script were removed, along with the extra outline effects. Sprite settings formerly on `FloodPowerUps.asset` moved to the prefab state components. The shared state script's original `Apply(bool)` behavior remains unchanged for other UI; power-ups use its new disabled-aware `ApplyState` method.
+
+Victory star states
+-------------------
+
+Each Star1/Star2/Star3 Image in VictoryPopup now has its own `FloodFillUIState3D`. Normal Sprite/Override Size controls the empty star; Selected Sprite/Override Size controls the earned star. Configure Width/Height separately on each object. The popup only applies the earned state and retains its pop-in animation. Popup-wide star sprite/size fields and their custom Inspector were removed. The existing 100.75 × 100.75 empty-star override was migrated onto the three state components.

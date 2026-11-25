@@ -26,6 +26,26 @@ namespace FloodFill.EditorTools
         private static void Check(bool condition,string message){checks++;if(!condition)throw new Exception(message+" [stage "+stage+"]");}
         private static GameObject Screen(string field)=>(GameObject)typeof(FloodFillMobileUI3D).GetField(field,Flags).GetValue(ui);
         private static void Click(FloodFillUIAction action)=>popup.GetComponentsInChildren<FloodFillUIAction3D>(true).Single(b=>b.action==action).GetComponent<Button>().onClick.Invoke();
+        public static void VerifyStarStatesBatch()
+        {
+            if(!Application.isBatchMode||!Application.dataPath.Contains("/tmp/"))throw new Exception("Use isolated /tmp project.");
+            EditorSceneManager.OpenScene("Assets/FloodFill/Scenes/FloodFill3DDemo.unity");
+            var view=UnityEngine.Object.FindAnyObjectByType<FloodVictoryPopup3D>(FindObjectsInactive.Include);
+            if(view==null||view.stars.Length!=3)throw new Exception("Three victory stars are required.");
+            for(int i=0;i<view.stars.Length;i++)
+            {
+                var star=view.stars[i];var state=star.GetComponent<FloodFillUIState3D>();var rect=star.rectTransform;var original=rect.sizeDelta;
+                if(state==null||state.normalSprite==null||state.selectedSprite==null)throw new Exception("Star state references missing.");
+                state.Apply(false);if(star.sprite!=state.normalSprite||Mathf.Abs(rect.rect.width-100.75f)>.01f)throw new Exception("Existing empty size was not migrated.");
+                state.selectedOverrideSize=true;state.selectedSize=new Vector2(140+i*10,150+i*10);state.Apply(true);
+                if(star.sprite!=state.selectedSprite||(rect.rect.size-state.selectedSize).sqrMagnitude>.001f)throw new Exception("Independent earned size failed.");
+                state.normalOverrideSize=true;state.normalSize=new Vector2(90+i*5,95+i*5);state.Apply(false);
+                if(star.sprite!=state.normalSprite||(rect.rect.size-state.normalSize).sqrMagnitude>.001f)throw new Exception("Independent empty size failed.");
+                state.normalOverrideSize=state.selectedOverrideSize=false;state.Apply(true);
+                if((rect.sizeDelta-original).sqrMagnitude>.001f)throw new Exception("Disabling overrides failed to restore original size.");
+            }
+            File.WriteAllText("/tmp/FloodVictoryStarStates.txt","PASS: three individually configured stars; migrated empty size, earned/empty sprite swaps, independent dimensions and restoring authored dimensions when overrides are disabled. Scene loaded in isolated project; player saves untouched.\n");
+        }
         public static void BeginBatch()
         {
             if(!Application.isBatchMode||!Application.dataPath.Contains("/tmp/"))throw new Exception("Use isolated /tmp project.");
@@ -70,7 +90,7 @@ namespace FloodFill.EditorTools
                     Check(!Screen("results").activeSelf,"Win uses new popup independently of loss screen");
                     Check(popup.level.text=="LEVEL 1"&&popup.moves.text==$"<color=#FFD341>0</color> / {game.CurrentMoveBudget}","Move count starts at zero while keeping full budget");
                     Check(popup.best.text==FloodLevelProgression3D.Get(0,0,1).bestMoves.ToString()&&popup.elapsedTime.text=="00:00"&&popup.IsCountingStatistics,"Best remains final while elapsed count starts at zero");
-                    Check(popup.stars.Count(s=>s.sprite==popup.goldStar)==FloodLevelProgression3D.Stars(game.MoveCount,game.CurrentMoveBudget),"Stars reflect this win's efficiency");
+                    Check(popup.stars.Count(s=>s.sprite==s.GetComponent<FloodFillUIState3D>().selectedSprite)==FloodLevelProgression3D.Stars(game.MoveCount,game.CurrentMoveBudget),"Stars reflect this win's efficiency");
                     Check(popup.coinReward.text=="+100"&&popup.gemReward.text=="+5","Fixed display-only rewards");
                     Check(popup.primaryLabel.text=="NEXT LEVEL"&&popup.levelsButton.activeSelf,"Ordinary win actions");
                     Check(popup.confetti.Length==60&&popup.confetti.All(c=>!c.raycastTarget),"Bounded confetti pool never blocks input");

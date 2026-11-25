@@ -1,6 +1,7 @@
 using FloodFill.ThreeD;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace FloodFill.EditorTools
 {
@@ -22,6 +23,26 @@ namespace FloodFill.EditorTools
             EditorGUILayout.PropertyField(serializedObject.FindProperty("disabledSprite"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("disabledColor"));
             serializedObject.ApplyModifiedProperties();
+            EditorGUILayout.Space();
+            if (GUILayout.Button("Swap Sprite"))
+            {
+                foreach (var item in targets)
+                {
+                    var state = (FloodFillUIState3D)item;
+                    var image = state.GetComponent<Image>();
+                    var rect = image.rectTransform;
+                    Undo.RecordObjects(new Object[] {state, image, rect}, "Swap UI Sprite");
+                    state.SwapSprite();
+                    EditorUtility.SetDirty(image);
+                    EditorUtility.SetDirty(rect);
+                    if (PrefabUtility.IsPartOfPrefabInstance(image))
+                    {
+                        PrefabUtility.RecordPrefabInstancePropertyModifications(image);
+                        PrefabUtility.RecordPrefabInstancePropertyModifications(rect);
+                    }
+                }
+                SceneView.RepaintAll();
+            }
         }
 
         private void DrawState(string spriteName, string overrideName, string sizeName)

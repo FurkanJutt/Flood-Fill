@@ -1,0 +1,1 @@
+PASS: three individually configured stars; migrated empty size, earned/empty sprite swaps, independent dimensions and restoring authored dimensions when overrides are disabled. Scene loaded in isolated project; player saves untouched.

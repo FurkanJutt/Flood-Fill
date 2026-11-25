@@ -120,7 +120,7 @@ namespace FloodFill.ThreeD
         public FloodFillSolverResult LastSolverResult { get; private set; }
         public MoveBudgetProfile CurrentMoveBudgetProfile { get; private set; }
         public int CurrentPlayerColor => boardManager != null ? boardManager.CurrentPlayerColor : -1;
-        public float CapturedPercentage => boardManager != null ? boardManager.CapturedPercentage : 0f;
+        public float CapturedPercentage => boardManager != null ? boardManager.CoveredPercentage : 0f;
         public VoxelBoardManager3D BoardManager => boardManager;
         public bool IsCampaignGame => isCampaignGame;
         public int ActiveCampaignLevel => activeCampaignLevel;
@@ -1097,7 +1097,7 @@ namespace FloodFill.ThreeD
                 : $"Moves: {MoveCount} / {currentMoveBudget}";
             int displayedPercentage = MoveCount == 0
                 ? 0
-                : boardManager.DisplayedCapturedPercentage;
+                : Mathf.RoundToInt(boardManager.CoveredPercentage);
             if (capturedText != null) capturedText.text = $"Captured: {displayedPercentage}%";
             if (scoreText != null) scoreText.text = $"Score: {Score:N0}";
             SetColorInputEnabled(CanInteract);
