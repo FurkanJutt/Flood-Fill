@@ -92,6 +92,7 @@ namespace FloodFill.ThreeD
                 return;
             }
             built = true;
+            EnsureSavedLevelRecoveryUI();
             BindAuthoredControls();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (fpsLabel != null) fpsLabel.transform.parent.gameObject.SetActive(true);
@@ -656,6 +657,7 @@ namespace FloodFill.ThreeD
                 loadingTitle.text = manager.IsLoading ? "LOADING" : "PLEASE TRY AGAIN";
                 loadingStatus.text = manager.IsLoading ? manager.LoadingStatus : manager.LoadingError;
                 loadingRetry.SetActive(!manager.IsLoading);
+                RefreshSavedLevelRecoveryUI();
                 loadingIndicator.gameObject.SetActive(manager.IsLoading);
             }
             else if (loading.activeSelf && manager.State == FloodFillGameManager3D.GameState.Playing) Show(hud);
@@ -725,6 +727,7 @@ namespace FloodFill.ThreeD
         {
             if (target == hud && (manager.IsLoading || !string.IsNullOrEmpty(manager.LoadingError))) target = loading;
             if (target == loading && loading.activeSelf) return;
+            if (target != loading && savedLevelRestartConfirmation != null) savedLevelRestartConfirmation.SetActive(false);
             if (target == loading) loadingHudPrepared = false;
             if (settings != null && settings.activeSelf && target != settings) FloodAudioManager.Instance?.SaveSettings();
             if (audioScreen != target)

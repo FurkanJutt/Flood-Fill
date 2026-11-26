@@ -41,6 +41,8 @@ namespace FloodFill.ThreeD.Audio
         [BoxGroup("Gameplay Music"),ShowIf(nameof(enableDynamicMusic)),Min(0)] public int hardThresholdMoves=10;
         [BoxGroup("Gameplay Music"),Range(0,1)] public float resultMusicDuck=.3f;
 
+        [Foldout("UI Sound Effects"),Min(0)] public float uiFeedbackMinimumInterval=.08f;
+        [Foldout("UI Sound Effects"),Min(.05f)] public float uiFeedbackMaximumDuration=.25f;
         [Foldout("UI Sound Effects")] public FloodSoundSettings buttonClick=new FloodSoundSettings();
         [Foldout("UI Sound Effects")] public FloodSoundSettings buttonBack=new FloodSoundSettings();
         [Foldout("UI Sound Effects")] public FloodSoundSettings buttonConfirm=new FloodSoundSettings();
@@ -117,7 +119,7 @@ namespace FloodFill.ThreeD.Audio
         {
             if(Instance!=null&&Instance!=this){Destroy(gameObject);return;}
             Instance=this;DontDestroyOnLoad(gameObject);
-            LoadSettings();RefreshFloodClipBindings();CreateSources();ui=new FloodAudioUIBinder();
+            LoadSettings();RefreshFloodClipBindings();RefreshUIFeedbackClips();CreateSources();ui=new FloodAudioUIBinder();
             FloodAudioSignals.ManagerAvailable+=AttachGame;FloodAudioSignals.ManagerRemoved+=DetachGame;
             FloodAudioSignals.ColorAccepted+=OnColorSelected;FloodAudioSignals.FloodStarted+=OnFlood;
             FloodAudioSignals.LevelReset+=OnLevelReset;FloodAudioSignals.RestartRequested+=OnRestart;
@@ -222,11 +224,11 @@ namespace FloodFill.ThreeD.Audio
         private void OnApplicationPause(bool value)
         {
             if(appSuspended==value||musicSources==null)return;
-            if(value)SaveSettings();appSuspended=value;
+            if(value){SaveSettings();CancelUIFeedback();}appSuspended=value;
             for(int i=0;i<2;i++){if(value){musicWasPlaying[i]=musicSources[i].isPlaying;if(musicWasPlaying[i])musicSources[i].Pause();}else if(musicWasPlaying[i])musicSources[i].UnPause();}
             if(voices!=null)for(int i=0;i<voices.Length;i++){if(value){voices[i].WasPlaying=voices[i].Source.isPlaying;if(voices[i].WasPlaying)voices[i].Source.Pause();}else if(voices[i].WasPlaying)voices[i].Source.UnPause();}
         }
-        private void OnApplicationFocus(bool focus){if(!focus)SaveSettings();}
+        private void OnApplicationFocus(bool focus){if(!focus){SaveSettings();CancelUIFeedback();}}
         private void OnApplicationQuit()=>SaveSettings();
         private void OnDestroy()
         {
@@ -238,13 +240,13 @@ namespace FloodFill.ThreeD.Audio
             FloodAudioSignals.PauseChanged-=OnPause;FloodAudioSignals.ResultScheduled-=OnResult;
             FloodAudioSignals.MenuContextChanged-=OnMenu;FloodAudioSignals.PopupChanged-=OnPopup;
             if(game!=null){game.UIChanged-=OnGameChanged;game.ManagerReady-=OnGameChanged;}
-            DisposeSpreadClips();ui?.Dispose();Instance=null;
+            DisposeSpreadClips();DisposeUIFeedbackClips();ui?.Dispose();Instance=null;
         }
         [Button("Refresh / Reapply Audio Settings")]
         public void RefreshAudioSettings()
         {
             if(!Application.isPlaying||Instance!=this)return;
-            RefreshFloodClipBindings();ApplyVolumes();ResizePool();RefreshActiveVoices();preview=false;stoppedByUser=false;duckTarget=!menuContext&&resultHandled?resultMusicDuck:1f;
+            RefreshFloodClipBindings();RefreshUIFeedbackClips();ApplyVolumes();ResizePool();RefreshActiveVoices();preview=false;stoppedByUser=false;duckTarget=!menuContext&&resultHandled?resultMusicDuck:1f;
             if(releasing)pendingMusicDuration=Mathf.Max(.01f,requestedMusic==FloodMusicState.MainMenu?defaultCrossfadeDuration:gameplayCrossfadeDuration);
             if(crossfading){fadeElapsed=0;fadeDuration=Mathf.Max(.01f,requestedMusic==FloodMusicState.MainMenu?defaultCrossfadeDuration:gameplayCrossfadeDuration);musicStartGain[0]=musicGain[0];musicStartGain[1]=musicGain[1];}
             ReevaluateMusic(true);

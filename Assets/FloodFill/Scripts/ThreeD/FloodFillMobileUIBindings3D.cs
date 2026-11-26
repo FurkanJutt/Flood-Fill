@@ -47,6 +47,9 @@ namespace FloodFill.ThreeD
                 case FloodFillUIAction.SettingsBack: CloseSettings(); break;
                 case FloodFillUIAction.Resume: Resume(); break;
                 case FloodFillUIAction.Restart: Restart(); break;
+                case FloodFillUIAction.PromptSavedLevelRestart: PromptSavedLevelRestart(); break;
+                case FloodFillUIAction.ConfirmSavedLevelRestart: ConfirmSavedLevelRestart(); break;
+                case FloodFillUIAction.CancelSavedLevelRestart: CancelSavedLevelRestart(); break;
                 case FloodFillUIAction.ReturnToMenu: BackToMenu(); break;
                 case FloodFillUIAction.Result: OnResultAction(); break;
                 case FloodFillUIAction.FruitDropdown: ToggleFruitDropdown(); break;

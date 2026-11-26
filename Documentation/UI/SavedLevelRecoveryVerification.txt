@@ -1,0 +1,34 @@
+SAVED LEVEL RECOVERY — 26 November 2026
+
+15 checks passed: confirmation/back wiring, unchanged files before confirmation, checkpoint preservation, archived bad file, regeneration, healthy-state guards and legacy/coverage checksum compatibility. Isolated test identity; original player saves untouched.
+
+The loading-error screen shows Restart Level only for an unreadable numbered
+level definition. The warning reads: "This will overwrite the previous save. do
+you want to start over?" Confirm and Back use the existing confirmation-panel
+style. Back closes the warning without touching the level file or unfinished
+checkpoint. Try Again remains available and does not discard the definition.
+Confirm archives the bad file as .replaced-<UTC ticks>.bak, clears cached definitions
+and restarts the same mode/difficulty/level with the normal deterministic seed.
+The existing save, generation and loading paths create the replacement definition.
+A stale confirmation cannot act on a different level. Healthy gameplay rejects
+the recovery API. Errors while archiving leave the original file in place.
+
+The new button and modal reuse the authored loading Retry button and Home
+Confirmation template once at UI initialization. They use FloodFillUIAction3D
+bindings and the existing audio binding pass. Back-button spacing expands only
+while the recovery option is available. References survive Editor domain reload.
+
+The coverage rollout added an attempt-only field to VoxelSaveData3D. Including it
+in puzzle checksums invalidated older definition hashes and mismatched compact
+snapshots, which omit that field. The canonical checksum now excludes covered.
+The reader also accepts hashes written during the coverage rollout, reconstructing
+initial coverage from saved captured flags where needed. Actual geometry, colors,
+initial captured flags and other original hashed fields remain validated; bogus
+checksums are still rejected. Valid files are loaded without rewriting them.
+
+An unsuccessful definition load now preserves the prior unfinished checkpoint.
+A replacement checkpoint is written only when a board has been restored or the
+player starts a new generation, including the confirmed recovery flow.
+
+Tests ran in /tmp/FloodLevelVerify with company/product FloodSaveRecoveryVerification.
+Original player saves, settings and progression were not modified by verification.

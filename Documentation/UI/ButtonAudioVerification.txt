@@ -1,0 +1,45 @@
+RAPID BUTTON AUDIO — 26 November 2026
+
+Measured original click clips:
+ButtonClick / universfield-interface-click-124476: 1.776327s; audible windows (0.27, 0.42)
+ButtonBack / universfield-menu-button-click-147349: 1.48898s; audible windows (0.10, 0.23)
+ButtonConfirm / universfield-menu-click-147357: 0.8359184s; audible windows (0.10, 0.26)
+ColorSelected / creatorshome-digital-click-357350: 0.8881633s; audible windows (0.03, 0.11)
+
+The main click contains approximately 270ms of leading silence; Back and Confirm
+contain approximately 100ms. Their full files last 0.8–1.8 seconds. Previously,
+rapid taps could start multiple long cues whose delayed onsets were heard after
+the user stopped tapping. Per-kind concurrency/interval limits did not prevent
+stacking across different UI sound kinds. The source pool also reclaimed sources
+that had not yet reported their first playing DSP block.
+
+Fix:
+- Prepare cached PCM clips for UI feedback at startup/explicit audio Refresh.
+  Extract the first audible burst, retain a 5ms pre-roll and a 15ms tail, apply
+  2ms edge fades, and cap the result at the configurable duration (default 250ms).
+  Original audio assets and SoundSettings clip references remain unchanged.
+- Preparation reads at most the first two seconds of decompressed source audio;
+  streaming/unreadable clips retain the original fallback. Use decompressed clips
+  for immediate UI feedback. No PCM reads, clip creation or waiting happen per tap.
+- All interaction feedback shares an 80ms default cooldown and one-frame duplicate
+  guard. Excess taps are dropped. Accepted new taps replace the active feedback
+  voice. There is no deferred retry or sound queue.
+- Explicitly stop pending UI feedback when the app loses focus/suspends so it does
+  not resume later. Reserve newly started pooled sources until their first DSP
+  playback is observed; cancel unsuccessful pending startup after a short grace.
+- Music and gameplay/result/flood cues retain their existing clips/lifetimes and
+  separate concurrency policy. Master/SFX mute and volume routing remain in use.
+- Configure UI Feedback Minimum Interval / Maximum Duration under UI Sound Effects
+  on FloodAudioManager. Reapply Audio Settings rebuilds prepared clips after edits.
+
+Verification:
+48 checks passed: real click PCM preparation/onset, repeated binding, 100-click burst, cross-button throttling, single-voice replacement, no delayed replay, suspend/resume, mute, DSP startup reservation and preserved long gameplay cues. Desktop Unity test; physical-device latency/listening remains unverified. Original saves untouched.
+
+The suite used /tmp/FloodLevelVerify with company/product FloodButtonAudioVerification.
+It checked actual original clips, prepared PCM onset, repeated control binding,
+100-click same-frame input, alternating buttons, replacement of a still-active
+voice, no starts after release, suspension/resume, mute, a simulated pending DSP
+start and a long unmodified gameplay cue. Source allocation stayed pooled.
+Original user saves/settings were not test fixtures. Physical mobile-device
+latency and listening quality remain unverified. A pre-existing Editor Search
+index diagnostic appeared on startup; the suite exited successfully.

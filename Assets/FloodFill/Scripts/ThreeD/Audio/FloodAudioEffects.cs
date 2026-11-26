@@ -11,7 +11,8 @@ namespace FloodFill.ThreeD.Audio
         {
             internal AudioSource Source;
             internal FloodSound Kind;
-            internal bool Active,Stopping,WasPlaying,ToggleFeedback;
+            internal bool Active,Stopping,WasPlaying,ToggleFeedback,HasStarted;
+            internal double RequestedAt;
             internal float Age,Gain,Scale,PitchScale,MaximumAge;
             internal int StartFrame;
         }
@@ -71,16 +72,20 @@ namespace FloodFill.ThreeD.Audio
         {
             if(!Application.isPlaying||Instance!=this||(!enableSoundEffects&&!toggleFeedback)||voices==null||appSuspended)return false;
             var settings=SoundSettings(kind);if(settings==null)return false;
-            float now=Time.unscaledTime;
+            float now=Time.unscaledTime;bool interaction=IsUIFeedback(kind);
+            if(interaction&&(lastUIFeedbackFrame==Time.frameCount||now-lastUIFeedbackAt<Mathf.Max(0,uiFeedbackMinimumInterval)))return false;
             if(now-lastSoundAt[(int)kind]<Mathf.Max(0,settings.minimumInterval))return false;
-            int count=0,flood=0,available=-1;
+            int count=0,flood=0,available=-1,feedbackSlot=-1;
             for(int i=0;i<voices.Length;i++)
             {
-                if(voices[i]!=spreadVoice&&voices[i].Active&&!voices[i].Source.isPlaying&&!voices[i].WasPlaying)voices[i].Active=false;
+                if(voices[i]!=spreadVoice&&voices[i].Active&&!voices[i].WasPlaying&&VoiceFinished(voices[i]))
+                {voices[i].Source.Stop();voices[i].Source.clip=null;voices[i].Active=false;}
                 if(!voices[i].Active){if(available<0&&i<Mathf.Clamp(audioSourcePoolSize,4,24))available=i;continue;}
+                if(IsUIFeedback(voices[i].Kind))feedbackSlot=i;
                 if(voices[i].Kind==kind)count++;if(IsFloodSound(voices[i].Kind))flood++;
             }
-            if(count>=Mathf.Max(1,settings.maximumInstances)||available<0||IsFloodSound(kind)&&flood>=Mathf.Clamp(maximumSimultaneousFloodSounds,1,4))return false;
+            if(interaction&&feedbackSlot>=0)available=feedbackSlot;
+            if((!interaction&&count>=Mathf.Max(1,settings.maximumInstances))||available<0||(IsFloodSound(kind)&&flood>=Mathf.Clamp(maximumSimultaneousFloodSounds,1,4)))return false;
             var clip=settings.ChooseClip();
             if(clip==null&&(kind==FloodSound.ButtonBack||kind==FloodSound.ButtonConfirm||kind==FloodSound.ButtonCancel||kind==FloodSound.ToggleOn||kind==FloodSound.ToggleOff||kind==FloodSound.Slider))clip=buttonClick.ChooseClip();
             if(clip==null)return false;
@@ -88,11 +93,13 @@ namespace FloodFill.ThreeD.Audio
             // many frames. Treat that matching clip as the launch cue for this level,
             // rather than playing it again when calculation completes.
             if(kind==FloodSound.LevelStarted&&clip==levelStartConfirmationClip)return false;
+            var originalClip=clip;
+            if(interaction&&uiFeedbackClips.TryGetValue(clip,out var prepared))clip=prepared;
             if(kind<=FloodSound.PopupClose)
                 for(int i=0;i<voices.Length;i++)
                     if(voices[i].Active&&voices[i].Source.clip==clip&&voices[i].StartFrame==Time.frameCount)return false;
-            var voice=voices[available];voice.Source.loop=false;voice.Kind=kind;voice.Active=true;voice.Stopping=false;voice.WasPlaying=false;voice.Age=0;voice.Gain=1;
-            voice.MaximumAge=Mathf.Max(0,maximumDuration);
+            var voice=voices[available];if(voice.Active)voice.Source.Stop();voice.HasStarted=false;voice.RequestedAt=Time.realtimeSinceStartupAsDouble;voice.Source.loop=false;voice.Kind=kind;voice.Active=true;voice.Stopping=false;voice.WasPlaying=false;voice.Age=0;voice.Gain=1;
+            voice.MaximumAge=interaction?Mathf.Max(.05f,maximumDuration>0?Mathf.Min(maximumDuration,uiFeedbackMaximumDuration):uiFeedbackMaximumDuration):Mathf.Max(0,maximumDuration);
             voice.ToggleFeedback=toggleFeedback;
             voice.Source.outputAudioMixerGroup=toggleFeedback&&feedbackGroup!=null?feedbackGroup:effectsGroup;
             voice.StartFrame=Time.frameCount;voice.Scale=Mathf.Clamp(volumeScale,0,1.3f);voice.PitchScale=pitchScale;
@@ -106,8 +113,9 @@ namespace FloodFill.ThreeD.Audio
             voice.Source.Play();
             if(voice.MaximumAge>0)voice.Source.SetScheduledEndTime(AudioSettings.dspTime+voice.MaximumAge);
             lastSoundAt[(int)kind]=now;
+            if(interaction){lastUIFeedbackAt=now;lastUIFeedbackFrame=Time.frameCount;}
             if(kind==FloodSound.ButtonConfirm&&!levelHasStarted&&game!=null&&(game.IsLoading||!menuContext&&game.State==FloodFillGameManager3D.GameState.Calculating))
-                levelStartConfirmationClip=clip;
+                levelStartConfirmationClip=originalClip;
             TotalSoundStarts++;soundStartCounts[(int)kind]++;
             return true;
         }
@@ -116,7 +124,8 @@ namespace FloodFill.ThreeD.Audio
             for(int i=0;i<voices.Length;i++)
             {
                 var v=voices[i];if(!v.Active||v==spreadVoice)continue;
-                if(!v.Source.isPlaying){v.Active=false;v.Source.clip=null;continue;}
+                if(v.Source.isPlaying)v.HasStarted=true;
+                if(VoiceFinished(v)){v.Source.Stop();v.Active=false;v.Source.clip=null;continue;}
                 var settings=SoundSettings(v.Kind);v.Age+=dt;
                 if(v.MaximumAge>0&&v.Age>=v.MaximumAge)
                 {v.Source.volume=0;v.Source.Stop();v.Source.clip=null;v.Active=false;continue;}

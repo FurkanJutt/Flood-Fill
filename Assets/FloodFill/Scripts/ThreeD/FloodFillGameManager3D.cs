@@ -77,6 +77,8 @@ namespace FloodFill.ThreeD
         public bool IsLoading { get; private set; }
         public string LoadingStatus { get; private set; } = "Preparing your level…";
         public string LoadingError { get; private set; }
+        public bool CanRestartUnreadableSavedLevel => unreadableSavedLevel && !IsLoading && NumberedLevel > 0 && !string.IsNullOrEmpty(LoadingError);
+        private bool unreadableSavedLevel;
         private sealed class SolverPreparation
         {
             public FloodFillSolverResult Result;
@@ -376,6 +378,7 @@ namespace FloodFill.ThreeD
             IsLoading = true;
             loadingSavedSession = false;
             LoadingError = null;
+            unreadableSavedLevel = false;
             LoadingStatus = "Building your cube…";
             State = GameState.Calculating;
             audioPaused = false;
@@ -398,20 +401,28 @@ namespace FloodFill.ThreeD
             loadingCoroutine = StartCoroutine(LoadLevel(solverGenerationId));
         }
 
+        public bool RestartUnreadableSavedLevel()
+        {
+            if(!CanRestartUnreadableSavedLevel)return false;
+            if(!FloodFillSessionPersistence3D.DiscardUnreadableLevel(NumberedMode,(int)difficulty,NumberedLevel,out var error))
+            {FailLoading(error);return false;}
+            RestartGame();return true;
+        }
+
         private IEnumerator LoadLevel(int generationId)
         {
             // Let the loading screen render before any board setup or disk work.
             yield return null;
-            FloodFillSessionPersistence3D.Delete();
             if (NumberedLevel > 0)
             {
                 if (FloodFillSessionPersistence3D.TryLoadLevel(NumberedMode,(int)difficulty,NumberedLevel,out var stored,out var error))
                 {
-                    if (!RestoreNumberedDefinition(stored)) { FailLoading("The saved level could not be reconstructed."); yield break; }
+                    if (!RestoreNumberedDefinition(stored)) { unreadableSavedLevel = true; FailLoading("The saved level could not be reconstructed."); yield break; }
                     yield return PresentPreparedLevel(generationId); yield break;
                 }
-                if (error != null) { FailLoading(error); yield break; }
+                if (error != null) { unreadableSavedLevel = true; FailLoading(error); yield break; }
             }
+            FloodFillSessionPersistence3D.Delete();
             var watch = Stopwatch.StartNew();
             bool generated = false;
             yield return boardManager.GenerateBoardAsync(colors, value => generated = value);
