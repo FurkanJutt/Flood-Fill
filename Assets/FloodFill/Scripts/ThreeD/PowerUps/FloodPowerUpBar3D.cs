@@ -18,7 +18,7 @@ namespace FloodFill.ThreeD.PowerUps
             for(int i=0;i<buttons.Length;i++){int index=i;buttons[i].onClick.AddListener(()=>
             {
                 owner?.Select((FloodPowerUpKind)index);
-                var rect=buttons[index].transform;rect.DOKill();rect.localScale=Vector3.one;rect.DOPunchScale(Vector3.one*.04f,owner!=null?owner.settings.selectionAnimationDuration:.15f,3,.5f).SetUpdate(true);
+                FloodTouchInput3D.PressFeedback(buttons[index].transform,.04f,owner!=null?owner.settings.selectionAnimationDuration:.15f);
             });}
         }
         private void OnEnable()

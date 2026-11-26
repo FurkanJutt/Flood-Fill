@@ -101,6 +101,7 @@ namespace FloodFill.ThreeD
         }
         private void Update()
         {
+            FlushSelectionSave();
             if (skipElapsedTick) { skipElapsedTick = false; return; }
             if (elapsedTimerActive && !elapsedTimerSuspended && (CanInteract || PowerUps != null && PowerUps.IsExecuting && State == GameState.Playing && !IsLoading && !audioPaused) && Time.timeScale > 0)
                 ElapsedSeconds += Time.unscaledDeltaTime;
@@ -257,8 +258,11 @@ namespace FloodFill.ThreeD
         public bool RefreshContinueAvailability()
         {
             if (failedToRestoreSession) { HasSavedSession = false; availableSession = null; return false; }
+            FloodFill.ThreeD.PowerUps.FloodPowerUpInventory3D.RecoverPendingSession();
+            if(TryCachedContinue())return HasSavedSession;
             HasSavedSession = FloodFillSessionPersistence3D.TryLoad(out var saved) && IsResumableSession(saved);
             availableSession = HasSavedSession ? saved : null;
+            CacheContinue(saved,HasSavedSession);
             return HasSavedSession;
         }
 
@@ -334,8 +338,7 @@ namespace FloodFill.ThreeD
             SecondaryGoals?.SelectColor(colorIndex);
             FloodAudioSignals.SelectColor();
             RefreshUI();
-            SaveSession();
-            Debug.Log($"Selected 3D paint color: {colorIndex}. Click a cube to recolor it.", this);
+            QueueSelectionSave();
         }
 
         private void HandleVoxelClicked(VoxelCell3D voxel)
@@ -1257,6 +1260,7 @@ namespace FloodFill.ThreeD
 
         private bool SaveSession()
         {
+            selectionSavePending=false;
             if (!gameSessionActive || !string.IsNullOrEmpty(LoadingError) || (IsLoading && State == GameState.Calculating) || boardManager == null || orbitCamera == null || colors == null ||
                 !boardManager.TryCapturePersistentState(out VoxelBoardSaveData3D boardState))
             {
@@ -1268,6 +1272,7 @@ namespace FloodFill.ThreeD
             if (written) failedToRestoreSession = false;
             HasSavedSession = written && State == GameState.Playing && !boardManager.IsFullyCaptured && MoveCount < currentMoveBudget;
             availableSession = HasSavedSession ? saved : null;
+            if(written)CacheContinue(saved,HasSavedSession);else continueCacheReady=false;
             return written;
         }
 

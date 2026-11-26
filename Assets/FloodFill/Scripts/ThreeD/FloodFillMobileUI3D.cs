@@ -548,7 +548,7 @@ namespace FloodFill.ThreeD
         public void OpenLevelSelection()
         {
             if (levelSelection == null) { Debug.LogError("Level selection prefab is not installed."); return; }
-            manager.ReturnToMenu(); started = false;
+            if (started) manager.ReturnToMenu(); started = false;
             Show(levelSelection.gameObject);
             if (manager.NumberedLevel > 0) levelSelection.Open(manager.NumberedMode, (int)manager.SelectedDifficulty);
         }
@@ -672,7 +672,9 @@ namespace FloodFill.ThreeD
             for (int i = 0; i < colorButtons.Count; i++)
             {
                 colorButtons[i].interactable = manager.CanInteract && i != manager.SelectedColorIndex;
-                colorButtons[i].transform.DOScale(i == manager.SelectedColorIndex ? 1.12f : 1f, .16f).SetEase(Ease.OutSine);
+                colorButtons[i].transform.DOKill();
+                if(FloodTouchInput3D.UsesTouch)colorButtons[i].transform.localScale=Vector3.one;
+                else colorButtons[i].transform.DOScale(i == manager.SelectedColorIndex ? 1.12f : 1f, .16f).SetEase(Ease.OutSine).SetUpdate(true);
             }
             RefreshPowerUpPaletteAvailability();
             if (manager.IsLoading || !string.IsNullOrEmpty(manager.LoadingError))
@@ -740,7 +742,7 @@ namespace FloodFill.ThreeD
             FloodAudioSignals.Menu(target != hud && target != pause && target != results && (victoryPopup == null || target != victoryPopup.gameObject) && target != homeConfirmation && !(target == settings && settingsReturnScreen == pause));
             if (target != setup && fruitDropdownMenu != null) fruitDropdownMenu.SetActive(false);
             HideAll(); target.SetActive(true); target.transform.SetAsLastSibling();
-            target.transform.localScale = Vector3.one * .96f; target.transform.DOScale(1f, .22f).SetEase(Ease.OutBack);
+            FloodTouchInput3D.ShowFeedback(target.transform);
             if (target == menu)
             {
                 RefreshContinue();

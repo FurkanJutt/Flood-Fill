@@ -33,7 +33,7 @@ namespace FloodFill.ThreeD
         {
             if(color<0||color>=colors.Length||!CanInteract)return;
             if(color!=SelectedColorIndex){SelectedColorIndex=color;SecondaryGoals?.SelectColor(color);FloodFill.ThreeD.Audio.FloodAudioSignals.SelectColor();}
-            RefreshUI();SaveSession();
+            RefreshUI();QueueSelectionSave();
         }
         public bool CommitPowerUpRecolor(FloodPowerUpKind kind,VoxelCell3D target,int color,FloodPowerUpSettings3D settings)
         {

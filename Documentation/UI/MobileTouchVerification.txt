@@ -1,0 +1,55 @@
+MOBILE INPUT RESPONSIVENESS — 26 November 2026
+
+Changes
+-------
+Mobile players request 60 FPS instead of inheriting the default frame target.
+This is a request, not a guarantee that a GPU-bound device will render at 60 FPS.
+
+Touch-capable UI keeps its screen, button, palette, page-grid and restart-card
+hit areas at their final scale. These controls previously scaled while touches
+could still be held. Buttons and screens also cancel old feedback tweens before
+new feedback, preventing accumulated scale animations. Mouse-only UI retains
+its scale feedback using unscaled time. Victory star/confetti animations remain.
+
+Normal palette-only selections update immediately, then coalesce their checkpoint
+write after 150ms of quiet. They no longer capture/serialize/write the entire board
+inside every selection callback. A move, paid power-up transaction, navigation,
+app suspension/focus loss or quit still uses the immediate save path. An abrupt
+process kill during that short quiet window can lose only the latest unsaved
+selection; completed moves are not deferred by this change.
+
+Continue availability reuses validated data while the checkpoint path, timestamp
+and size are unchanged. Save completion updates that cache; a changed/missing file
+forces revalidation. Actual Continue still reads and validates before restoring.
+Opening Levels while already in the menu avoids another full-board save. Returning
+from gameplay continues to save normally.
+
+The existing InputSystemUIInputModule, bindings and pointer behavior remain in use.
+No second touch processor, pointer-down navigation or shared touch cooldown was
+introduced. Audio rate limits remain separate from button action dispatch.
+
+Verification
+------------
+80 checks passed: actual InputSystem touchscreen events across menu/settings/levels, rapid sequential taps, simultaneous fingers, fixed hit-test geometry, immediate palette response, coalesced selection saves, navigation flush and Continue cache invalidation/restore. Desktop simulation; mobile device performance still requires retesting. Original saves untouched.
+202 checks passed. All 12 mode/difficulty continuations, restored empty boards, menu previews, exact snapshots, invalid/completed/missing saves, no phantom Continue or empty HUD.
+
+The touch suite sends TouchState press/release events through the Input System
+and UI module, rather than invoking onClick for its navigation tests. It covers
+24 sequential taps across menu/settings/level-selection controls, two fingers on
+separate tabs, stable hit-test scale, immediate palette updates, deferred selection
+writes, navigation flush, no redundant menu write, Continue cache reuse, rejection
+of changed/corrupted saves and restoring the final selected color.
+
+The automated Editor setup explicitly routes simulated devices to the Game View,
+ignores headless focus filtering and invokes a Dynamic input update followed by
+UI module processing. Initial attempts were blocked by the Editor's separate
+input filter, not reported as passing. This setup does not change player input
+settings. Tests used the actual desktop Canvas dimensions, not physical mobile
+hardware. The Continue suite additionally exercised all twelve mode/difficulty
+combinations and malformed/completed/missing/empty save cases.
+
+All runs used /tmp/FloodLevelVerify and test-only persistent identities. Original
+player saves/settings were not test fixtures. Targeted git diff --check passed.
+A pre-existing Editor Search index startup diagnostic appeared. Physical-device
+latency, sustained frame rate, GPU cost and operating-system touch timing remain
+unverified; rebuild and retest the mobile player for those measurements.

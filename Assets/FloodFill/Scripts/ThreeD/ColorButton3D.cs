@@ -34,7 +34,7 @@ namespace FloodFill.ThreeD
             selected = value;
             pressSequence?.Kill();
             transform.DOKill();
-            transform.localScale = restingScale * (selected ? selectedScale : 1f);
+            transform.localScale = restingScale * (!FloodTouchInput3D.UsesTouch && selected ? selectedScale : 1f);
         }
 
         public void SetInteractable(bool value)
@@ -65,6 +65,7 @@ namespace FloodFill.ThreeD
         {
             pressSequence?.Kill();
             transform.DOKill();
+            if(FloodTouchInput3D.UsesTouch){transform.localScale=restingScale;return;}
             Vector3 target = restingScale * (selected ? selectedScale : 1f);
             pressSequence = DOTween.Sequence()
                 .Append(transform.DOScale(target * pressScale, 0.10f).SetEase(Ease.OutBack))

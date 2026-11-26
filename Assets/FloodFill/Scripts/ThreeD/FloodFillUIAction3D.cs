@@ -1,4 +1,3 @@
-using DG.Tweening;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -26,7 +25,7 @@ namespace FloodFill.ThreeD
             var owner = GetComponentInParent<FloodFillMobileUI3D>();
             if (owner == null) return;
             owner.ExecuteAuthoredAction(action, index);
-            transform.DOPunchScale(Vector3.one * .045f, .18f, 6);
+            FloodTouchInput3D.PressFeedback(transform);
         }
         public void SetValue(float value)
         {
