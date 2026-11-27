@@ -4,8 +4,7 @@ namespace FloodFill.ThreeD
 {
     public sealed partial class FloodFillMobileUI3D
     {
-        [Header("Achievements")][SerializeField]private GameObject achievementScreenPrefab;
-        [SerializeField]private FloodAchievementScreen achievementScreen;
+        [Header("Achievements")][SerializeField]private FloodAchievementScreen achievementScreen;
         [SerializeField]private FloodAchievementNotifications achievementNotifications;
         private void InitializeAchievementsUI()
         {
@@ -17,11 +16,7 @@ namespace FloodFill.ThreeD
         public void OpenAchievements()
         {
             if(FloodAchievementService.Instance==null||!FloodAchievementService.Instance.Ready)return;
-            if(achievementScreen==null)
-            {
-                var prefab=achievementScreenPrefab!=null?achievementScreenPrefab:FloodAchievementService.Instance?.settings?.screenPrefab;
-                if(prefab==null)return;achievementScreen=Instantiate(prefab,safeRoot).GetComponent<FloodAchievementScreen>();achievementScreen.Initialize(this);
-            }
+            if(achievementScreen==null)return;
             started=false;Show(achievementScreen.gameObject);
         }
         public void CloseAchievements(){if(achievementScreen!=null)achievementScreen.detailPanel.SetActive(false);Show(menu);}

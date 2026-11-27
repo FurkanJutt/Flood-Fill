@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using FloodFill.ThreeD;
+using FloodFill.ThreeD.Achievements;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -89,6 +90,23 @@ namespace FloodFill.EditorTools
                         }
                         SceneView.RepaintAll();
                     }
+                var notification = ui.GetComponentInChildren<FloodAchievementNotifications>(true);
+                using (new EditorGUI.DisabledScope(notification == null || notification.panel == null))
+                {
+                    if (GUILayout.Button("Preview Achievement Notification"))
+                    {
+                        var panel = notification.panel;
+                        Undo.RecordObjects(new UnityEngine.Object[] { panel, panel.gameObject }, "Preview Achievement Notification");
+                        bool visible = !panel.gameObject.activeSelf;
+                        panel.alpha = 1f;
+                        panel.blocksRaycasts = false;
+                        panel.interactable = false;
+                        panel.gameObject.SetActive(visible);
+                        EditorUtility.SetDirty(panel);
+                        EditorUtility.SetDirty(panel.gameObject);
+                        SceneView.RepaintAll();
+                    }
+                }
             }
             DrawDefaultInspector();
         }

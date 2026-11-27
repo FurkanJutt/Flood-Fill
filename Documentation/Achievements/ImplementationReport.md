@@ -28,7 +28,7 @@ Runtime code lives in `Assets/FloodFill/Scripts/ThreeD/Achievements/`:
 
 Editor code lives in `Assets/FloodFill/Editor/Achievements/`: authoring window, explicit asset installer/repair tool and isolated verification tools. Pure reducer tests live in `Tools/FloodAchievements.Tests/`.
 
-Actual content lives in `Assets/FloodFill/Achievements/Definitions/` (112 assets), the achievement database, `Assets/FloodFill/Resources/FloodAchievements.asset`, and `Assets/FloodFill/Prefabs/UI/Achievements/` (screen, card, detail and notification prefabs). MainMenu and FloodFillCanvas prefabs contain navigation/notification bindings. The screen is instantiated lazily. Existing scenes reference the canvas prefab; no scene rewrite is needed.
+Actual content lives in `Assets/FloodFill/Achievements/Definitions/` (112 assets), the achievement database, `Assets/FloodFill/Resources/FloodAchievements.asset`, and `Assets/FloodFill/Prefabs/UI/Achievements/` (screen, card, detail and notification prefabs). MainMenu and FloodFillCanvas prefabs contain navigation/notification bindings. AchievementScreen is an inactive, serialized child of SafeArea in the canvas, like the other screens. Navigation toggles that existing object; it never clones the screen. Achievement cards remain pooled prefab instances. Existing scenes reference the canvas prefab; no scene rewrite is needed.
 
 The supplied achievement sheet is sliced into 112 stable sprites through Unity's sprite data provider. Existing stars, buttons, frames and audio are reused. Image pixels are unchanged. No runtime procedural icons, shaders, particles or artwork were added.
 
@@ -78,7 +78,9 @@ UI-only rendered previews: [Achievements](FloodAchievements-Screen.png), [Main M
 
 ## Authoring workflow
 
-Open **Tools → FloodFill → Achievement Menu**. Select an existing definition or create/duplicate one, configure category/icon/visibility/enabled state, condition/filter fields, one to three tiers and optional rewards. Fields are contextual to the metric; validation reports incompatible filters, IDs, tier ordering, missing icons and feasibility issues. Editing supports Undo. Duplication generates new IDs; normal edits retain IDs. Do not reuse deleted IDs or change persistent IDs for an existing player achievement.
+Open **Tools → Flood Fill → Achievement Menu**. Select an existing definition or create/duplicate one, configure category/icon/visibility/enabled state, condition/filter fields, one to three tiers and optional rewards. Fields are contextual to the metric; validation reports incompatible filters, IDs, tier ordering, missing icons and feasibility issues. Editing supports Undo. Duplication generates new IDs; normal edits retain IDs. Do not reuse deleted IDs or change persistent IDs for an existing player achievement.
+
+The canvas Inspector includes AchievementScreen in its existing screen-preview switches. These toggle the authored screen outside Play Mode.
 
 Export JSON writes definition DTOs only. Import validates both incoming data and the prospective merged catalog, previews new/updated/unchanged/disabled counts, and asks before applying. Merge uses stable IDs; unrelated definitions and all player progress remain intact. It is not a destructive replacement.
 

@@ -20,7 +20,7 @@ namespace FloodFill.EditorTools
         private bool showTesting;
         private double simulatedProgress;
         private const string TestPath="UserSettings/FloodAchievementTestProgress.json";
-        [MenuItem("Tools/FloodFill/Achievement Menu")]
+        [MenuItem("Tools/Flood Fill/Achievement Menu")]
         public static void Open(){var window=GetWindow<FloodAchievementMenu>("Achievement Menu");window.minSize=new Vector2(1040,640);window.Show();}
         private void OnEnable(){Reload();Undo.undoRedoPerformed+=OnUndo;}
         private void OnDisable(){Undo.undoRedoPerformed-=OnUndo;}

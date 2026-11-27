@@ -17,7 +17,7 @@ namespace FloodFill.EditorTools
         public const string UIFolder="Assets/FloodFill/Prefabs/UI/Achievements",CanvasPath="Assets/FloodFill/Prefabs/UI/FloodFillCanvas.prefab",Sheet="Assets/Images/Spritesheets/flood_fill_3d_achievement_icons_sheet.png";
         private static FloodUISkin skin;private static TMP_FontAsset font;
         private static readonly Color Cyan=new Color(0,.85f,1),Muted=new Color(.65f,.78f,.94f);
-        [MenuItem("Tools/FloodFill/Achievements/Install or Repair UI")]
+        [MenuItem("Tools/Flood Fill/Achievements/Install or Repair UI")]
         public static void Install()
         {
             if(EditorApplication.isPlayingOrWillChangePlaymode)throw new InvalidOperationException("Install achievements outside Play Mode.");
@@ -39,6 +39,13 @@ namespace FloodFill.EditorTools
             finally {PrefabUtility.UnloadPrefabContents(cardContents);}
             var detail=AssetDatabase.LoadAssetAtPath<GameObject>(UIFolder+"/AchievementDetail.prefab")??CreateDetail(settings);settings.detailPrefab=detail;
             var screen=AssetDatabase.LoadAssetAtPath<GameObject>(UIFolder+"/AchievementScreen.prefab")??CreateScreen(card,detail);settings.screenPrefab=screen;
+            var screenContents=PrefabUtility.LoadPrefabContents(UIFolder+"/AchievementScreen.prefab");
+            try
+            {
+                foreach(var dropdown in screenContents.GetComponentsInChildren<TMP_Dropdown>(true))ConfigureDropdownPadding(dropdown);
+                PrefabUtility.SaveAsPrefabAsset(screenContents,UIFolder+"/AchievementScreen.prefab");
+            }
+            finally{PrefabUtility.UnloadPrefabContents(screenContents);}
             var notice=AssetDatabase.LoadAssetAtPath<GameObject>(UIFolder+"/AchievementNotification.prefab")??CreateNotification(settings);settings.notificationPrefab=notice;
             InstallMenu(settings);InstallCanvas(settings);
             EditorUtility.SetDirty(settings);AssetDatabase.SaveAssets();AssetDatabase.Refresh();
@@ -143,7 +150,25 @@ namespace FloodFill.EditorTools
             foreach(var image in go.GetComponentsInChildren<Image>(true)){image.sprite=skin.Find("Secondary");image.type=Image.Type.Sliced;}
             foreach(var label in go.GetComponentsInChildren<TMP_Text>(true)){label.font=font;label.fontSize=23;label.color=Color.white;}
             var arrow=go.transform.Find("Arrow");if(arrow!=null){arrow.GetComponent<Image>().sprite=skin.Find("Back");arrow.localRotation=Quaternion.Euler(0,0,-90);}
-            var dropdown=go.GetComponent<TMP_Dropdown>();dropdown.template.sizeDelta=new Vector2(0,520);return dropdown;
+            var dropdown=go.GetComponent<TMP_Dropdown>();dropdown.template.sizeDelta=new Vector2(0,520);ConfigureDropdownPadding(dropdown);return dropdown;
+        }
+        private static void ConfigureDropdownPadding(TMP_Dropdown dropdown)
+        {
+            // TMP derives list padding from the template item's distance to the content edges.
+            var scroll=dropdown.template.GetComponent<ScrollRect>();
+            var content=scroll.content;
+            var item=dropdown.itemText.GetComponentInParent<Toggle>(true).GetComponent<RectTransform>();
+            var toggle=item.GetComponent<Toggle>();
+            var checkmark=toggle.graphic;
+            toggle.graphic=null;
+            if(checkmark!=null)UnityEngine.Object.DestroyImmediate(checkmark.gameObject);
+            var colors=item.GetComponent<FloodAchievementDropdownItem>()??item.gameObject.AddComponent<FloodAchievementDropdownItem>();
+            colors.label=dropdown.itemText;colors.normalColor=Color.white;colors.selectedColor=Cyan;
+            float height=item.rect.height;
+            content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,height);
+            item.anchorMin=new Vector2(item.anchorMin.x,1f);
+            item.anchorMax=new Vector2(item.anchorMax.x,1f);
+            item.anchoredPosition=new Vector2(item.anchoredPosition.x,-height*(1f-item.pivot.y));
         }
         private static GameObject CreateScreen(GameObject card,GameObject detail)
         {
@@ -197,12 +222,12 @@ namespace FloodFill.EditorTools
             {
                 var ui=canvas.GetComponent<FloodFillMobileUI3D>();var serialized=new SerializedObject(ui);var safe=(Transform)serialized.FindProperty("safeRoot").objectReferenceValue;
                 var screen=canvas.GetComponentInChildren<FloodAchievementScreen>(true);
-                if(screen!=null)UnityEngine.Object.DestroyImmediate(screen.gameObject);
-                serialized.FindProperty("achievementScreenPrefab").objectReferenceValue=settings.screenPrefab;
+                if(screen==null)screen=((GameObject)PrefabUtility.InstantiatePrefab(settings.screenPrefab,safe)).GetComponent<FloodAchievementScreen>();
+                screen.name="AchievementScreen";screen.gameObject.SetActive(false);
                 var notifications=canvas.GetComponentInChildren<FloodAchievementNotifications>(true);
                 if(notifications==null)notifications=((GameObject)PrefabUtility.InstantiatePrefab(settings.notificationPrefab,safe)).GetComponent<FloodAchievementNotifications>();
                 notifications.menuIndicator=canvas.GetComponentsInChildren<Transform>(true).First(t=>t.name=="AchievementAttention").gameObject;
-                serialized.FindProperty("achievementScreen").objectReferenceValue=null;serialized.FindProperty("achievementNotifications").objectReferenceValue=notifications;serialized.ApplyModifiedPropertiesWithoutUndo();
+                serialized.FindProperty("achievementScreen").objectReferenceValue=screen;serialized.FindProperty("achievementNotifications").objectReferenceValue=notifications;serialized.ApplyModifiedPropertiesWithoutUndo();
                 PrefabUtility.SaveAsPrefabAsset(canvas,CanvasPath);
             }
             finally{PrefabUtility.UnloadPrefabContents(canvas);}

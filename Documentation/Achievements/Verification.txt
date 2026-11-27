@@ -12,3 +12,5 @@ PASS: supplied achievement artwork pixels unchanged.
 
 No APK/IPA build or physical device run performed.
 Internal Unity SearchDatabase cache exception occurred during Editor startup; feature assertions passed.
+
+Follow-up: 172 Unity assertions passed after authoring AchievementScreen under canvas/SafeArea. Repeated Open/Back/Open reuses exactly one existing screen; serialized binding, pooled cards and navigation verified. Achievement tools consolidated under Tools/Flood Fill. Tests used an isolated player profile.

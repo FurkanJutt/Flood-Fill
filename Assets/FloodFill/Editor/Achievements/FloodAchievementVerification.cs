@@ -48,8 +48,10 @@ namespace FloodFill.EditorTools
             var pdf=JsonUtility.FromJson<AchievementCatalogData>(File.ReadAllText("Documentation/Achievements/Catalog.v1.json"));foreach(var d in pdf.achievements){var actual=cat.achievements.Single(a=>a.id==d.id);Check(JsonUtility.ToJson(actual)==JsonUtility.ToJson(d),"Exact PDF definition "+d.id);}
             var config=AssetDatabase.LoadAssetAtPath<FloodAchievementSettings>(FloodAchievementSetup.SettingsPath);Check(config!=null&&config.database==db,"Settings configured");Check(config.filledStar!=null&&config.emptyStar!=null&&config.hiddenIcon!=null,"Existing star and lock sprites assigned");
             Check(config.screenPrefab!=null&&config.cardPrefab!=null&&config.detailPrefab!=null&&config.notificationPrefab!=null,"Four UI prefabs assigned");
-            var canvas=AssetDatabase.LoadAssetAtPath<GameObject>(FloodAchievementSetup.CanvasPath);Check(new SerializedObject(canvas.GetComponent<FloodFillMobileUI3D>()).FindProperty("achievementScreenPrefab").objectReferenceValue==config.screenPrefab,"Screen prefab configured for lazy loading");
-            Check(canvas.GetComponentInChildren<FloodAchievementScreen>(true)==null,"Screen not eagerly instantiated");
+            var canvas=AssetDatabase.LoadAssetAtPath<GameObject>(FloodAchievementSetup.CanvasPath);
+            var authoredScreen=canvas.GetComponentInChildren<FloodAchievementScreen>(true);
+            Check(authoredScreen!=null&&!authoredScreen.gameObject.activeSelf,"Achievement screen authored inactive in canvas");
+            Check(new SerializedObject(canvas.GetComponent<FloodFillMobileUI3D>()).FindProperty("achievementScreen").objectReferenceValue==authoredScreen,"Canvas screen reference assigned");
             Check(canvas.GetComponentsInChildren<FloodFillUIAction3D>(true).Count(b=>b.action==FloodFillUIAction.Achievements)==1,"One Main Menu achievement button");
             Check(canvas.GetComponentInChildren<FloodAchievementNotifications>(true).menuIndicator!=null,"Main Menu indicator assigned");
             Check(config.cardPrefab.GetComponent<FloodAchievementCard>().stars.Length==3,"Exactly three card star positions");
@@ -78,7 +80,10 @@ namespace FloodFill.EditorTools
                         ui=UnityEngine.Object.FindAnyObjectByType<FloodFillMobileUI3D>();game=UnityEngine.Object.FindAnyObjectByType<FloodFillGameManager3D>();if(ui==null||!ui.IsBuilt||game==null)return;
                         service=FloodAchievementService.Instance;Check(service.Ready,"Runtime achievement service ready");
                         Check(UnityEngine.Object.FindObjectsByType<FloodAchievementService>(FindObjectsInactive.Include,FindObjectsSortMode.None).Length==1,"Single persistent service");
-                        ui.OpenAchievements();Canvas.ForceUpdateCanvases();waitUntil=EditorApplication.timeSinceStartup+.3;stage++;break;
+                        var existingScreen=ui.GetComponentInChildren<FloodAchievementScreen>(true);
+                        ui.OpenAchievements();ui.CloseAchievements();ui.OpenAchievements();
+                        Check(existingScreen!=null&&ui.GetComponentsInChildren<FloodAchievementScreen>(true).Length==1&&existingScreen.gameObject.activeInHierarchy,"Repeated navigation reuses the authored canvas screen without clones");
+                        Canvas.ForceUpdateCanvases();waitUntil=EditorApplication.timeSinceStartup+.3;stage++;break;
                     case 1:
                         var screen=UnityEngine.Object.FindAnyObjectByType<FloodAchievementScreen>();Check(screen!=null&&screen.gameObject.activeInHierarchy,"Main Menu opens achievement screen");
                         Check(screen.category.options.Count==18,"All 17 category options plus All");Check(screen.filter.options.Count==3,"No reward filters without rewards");
