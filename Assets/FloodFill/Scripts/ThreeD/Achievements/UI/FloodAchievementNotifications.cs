@@ -19,6 +19,17 @@ namespace FloodFill.ThreeD.Achievements
         private Coroutine showing;
         private bool bound;
         private FloodFillGameManager3D game;
+        public void ConfigureOverlay()
+        {
+            var parentCanvas=transform.parent!=null?transform.parent.GetComponentInParent<Canvas>():null;
+            var overlay=GetComponent<Canvas>();
+            if(overlay==null)overlay=gameObject.AddComponent<Canvas>();
+            overlay.overrideSorting=true;
+            if(parentCanvas!=null)overlay.sortingLayerID=parentCanvas.rootCanvas.sortingLayerID;
+            // TMP dropdowns use 30000; notifications must also stay above their lists.
+            overlay.sortingOrder=32767;
+        }
+        private void Awake()=>ConfigureOverlay();
         public void Initialize()
         {
             if(bound)return;service=FloodAchievementService.Instance;if(service==null)return;bound=true;game=FindAnyObjectByType<FloodFillGameManager3D>();

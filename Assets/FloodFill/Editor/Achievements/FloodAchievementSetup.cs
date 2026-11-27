@@ -47,6 +47,7 @@ namespace FloodFill.EditorTools
             }
             finally{PrefabUtility.UnloadPrefabContents(screenContents);}
             var notice=AssetDatabase.LoadAssetAtPath<GameObject>(UIFolder+"/AchievementNotification.prefab")??CreateNotification(settings);settings.notificationPrefab=notice;
+            SaveNotificationOverlay();
             InstallMenu(settings);InstallCanvas(settings);
             EditorUtility.SetDirty(settings);AssetDatabase.SaveAssets();AssetDatabase.Refresh();
             var errors=AchievementValidation.Validate(db.Load()).Where(s=>s.StartsWith("ERROR:",StringComparison.Ordinal)).ToArray();
@@ -188,7 +189,7 @@ namespace FloodFill.EditorTools
         private static GameObject CreateNotification(FloodAchievementSettings settings)
         {
             var root=Rect("AchievementNotifications",null,0,0,1080,1920);root.gameObject.AddComponent<FloodFillUIFit3D>();
-            var view=root.gameObject.AddComponent<FloodAchievementNotifications>();var panel=Img("Notification",root,skin.Find("Secondary"),0,-555,930,158);view.panel=panel.gameObject.AddComponent<CanvasGroup>();view.panel.blocksRaycasts=false;
+            var view=root.gameObject.AddComponent<FloodAchievementNotifications>();view.ConfigureOverlay();var panel=Img("Notification",root,skin.Find("Secondary"),0,-555,930,158);view.panel=panel.gameObject.AddComponent<CanvasGroup>();view.panel.blocksRaycasts=false;
             foreach(var g in panel.GetComponentsInChildren<Graphic>())g.raycastTarget=false;
             view.icon=Img("Icon",panel.transform,settings.defaultIcon,-375,0,112,112);view.icon.type=Image.Type.Simple;view.icon.preserveAspect=true;
             view.title=Text("Title",panel.transform,"ACHIEVEMENT UNLOCKED",25,20,37,620,42,TextAlignmentOptions.Left);view.title.color=Cyan;
@@ -231,6 +232,30 @@ namespace FloodFill.EditorTools
                 PrefabUtility.SaveAsPrefabAsset(canvas,CanvasPath);
             }
             finally{PrefabUtility.UnloadPrefabContents(canvas);}
+        }
+        private static void SaveNotificationOverlay()
+        {
+            string path=UIFolder+"/AchievementNotification.prefab";
+            var root=PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                root.GetComponent<FloodAchievementNotifications>().ConfigureOverlay();
+                var canvas=root.GetComponent<Canvas>();
+                // Unity ignores the overrideSorting setter on a standalone root Canvas.
+                // Author the flag for when this prefab is nested beneath the game Canvas.
+                var serializedCanvas=new SerializedObject(canvas);
+                serializedCanvas.FindProperty("m_OverrideSorting").boolValue=true;
+                serializedCanvas.ApplyModifiedPropertiesWithoutUndo();
+                if(!new SerializedObject(canvas).FindProperty("m_OverrideSorting").boolValue||canvas.sortingOrder<=30000)throw new Exception("Notification must sort above screens and dropdowns. Order="+canvas.sortingOrder+" Override="+new SerializedObject(canvas).FindProperty("m_OverrideSorting").boolValue);
+                PrefabUtility.SaveAsPrefabAsset(root,path);
+            }
+            finally{PrefabUtility.UnloadPrefabContents(root);}
+        }
+        public static void RepairNotificationOverlayBatch()
+        {
+            if(!Application.isBatchMode||!Application.dataPath.Contains("/tmp/"))throw new Exception("Use an isolated project.");
+            SaveNotificationOverlay();
+            File.WriteAllText("/tmp/FloodNotificationOverlayVerification.txt","PASS: notification prefab has its own Canvas, override sorting enabled, order 32767 (above TMP dropdowns at 30000). Runtime configures the same overlay independently of screen sibling order.");
         }
         public static void InstallBatch()
         {
