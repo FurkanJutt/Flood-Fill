@@ -60,10 +60,8 @@ namespace FloodFill.ThreeD
         private bool started;
         private GameObject cubeCluster;
         [SerializeField] private TMP_Text fpsLabel;
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
         private float fpsElapsed;
         private int fpsFrames;
-#endif
 
         public void Initialize(FloodFillGameManager3D gameManager, Transform canvas, VoxelCell3D voxelPrefab)
         {
@@ -95,11 +93,7 @@ namespace FloodFill.ThreeD
             EnsureSavedLevelRecoveryUI();
             InitializeAchievementsUI();
             BindAuthoredControls();
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            if (fpsLabel != null) fpsLabel.transform.parent.gameObject.SetActive(true);
-#else
-            if (fpsLabel != null) fpsLabel.transform.parent.gameObject.SetActive(false);
-#endif
+            InitializeDevelopmentTools();
             modeIndex = manager.SelectedBoardMode == VoxelBoardManager3D.VoxelVolumeMode.HollowCube ? 1 : 0;
             sizeIndex = System.Array.IndexOf(sizes, manager.SelectedBoardSize);
             if (sizeIndex < 0) sizeIndex = 0;
@@ -437,8 +431,8 @@ namespace FloodFill.ThreeD
 
             if (loading != null && loading.activeSelf && manager.IsLoading)
                 loadingIndicator.anchoredPosition = new Vector2(Mathf.PingPong(Time.unscaledTime * 240f, 360f) - 180f, -45f);
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            if (fpsLabel == null) return;
+            if (developmentTools != null && developmentTools.activeInHierarchy) RefreshDevelopmentStatus();
+            if (fpsLabel == null || !fpsLabel.gameObject.activeInHierarchy) return;
             fpsElapsed += Time.unscaledDeltaTime;
             fpsFrames++;
             if (fpsElapsed >= .25f)
@@ -447,7 +441,6 @@ namespace FloodFill.ThreeD
                 fpsElapsed = 0f;
                 fpsFrames = 0;
             }
-#endif
         }
 
 #if UNITY_EDITOR
@@ -618,6 +611,7 @@ namespace FloodFill.ThreeD
         }
         private void OpenSettings()
         {
+            StopDevelopmentSolver();
             settingsReturnScreen = pause.activeSelf ? pause : menu;
             RefreshShowCurrentBlockToggle();
             RefreshAudioControls();
@@ -734,12 +728,12 @@ namespace FloodFill.ThreeD
             if (settings != null && settings.activeSelf && target != settings) FloodAudioManager.Instance?.SaveSettings();
             if (audioScreen != target)
             {
-                bool wasPopup = audioScreen == setup || audioScreen == howTo || audioScreen == settings || audioScreen == pause || audioScreen == results || audioScreen == homeConfirmation || (victoryPopup != null && audioScreen == victoryPopup.gameObject);
-                bool isPopup = target == setup || target == howTo || target == settings || target == pause || target == results || target == homeConfirmation || (victoryPopup != null && target == victoryPopup.gameObject);
+                bool wasPopup = audioScreen == developmentTools || audioScreen == setup || audioScreen == howTo || audioScreen == settings || audioScreen == pause || audioScreen == results || audioScreen == homeConfirmation || (victoryPopup != null && audioScreen == victoryPopup.gameObject);
+                bool isPopup = target == developmentTools || target == setup || target == howTo || target == settings || target == pause || target == results || target == homeConfirmation || (victoryPopup != null && target == victoryPopup.gameObject);
                 if (isPopup || wasPopup) FloodAudioSignals.Popup(isPopup);
                 audioScreen = target;
             }
-            FloodAudioSignals.Menu(target != hud && target != pause && target != results && (victoryPopup == null || target != victoryPopup.gameObject) && target != homeConfirmation && !(target == settings && settingsReturnScreen == pause));
+            FloodAudioSignals.Menu(target != hud && target != pause && target != results && (victoryPopup == null || target != victoryPopup.gameObject) && target != homeConfirmation && !((target == settings || target == developmentTools) && settingsReturnScreen == pause));
             if (target != setup && fruitDropdownMenu != null) fruitDropdownMenu.SetActive(false);
             HideAll(); target.SetActive(true); target.transform.SetAsLastSibling();
             FloodTouchInput3D.ShowFeedback(target.transform);
@@ -790,7 +784,7 @@ namespace FloodFill.ThreeD
             }
             BuildCubeCluster(menu.transform);
         }
-        private void HideAll() { if (achievementScreen != null) achievementScreen.gameObject.SetActive(false); if (victoryPopup != null) victoryPopup.gameObject.SetActive(false); if (homeConfirmation != null) homeConfirmation.SetActive(false); if (levelSelection != null) levelSelection.gameObject.SetActive(false); menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
+        private void HideAll() { if (developmentTools != null) developmentTools.SetActive(false); if (achievementScreen != null) achievementScreen.gameObject.SetActive(false); if (victoryPopup != null) victoryPopup.gameObject.SetActive(false); if (homeConfirmation != null) homeConfirmation.SetActive(false); if (levelSelection != null) levelSelection.gameObject.SetActive(false); menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
 
 #if UNITY_EDITOR
         private void HideLegacyUI(Transform canvas)
@@ -840,7 +834,7 @@ namespace FloodFill.ThreeD
         private static void Stretch(RectTransform rect) { rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero; }
 #endif
 
-        private void OnDestroy() { UnbindAudioControls(); if (manager != null) { manager.UIChanged -= Refresh; manager.ManagerReady -= RefreshContinue; } }
+        private void OnDestroy() { StopDevelopmentSolver(); UnbindAudioControls(); if (manager != null) { manager.UIChanged -= Refresh; manager.ManagerReady -= RefreshContinue; } }
     }
 
 }

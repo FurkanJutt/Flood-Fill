@@ -12,7 +12,7 @@ namespace FloodFill.ThreeD
 {
     public sealed partial class FloodFillMobileUI3D
     {
-        public GameObject[] EditorScreens => new[] { achievementScreen != null ? achievementScreen.gameObject : null, menu, setup, howTo, settings, hud, pause, results, loading, homeConfirmation, victoryPopup != null ? victoryPopup.gameObject : null, levelSelection != null ? levelSelection.gameObject : null }.Where(screen => screen != null).ToArray();
+        public GameObject[] EditorScreens => new[] { developmentTools, achievementScreen != null ? achievementScreen.gameObject : null, menu, setup, howTo, settings, hud, pause, results, loading, homeConfirmation, victoryPopup != null ? victoryPopup.gameObject : null, levelSelection != null ? levelSelection.gameObject : null }.Where(screen => screen != null).ToArray();
 
         /// <summary>Explicit one-time editor construction. Runtime only uses the saved references.</summary>
         public void BuildEditableLayoutForEditor()
