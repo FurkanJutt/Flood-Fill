@@ -77,6 +77,15 @@ static class Program
   var abandoned=Attempt(71);incremental.Commit(abandoned,false,false);incremental.AbandonById(abandoned.id,true);incremental.AbandonById(abandoned.id,true);Check(incremental.Statistics().abandons==1&&incremental.Statistics().restarts==1,"durable abandonment marker deduplicates restart and streak reset");
   var timeScope=Catalog();var hours=timeScope.achievements.Single(d=>d.id=="ff3d.104");hours.filters.difficulty=3;var scopedTime=new AchievementEngine(timeScope,new AchievementSaveData(),clock);var easyTime=Attempt(1,0,0);scopedTime.ObserveTime(easyTime,3600);var expertTime=Attempt(1,0,3);scopedTime.ObserveTime(expertTime,7200);Check(Math.Abs(P(scopedTime,104).value-2)<.001,"active-time difficulty scope uses actual eligible bucket");
   var goalCategory=new AchievementEngine(Catalog(),new AchievementSaveData(),clock);var recordsWithZero=new List<AchievementLevelRecord>();for(int level=1;level<=100;level++)recordsWithZero.Add(new AchievementLevelRecord{key=AchievementEngine.NumberedKey(0,0,level),mode=0,difficulty=0,level=level,completed=level<100,goalsKnown=true,assignedGoals=level<100?new List<string>{"g"}:new List<string>(),earnedGoals=level<100?new List<string>{"g"}:new List<string>()});goalCategory.Import(recordsWithZero);Check(P(goalCategory,45).completed,"zero-goal level does not block a category's actually available goals");
+  var oldMobile=new AchievementSaveData{importVersion=1};
+  var unfinished=new AchievementLevelRecord{key=AchievementEngine.NumberedKey(0,0,1),mode=0,difficulty=0,level=1,completed=false,failures=2,capturedBits="AQ=="};oldMobile.levels.Add(unfinished);
+  var recoveredMobile=new AchievementEngine(Catalog(),oldMobile,clock);
+  var mobileRecords=new List<AchievementLevelRecord>();for(int n=1;n<=7;n++)mobileRecords.Add(new AchievementLevelRecord{key=AchievementEngine.NumberedKey(0,0,n),mode=0,difficulty=0,level=n,size=6,completed=true,stars=3,bestMoves=5,budget=10});
+  recoveredMobile.Import(mobileRecords);
+  Check(P(recoveredMobile,1).completed&&P(recoveredMobile,7).value==7,"v1 mobile solver completions backfill First Steps and Easy Going");
+  Check(recoveredMobile.Level(unfinished.key).failures==2&&recoveredMobile.Level(unfinished.key).capturedBits=="AQ==","backfill preserves failures and capture deduplication");
+  Check(recoveredMobile.Statistics().wins==0,"backfill does not invent historical attempt counters");
+  recoveredMobile.Import(mobileRecords);Check(P(recoveredMobile,7).value==7&&oldMobile.importVersion==2,"mobile completion migration is idempotent");
   Console.WriteLine("PASS: "+checks+" achievement assertions; 112 definitions / 242 tiers verified.");
  }
 }

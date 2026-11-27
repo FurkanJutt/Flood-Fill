@@ -121,6 +121,13 @@ namespace FloodFill.ThreeD
                 pendingAchievementAbandonId=pendingAchievementAbandonKey=null;pendingAchievementRestart=false;
             }
             achievementAttempt=saved.achievementAttempt;
+            if(achievementAttempt!=null&&!achievementAttempt.eligible&&achievementAttempt.ineligibleReason=="Development auto solver")
+            {
+                // Earlier mobile builds excluded in-game solver play. Resume its reliable outcome,
+                // without inventing actions or certifying restrictions for the missing history.
+                achievementAttempt.eligible=true;achievementAttempt.historyComplete=false;achievementAttempt.assisted=true;
+                achievementAttempt.ineligibleReason="Legacy in-game solver checkpoint has incomplete achievement history.";
+            }
             if(achievementAttempt!=null)RestoreAchievementConnections();
             if(achievementAttempt==null)
             {

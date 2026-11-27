@@ -72,15 +72,27 @@ namespace FloodFill.ThreeD.Achievements
         }
         public void Import(IEnumerable<AchievementLevelRecord> records)
         {
-            if(Data.importVersion>=1)return;
+            if(Data.importVersion>=2)return;
             importing=true;
             try
             {
-                foreach(var record in records)if(record!=null&&!levels.ContainsKey(record.key)){levels.Add(record.key,record);Data.levels.Add(record);}
+                foreach(var record in records)
+                {
+                    if(record==null)continue;
+                    if(!levels.TryGetValue(record.key,out var existing)){levels.Add(record.key,record);Data.levels.Add(record);}
+                    else if(!existing.completed&&record.completed)
+                    {
+                        // Recover reliable numbered completion after the old mobile-solver exclusion.
+                        // Preserve capture deduplication and failures; do not synthesize action totals.
+                        record.capturedBits=existing.capturedBits;record.failures=existing.failures;
+                        if(!record.goalsKnown&&existing.goalsKnown){record.goalsKnown=true;record.assignedGoals=new List<string>(existing.assignedGoals);}
+                        levels[record.key]=record;Data.levels[Data.levels.IndexOf(existing)]=record;
+                    }
+                }
                 // Historical first completion is reliable; successful-attempt counters remain unknown.
                 bool any=false;foreach(var l in Data.levels)any|=l.completed;
                 if(any)foreach(var d in index[AchievementEvent.Win])if(d.id=="ff3d.001")foreach(var t in d.tiers)Set(d,t,Progress(d,t),1,true);
-                RefreshDerived();Data.importVersion=1;
+                RefreshDerived();Data.importVersion=2;
             }
             finally{importing=false;}
             Dirty?.Invoke(true);

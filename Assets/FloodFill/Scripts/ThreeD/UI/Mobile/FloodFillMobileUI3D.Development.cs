@@ -66,7 +66,6 @@ namespace FloodFill.ThreeD
             if (manager.IsLoading || manager.State != FloodFillGameManager3D.GameState.Playing || !manager.BoardManager.HasActiveBoard)
             { developmentMessage = "Start or Continue an unfinished level first."; RefreshDevelopmentStatus(); return; }
             manager.PowerUps?.CancelActivePowerUp();
-            manager.MarkAchievementAttemptIneligible("Development auto solver");
             manager.BoardManager.SetBoardVisible(true);
             Show(hud);
             developmentSolver = StartCoroutine(RunDevelopmentSolver());

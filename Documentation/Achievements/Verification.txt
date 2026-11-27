@@ -14,3 +14,8 @@ No APK/IPA build or physical device run performed.
 Internal Unity SearchDatabase cache exception occurred during Editor startup; feature assertions passed.
 
 Follow-up: 172 Unity assertions passed after authoring AchievementScreen under canvas/SafeArea. Repeated Open/Back/Open reuses exactly one existing screen; serialized binding, pooled cards and navigation verified. Achievement tools consolidated under Tools/Flood Fill. Tests used an isolated player profile.
+
+Mobile in-game solver achievement fix: 224 pure assertions passed, including version-1 recovery of seven saved completions, preservation of capture/failure state, no invented historical win counters, and idempotent migration.
+PASS: Settings button, panel, FPS, refill, seven consecutive in-game solver wins, First Steps, Easy Going 7/10, and saved progress reload. Isolated profile; no device testing.
+Mobile achievement fix: PASS: Android production player scripts compiled, 70 assemblies. No device build/run claimed.
+PASS: iOS production player scripts compiled, 70 assemblies. No device build/run claimed.

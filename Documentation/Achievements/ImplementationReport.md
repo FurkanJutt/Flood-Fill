@@ -40,7 +40,7 @@ Numbered levels are keyed by their actual mode/difficulty/identity. Custom recor
 
 Capture credit uses a persistent per-puzzle unique-cell bitmap. Restarting or changing roots does not repeatedly award already credited cubes. Each attempt also maintains a compact union-history forest: legitimate first connections of separate components count, but splitting and reconnecting a previously joined component cannot manufacture bridge progress. Direct edits, physically connected cubes and historically new connections are distinct statistics.
 
-A paid Smart Hint is assisted play even if ignored. Following credit requires an accepted equivalent region/color action against the paid recommendation's board revision. Free previews, automated solver runs, debug stock and unlimited mode invalidate eligibility. Legacy attempts with unknown assistance history cannot earn unassisted-only conditions.
+A paid Smart Hint is assisted play even if ignored. Following credit requires an accepted equivalent region/color action against the paid recommendation's board revision. Free previews, Editor-only automated solver runs, debug stock and unlimited mode invalidate eligibility. The in-game Development Tools solver counts toward achievements. Legacy attempts with unknown assistance history cannot earn unassisted-only conditions.
 
 First records establish baselines; improvements require a strict improvement over an existing record. One-to-three-star progression includes an intermediate two-star result. Assigned/earned goal IDs are correlated per attempt. Goal-category mastery requires all expected level definitions to be known and all actual assigned goals earned; levels with no goals neither fabricate a goal award nor block mastery. A category must contain at least one real goal.
 
@@ -98,3 +98,7 @@ Validation results:
 - No actual Android/iOS device testing was performed. Long-duration calendar thresholds and all possible generated puzzles were not exhaustively played.
 
 The isolated Unity project emitted an unrelated internal `UnityEditor.Search.SearchDatabase` cache exception on startup. Feature assertions completed successfully; no achievement exception was used to bypass a failed test. Verification does not require deleting production Editor caches.
+
+## Mobile in-game solver correction
+
+The original Development Tools solver explicitly marked attempts ineligible; level progression continued, but achievement checkpoints were ignored. In-game solver play now uses eligible normal gameplay outcomes. Editor-only simulations, debug inventory operations and unlimited mode retain their separate exclusions. A one-time import version 2 reconciles reliable saved numbered completions, including existing unfinished metadata records. It preserves capture deduplication, failures, completed tiers and claims, and does not fabricate historical action counters or streaks.
