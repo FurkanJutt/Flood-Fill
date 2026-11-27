@@ -27,12 +27,15 @@ namespace FloodFill.ThreeD
         public static void PressFeedback(Transform target,float amount=.045f,float duration=.18f)
         {
             target.DOKill();target.localScale=Vector3.one;
-            if(!UsesTouch)target.DOPunchScale(Vector3.one*amount,duration,6).SetUpdate(true);
+            var feedback=target.GetComponent<FloodButtonFeedback3D>();
+            if(feedback==null)feedback=target.gameObject.AddComponent<FloodButtonFeedback3D>();
+            feedback.Play(amount,duration);
         }
         public static void ShowFeedback(Transform target)
         {
             target.DOKill();target.localScale=Vector3.one;
-            if(!UsesTouch){target.localScale=Vector3.one*.96f;target.DOScale(1,.22f).SetEase(Ease.OutBack).SetUpdate(true);}
+            var fade=target.GetComponent<CanvasGroup>();if(fade==null)fade=target.gameObject.AddComponent<CanvasGroup>();
+            fade.DOKill();fade.alpha=.85f;fade.DOFade(1,.12f).SetUpdate(true);
         }
     }
 }

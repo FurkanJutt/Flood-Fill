@@ -45,7 +45,7 @@ namespace FloodFill.ThreeD.PowerUps
             {
                 var kind=(FloodPowerUpKind)i;var def=settings.Definition(kind);bool selected=owner.SelectedKind==kind;
                 var element=buttons[i].GetComponent<LayoutElement>();if(element!=null){element.preferredWidth=settings.buttonSize.x;element.flexibleWidth=1;}
-                bool usable=owner.Available(kind);buttons[i].interactable=settings.enablePowerUpSystem&&def.enabled&&((owner.Ready&&usable)||selected&&!owner.IsExecuting);
+                bool usable=owner.Available(kind);buttons[i].interactable=settings.enablePowerUpSystem&&def.enabled&&owner.CanSelect&&(usable||selected);
                 bool disabled=!buttons[i].interactable&&!selected;
                 backgroundStates[i].ApplyState(selected,disabled);
                 iconStates[i].ApplyState(selected,disabled);

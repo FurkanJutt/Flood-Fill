@@ -91,7 +91,7 @@ Created runtime scripts:
 - `FloodAudioSignals.cs` — small typed gameplay/navigation hooks.
 - `FloodAudioUIBinder.cs` — central listener ownership and dynamic uGUI binding.
 - `FloodAudioUIOverride.cs` — optional per-control exception.
-- `Assets/FloodFill/Scripts/ThreeD/FloodFillMobileUIAudio3D.cs` — existing settings UI's added audio controls.
+- `Assets/FloodFill/Scripts/ThreeD/UI/Mobile/FloodFillMobileUIAudio3D.cs` — existing settings UI's added audio controls.
 
 Created Editor scripts: `Assets/FloodFill/Editor/FloodAudioSetup.cs` and `FloodAudioVerification.cs`. Their Unity authoring/reflection and testing APIs are inside Editor-only code. Runtime integration uses typed calls/events, not reflection.
 

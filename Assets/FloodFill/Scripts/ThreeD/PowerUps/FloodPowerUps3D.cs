@@ -27,6 +27,7 @@ namespace FloodFill.ThreeD.PowerUps
         public FloodHintRecommendation3D CurrentHint {get;private set;}
         public event Action Changed;
         public bool Ready=>settings!=null&&settings.enablePowerUpSystem&&game!=null&&game.CanInteract&&Time.time>=game.BoardManager.VisualsSettledAt&&(settings.allowPowerUpsInCustomGames||game.NumberedLevel>0)&&ui!=null&&ui.PowerUpGameplayVisible;
+        public bool CanSelect=>settings!=null&&settings.enablePowerUpSystem&&game!=null&&game.CanChooseColor&&(IsExecuting||Time.time>=game.BoardManager.VisualsSettledAt)&&(settings.allowPowerUpsInCustomGames||game.NumberedLevel>0)&&ui!=null&&ui.PowerUpGameplayVisible;
         private VoxelBoardManager3D board;
         private OrbitCameraController3D cameraRig;
         private CancellationTokenSource hintCancellation;
@@ -92,7 +93,7 @@ namespace FloodFill.ThreeD.PowerUps
         public void Select(FloodPowerUpKind kind)
         {
             if(SelectedKind==kind){CancelActivePowerUp();return;}
-            if(!Ready||!Available(kind)){Sound(settings.unavailableSound);return;}
+            if(!CanSelect||!Available(kind)){Sound(settings.unavailableSound);return;}
             CancelActivePowerUp();SelectedKind=kind;TargetColor=-1;Trace("Selected "+kind);
             if(kind==FloodPowerUpKind.SmartHint){BeginHint(false);return;}
             State=kind==FloodPowerUpKind.ColorSwap?FloodPowerUpState.SwapTargeting:FloodPowerUpState.BlastTargeting;

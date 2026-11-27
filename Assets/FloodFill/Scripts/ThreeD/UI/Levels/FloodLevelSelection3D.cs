@@ -65,8 +65,7 @@ namespace FloodFill.ThreeD
         public void SetPage(int page)
         {
             Page = Mathf.Clamp(page,0,3); pages[Mode*4+Difficulty] = Page; Refresh();
-            grid.DOKill();grid.localScale=Vector3.one;
-            if(!FloodTouchInput3D.UsesTouch){grid.localScale=Vector3.one*.98f;grid.DOScale(1,.16f).SetUpdate(true);}
+            FloodTouchInput3D.ShowFeedback(grid);
         }
         public void StartLevel(int level)
         {
@@ -78,7 +77,7 @@ namespace FloodFill.ThreeD
                 if (navigationContent != null) { navigationContent.interactable = false; navigationContent.blocksRaycasts = false; }
                 restartPrompt.SetActive(true); restartPrompt.transform.SetAsLastSibling();
                 FloodAudioSignals.Popup(true);
-                if (restartCard != null) { restartCard.DOKill(); restartCard.localScale=Vector3.one;if(!FloodTouchInput3D.UsesTouch){restartCard.localScale=Vector3.one*.96f;restartCard.DOScale(1,.18f).SetUpdate(true);} }
+                if (restartCard != null) { FloodTouchInput3D.ShowFeedback(restartCard); }
                 EventSystem.current?.SetSelectedGameObject(restartBack.gameObject);
                 return;
             }

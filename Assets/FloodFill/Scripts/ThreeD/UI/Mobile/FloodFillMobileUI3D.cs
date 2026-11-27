@@ -671,10 +671,9 @@ namespace FloodFill.ThreeD
             progress.DOKill(); progress.DOFillAmount(manager.CapturedPercentage / 100f, .25f);
             for (int i = 0; i < colorButtons.Count; i++)
             {
-                colorButtons[i].interactable = manager.CanInteract && i != manager.SelectedColorIndex;
+                colorButtons[i].interactable = manager.CanChooseColor && i != manager.SelectedColorIndex;
                 colorButtons[i].transform.DOKill();
-                if(FloodTouchInput3D.UsesTouch)colorButtons[i].transform.localScale=Vector3.one;
-                else colorButtons[i].transform.DOScale(i == manager.SelectedColorIndex ? 1.12f : 1f, .16f).SetEase(Ease.OutSine).SetUpdate(true);
+                colorButtons[i].transform.localScale=Vector3.one;
             }
             RefreshPowerUpPaletteAvailability();
             if (manager.IsLoading || !string.IsNullOrEmpty(manager.LoadingError))
@@ -813,7 +812,7 @@ namespace FloodFill.ThreeD
         {
             GameObject go = MakeImage(label + "Button", parent, position, dimensions, color); Button button = go.AddComponent<Button>(); button.targetGraphic = go.GetComponent<Image>(); button.onClick.AddListener(action); button.navigation = new Navigation { mode = Navigation.Mode.None };
             FloodAudioManager.Instance?.BindControl(button, label);
-            AddText(go.transform, label, fontSize, FontStyles.Bold, Vector2.zero, dimensions - new Vector2(20, 12)); SkinButton(button, label, color); button.transform.localScale = Vector3.one; button.onClick.AddListener(() => button.transform.DOPunchScale(Vector3.one * .045f, .18f, 6)); return button;
+            AddText(go.transform, label, fontSize, FontStyles.Bold, Vector2.zero, dimensions - new Vector2(20, 12)); SkinButton(button, label, color); button.transform.localScale = Vector3.one; button.onClick.AddListener(() => FloodTouchInput3D.PressFeedback(button.transform)); return button;
         }
 #endif
 

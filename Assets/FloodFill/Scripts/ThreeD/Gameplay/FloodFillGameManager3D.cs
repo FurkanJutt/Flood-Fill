@@ -110,7 +110,8 @@ namespace FloodFill.ThreeD
         private bool isCampaignGame;
         private int activeCampaignLevel = 1;
 
-        public bool CanInteract => (PowerUps == null || !PowerUps.IsExecuting) && !IsLoading && string.IsNullOrEmpty(LoadingError) && State == GameState.Playing && !audioPaused && boardManager != null && boardManager.HasActiveBoard && !boardManager.IsStartAnimationPlaying;
+        public bool CanChooseColor => !IsLoading && string.IsNullOrEmpty(LoadingError) && State == GameState.Playing && !audioPaused && boardManager != null && boardManager.HasActiveBoard && !boardManager.IsStartAnimationPlaying;
+        public bool CanInteract => CanChooseColor && (PowerUps == null || !PowerUps.IsExecuting);
         public int MoveCount { get; private set; }
         public int Score { get; private set; }
         public GameState State { get; private set; }
@@ -326,6 +327,7 @@ namespace FloodFill.ThreeD
 
         public void SelectColor(int colorIndex)
         {
+            if(CanChooseColor&&!Goals.FloodSecondaryGoalsUI3D.ConsumedPointerThisFrame&&PowerUps!=null&&PowerUps.IsExecuting)PowerUps.CancelActivePowerUp();
             if (PowerUps != null && PowerUps.HandlePalette(colorIndex)) return;
             if (Goals.FloodSecondaryGoalsUI3D.ConsumedPointerThisFrame || !CanInteract ||
                 colorIndex < 0 || colors == null || colorIndex >= colors.Length ||
@@ -1114,7 +1116,7 @@ namespace FloodFill.ThreeD
                 : Mathf.RoundToInt(boardManager.CoveredPercentage);
             if (capturedText != null) capturedText.text = $"Captured: {displayedPercentage}%";
             if (scoreText != null) scoreText.text = $"Score: {Score:N0}";
-            SetColorInputEnabled(CanInteract);
+            SetColorInputEnabled(CanChooseColor);
             orbitCamera?.SetInputEnabled(!IsLoading && string.IsNullOrEmpty(LoadingError) && !boardManager.IsStartAnimationPlaying && !audioPaused);
             if (difficultyDropdown != null)
             {

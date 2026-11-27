@@ -12,12 +12,9 @@ namespace FloodFill.ThreeD
         [SerializeField] private Button button;
         [SerializeField] private Image buttonImage;
         [SerializeField] private FloodFillGameManager3D gameManager;
-        [SerializeField, Min(1f)] private float selectedScale = 1.12f;
         [SerializeField, Min(1f)] private float pressScale = 1.10f;
 
         private Vector3 restingScale = Vector3.one;
-        private bool selected;
-        private Sequence pressSequence;
 
         public int ColorIndex => colorIndex;
 
@@ -31,10 +28,8 @@ namespace FloodFill.ThreeD
 
         public void SetSelected(bool value)
         {
-            selected = value;
-            pressSequence?.Kill();
             transform.DOKill();
-            transform.localScale = restingScale * (!FloodTouchInput3D.UsesTouch && selected ? selectedScale : 1f);
+            transform.localScale = restingScale;
         }
 
         public void SetInteractable(bool value)
@@ -63,14 +58,8 @@ namespace FloodFill.ThreeD
 
         private void PlayPressAnimation()
         {
-            pressSequence?.Kill();
-            transform.DOKill();
-            if(FloodTouchInput3D.UsesTouch){transform.localScale=restingScale;return;}
-            Vector3 target = restingScale * (selected ? selectedScale : 1f);
-            pressSequence = DOTween.Sequence()
-                .Append(transform.DOScale(target * pressScale, 0.10f).SetEase(Ease.OutBack))
-                .Append(transform.DOScale(target, 0.18f).SetEase(Ease.OutSine))
-                .OnComplete(() => pressSequence = null);
+            transform.DOKill();transform.localScale=restingScale;
+            FloodTouchInput3D.PressFeedback(transform,Mathf.Max(0,pressScale-1f),.28f);
         }
 
         private void EnsureReferences()
@@ -88,7 +77,6 @@ namespace FloodFill.ThreeD
 
         private void OnDestroy()
         {
-            pressSequence?.Kill();
             transform.DOKill();
         }
     }

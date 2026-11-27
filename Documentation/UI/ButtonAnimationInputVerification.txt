@@ -1,0 +1,47 @@
+BUTTON INPUT DURING ANIMATIONS — 26 November 2026
+
+Changes
+-------
+Button feedback now scales only non-raycast decorative children through
+FloodButtonFeedback3D. The Button's own rectangle, raycast graphic and interactable
+state are not animated. Retriggering a button replaces only its own feedback;
+hiding it restores its decorative children. This applies to both touch and mouse.
+Screen/page/prompt transitions use CanvasGroup opacity instead of scale, without
+changing interactable or blocksRaycasts. Existing modal blocking rules remain.
+
+A remaining explicit lock was the committed Swap/Blast visual phase. During that
+phase, palette and power-up selection buttons now remain available. Selecting a
+new color or power-up finalizes the already-committed cell visuals immediately,
+then processes the new selection. It does not repeat/refund the transaction or
+spend a normal move. Cube painting stays protected until the old visual state is
+finished. Loading, entrance, invalid actions and finalized results keep their
+normal safety checks; new transactions cannot run simultaneously.
+
+Verification
+------------
+7 checks passed: touchscreen and mouse dispatch to a second button during a two-second first-button animation, independent retriggering, stationary hit areas, interactive screen fade, and feedback cleanup. Isolated test identity; device timing unverified.
+1428 checks passed in Unity 6000.5.8f1 on Apple M1 Pro. Isolated save identity; original player saves unchanged.
+Hint camera planned and verified selectable representatives on all six cube faces, including bottom/back, within existing pitch/zoom limits.
+20x20x20 HollowCube hint worker including graph/fallback: 433ms on desktop; not a mobile performance guarantee.
+20x20x20 Procedural hint worker including graph/fallback: 382ms on desktop; not a mobile performance guarantee.
+20x20x20 Items hint worker including graph/fallback: 143ms on desktop; not a mobile performance guarantee.
+84 combinations: all 3 modes, 7 dimensions, 4 difficulty seeds; one-cell Swap, face-only Blast and rebuilt region graph checked.
+Optional automatic execution: preview delay, one normal move/one hint charge, cancellation and stale worker/pause cancellation passed.
+All 12 actual mode/difficulty level-one launches retained budgets and accepted Swap; custom-game availability toggles passed.
+Actual authored UI, target/color order, exact direct edits, inventory spending, current-state hint/camera, cancellation, Continue/restart, write-ahead recovery, geometry variants and goal semantics passed.80 checks passed: actual InputSystem touchscreen events across menu/settings/levels, rapid sequential taps, simultaneous fingers, fixed hit-test geometry, immediate palette response, coalesced selection saves, navigation flush and Continue cache invalidation/restore. Desktop simulation; mobile device performance still requires retesting. Original saves untouched.
+
+The dedicated animation test uses actual Input System touch/mouse events. The
+first decorative animation lasts two seconds; the second button callback must
+run while that animation is still active. It also covers retriggering while
+another button animates, screen fades and cleanup when a button is hidden.
+
+The power-up suite additionally asserts another power-up button is interactable
+during Swap execution, selecting paint immediately finishes the visual phase,
+and clicking a different power-up before Blast visuals finish enters targeting
+immediately without spending/refunding inventory or moves. Existing geometry,
+solver, Continue/restart, scoring, goals, journal recovery and victory tests pass.
+
+All runs use /tmp/FloodLevelVerify with test identities. Source player saves are
+not test fixtures. Physical phone timing remains unverified; rebuild the mobile
+player for on-device confirmation. A pre-existing Editor Search indexing startup
+diagnostic appeared; these suites exited successfully. Targeted diff checks pass.

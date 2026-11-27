@@ -53,3 +53,11 @@ player saves/settings were not test fixtures. Targeted git diff --check passed.
 A pre-existing Editor Search index startup diagnostic appeared. Physical-device
 latency, sustained frame rate, GPU cost and operating-system touch timing remain
 unverified; rebuild and retest the mobile player for those measurements.
+
+Further animation correction
+----------------------------
+Button and screen feedback is now geometry-stable on all input devices: decorative
+children may pulse, while screen/page/prompt transitions fade. The earlier note
+about retaining mouse root-scale feedback has been superseded. Committed power-up
+visual playback can also be finished immediately by a new selection; it no longer
+disables palette/power-up selection buttons. See ButtonAnimationInputVerification.txt.

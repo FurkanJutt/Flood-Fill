@@ -84,6 +84,11 @@ namespace FloodFill.EditorTools
                     Check(game.MoveCount==moves&&game.Score==score&&game.CurrentMoveBudget==budget,"Swap preserves normal moves, score and allowance");
                     Check(FloodPowerUpInventory3D.Quantity(FloodPowerUpKind.ColorSwap)==swapBefore-1,"Swap spends exactly one inventory unit");
                     Check(game.PowerUpsUsed(FloodPowerUpKind.ColorSwap)==1,"Attempt tracks Swap usage");
+                    var bar=ui.GetComponentInChildren<FloodPowerUpBar3D>(true);
+                    Check(bar.buttons[(int)FloodPowerUpKind.ColorBlast].interactable,"Another power-up stays selectable during committed Swap visuals");
+                    game.SelectColor((target.ColorIndex+1)%6);
+                    Check(!powers.IsExecuting&&game.CanInteract&&game.MoveCount==moves,"Palette selection immediately finishes committed visuals without waiting");
+                    Check(FloodPowerUpInventory3D.Quantity(FloodPowerUpKind.ColorSwap)==swapBefore-1,"Interrupting Swap visuals neither refunds nor spends again");
                     postSwap=JsonUtility.FromJson<FloodFillSessionSaveData3D>(JsonUtility.ToJson(game.CapturePowerUpCheckpoint()));
                     ready=Time.time+.4f;stage=2;return;
                 }
@@ -100,6 +105,9 @@ namespace FloodFill.EditorTools
                     Check(board.ActiveCells.All(c=>direct.Contains(board.LogicalIndex(c))||before[board.LogicalIndex(c)]==c.ColorIndex),"Blast never directly recolors other cells");
                     Check(game.Score==score&&game.MoveCount==moves&&game.CurrentMoveBudget==budget,"Blast has no default score or move cost");
                     Check(FloodPowerUpInventory3D.Quantity(FloodPowerUpKind.ColorBlast)==blastBefore-1,"Blast consumes once");
+                    ui.GetComponentInChildren<FloodPowerUpBar3D>(true).buttons[(int)FloodPowerUpKind.ColorSwap].onClick.Invoke();
+                    Check(powers.State==FloodPowerUpState.SwapTargeting&&game.CanInteract,"Different power-up button responds before Blast animation completes");
+                    Check(FloodPowerUpInventory3D.Quantity(FloodPowerUpKind.ColorBlast)==blastBefore-1&&game.MoveCount==moves,"Switching power-up does not duplicate the committed transaction");powers.CancelActivePowerUp();
                     ready=Time.time+.5f;stage=3;return;
                 }
                 if(stage==3)
