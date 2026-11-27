@@ -31,6 +31,7 @@ namespace FloodFill.ThreeD
             if (!built) return;
             switch (action)
             {
+                case FloodFillUIAction.Achievements: OpenAchievements(); break;
                 case FloodFillUIAction.Levels: OpenLevelSelection(); break;
                 case FloodFillUIAction.Play: PlayConfiguredGame(); break;
                 case FloodFillUIAction.Continue: Continue(); break;

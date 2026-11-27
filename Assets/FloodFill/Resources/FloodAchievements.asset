@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a9264b1541045e4eb3c6f6bfb467e30e, type: 3}
+  m_Name: FloodAchievements
+  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.Achievements.FloodAchievementSettings
+  enableAchievementSystem: 1
+  database: {fileID: 11400000, guid: c7c780f77783748d7b82b1d063bbda37, type: 2}
+  enableRetroactiveInitialization: 1
+  enableNotifications: 1
+  enableHiddenAchievements: 1
+  enableRewardUI: 1
+  debugLogging: 0
+  screenPrefab: {fileID: 2355050571822302717, guid: e58e8a46e45504815a571f6d1b8a83c4, type: 3}
+  cardPrefab: {fileID: 4016956259489860212, guid: 92f8586d2712a4f248517ee86f66d50d, type: 3}
+  detailPrefab: {fileID: 3771636127752833207, guid: 7ddabf094a9624f17992176d89c2ca97, type: 3}
+  notificationPrefab: {fileID: 3759299129972120568, guid: 3fbf34f7ef00f45f7b89a088ddea32d3, type: 3}
+  filledStar: {fileID: 1953001332, guid: 730d678b2bb3146779443d4a64543752, type: 3}
+  emptyStar: {fileID: -873492393, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
+  defaultIcon: {fileID: -1706912931, guid: 0445461f8f4c34527bf4fc89c3a07aeb, type: 3}
+  hiddenIcon: {fileID: 984265866, guid: 5e601dead09234b24b18763fb79695fa, type: 3}
+  completedIndicator: {fileID: 1953001332, guid: 730d678b2bb3146779443d4a64543752, type: 3}
+  notificationDuration: 3
+  notificationAnimationDuration: 0.22
+  maximumQueuedNotifications: 8
+  achievementUnlockClip: {fileID: 0}
+  tierCompletionClip: {fileID: 0}
+  saveFileName: flood-fill-achievements-v1.json
+  saveDebounceDuration: 2
+  saveOnCompletion: 1
+  saveOnPause: 1
+  saveOnExit: 1

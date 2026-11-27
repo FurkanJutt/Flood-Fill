@@ -89,6 +89,7 @@ namespace FloodFill.ThreeD.PowerUps
                 }
                 catch(Exception e){LastError="Winning power-up transaction will be recovered later: "+e.Message;return;}
             }
+            Achievements.FloodAchievementService.RecoverCheckpoint(data.pendingSession);
             var pending=data.pendingSession;data.pendingSession=null;data.hasPendingSession=false;if(!Write()){data.pendingSession=pending;data.hasPendingSession=true;}
         }
         public static void RecoverPendingSession()

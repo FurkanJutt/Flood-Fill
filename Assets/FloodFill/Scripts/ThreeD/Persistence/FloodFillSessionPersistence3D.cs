@@ -11,6 +11,9 @@ namespace FloodFill.ThreeD
         public const int CurrentVersion = 1;
 
         public int version = CurrentVersion;
+        public Achievements.AchievementAttempt achievementAttempt;
+        public string abandonedAchievementAttemptId;
+        public bool abandonedAchievementWasRestart;
         public int selectedBoardMode;
         public int selectedBoardSize;
         public int difficulty;
@@ -87,6 +90,7 @@ namespace FloodFill.ThreeD
 
                 string json = File.ReadAllText(SavePath);
                 data = JsonUtility.FromJson<FloodFillSessionSaveData3D>(json);
+                if (data != null && data.version == FloodFillSessionSaveData3D.CurrentVersion) Achievements.FloodAchievementService.RecoverCheckpoint(data);
                 return data != null && data.version == FloodFillSessionSaveData3D.CurrentVersion;
             }
             catch (Exception exception)
@@ -118,6 +122,7 @@ namespace FloodFill.ThreeD
                 File.Copy(temporaryPath, SavePath, true);
                 File.Delete(temporaryPath);
                 PowerUps.FloodPowerUpInventory3D.Acknowledge(data.powerUpRevision);
+                Achievements.FloodAchievementService.RecoverCheckpoint(data);
                 return true;
             }
             catch (Exception exception)

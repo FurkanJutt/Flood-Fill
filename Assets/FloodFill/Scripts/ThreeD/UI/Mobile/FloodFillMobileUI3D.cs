@@ -93,6 +93,7 @@ namespace FloodFill.ThreeD
             }
             built = true;
             EnsureSavedLevelRecoveryUI();
+            InitializeAchievementsUI();
             BindAuthoredControls();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (fpsLabel != null) fpsLabel.transform.parent.gameObject.SetActive(true);
@@ -789,7 +790,7 @@ namespace FloodFill.ThreeD
             }
             BuildCubeCluster(menu.transform);
         }
-        private void HideAll() { if (victoryPopup != null) victoryPopup.gameObject.SetActive(false); if (homeConfirmation != null) homeConfirmation.SetActive(false); if (levelSelection != null) levelSelection.gameObject.SetActive(false); menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
+        private void HideAll() { if (achievementScreen != null) achievementScreen.gameObject.SetActive(false); if (victoryPopup != null) victoryPopup.gameObject.SetActive(false); if (homeConfirmation != null) homeConfirmation.SetActive(false); if (levelSelection != null) levelSelection.gameObject.SetActive(false); menu.SetActive(false); setup.SetActive(false); howTo.SetActive(false); settings.SetActive(false); hud.SetActive(false); pause.SetActive(false); results.SetActive(false); if (loading != null) loading.SetActive(false); }
 
 #if UNITY_EDITOR
         private void HideLegacyUI(Transform canvas)

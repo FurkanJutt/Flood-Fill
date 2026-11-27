@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 18edfa89615657d1b8e306d8bc5a1f4c, type: 3}
+  m_Name: ff3d.027
+  m_EditorClassIdentifier: Assembly-CSharp::FloodFill.ThreeD.Achievements.FloodAchievementDefinition
+  definition:
+    id: ff3d.027
+    name: Random Shape - Medium Conqueror
+    description: Complete all 100 Random Shape Medium levels.
+    category: Category Completion
+    iconKey: achievement.027
+    disabledReason: 
+    order: 27
+    version: 1
+    enabled: 1
+    hidden: 0
+    metric: 0
+    aggregation: 0
+    calculation: 0
+    filters:
+      mode: 1
+      difficulty: 1
+      custom: -1
+      size: 0
+      minimumOccupied: 0
+      finalColor: -1
+      allowReplays: 1
+      allowPowerUps: 1
+      requireWin: 0
+      allGoals: 0
+      finalMove: 0
+      hintFollowed: 0
+      stars: 0
+      goals: 0
+      powerKind: -1
+      powerKinds: 0
+      minimumDirect: 0
+      minimumMerged: 0
+      minimumConnected: 0
+      minimumCapturePercent: 0
+      maxSeconds: 0
+      maxMoveRatio: 0
+      maxTargetColors: 0
+      minimumFailures: 0
+      minPowerUses: 0
+      powerFinish: 0
+      improvedMoves: 0
+      improvedTime: 0
+      improvedScore: 0
+      improvedGoals: 0
+      oneToThreeStars: 0
+      noZeroMoves: 0
+      normalFinish: 0
+    tiers:
+    - id: ff3d.027.tier1
+      description: Complete all 100 Random Shape Medium levels.
+      target: 100
+      overrideFilters: 0
+      filters:
+        mode: -1
+        difficulty: -1
+        custom: -1
+        size: 0
+        minimumOccupied: 0
+        finalColor: -1
+        allowReplays: 1
+        allowPowerUps: 1
+        requireWin: 0
+        allGoals: 0
+        finalMove: 0
+        hintFollowed: 0
+        stars: 0
+        goals: 0
+        powerKind: -1
+        powerKinds: 0
+        minimumDirect: 0
+        minimumMerged: 0
+        minimumConnected: 0
+        minimumCapturePercent: 0
+        maxSeconds: 0
+        maxMoveRatio: 0
+        maxTargetColors: 0
+        minimumFailures: 0
+        minPowerUses: 0
+        powerFinish: 0
+        improvedMoves: 0
+        improvedTime: 0
+        improvedScore: 0
+        improvedGoals: 0
+        oneToThreeStars: 0
+        noZeroMoves: 0
+        normalFinish: 0
+      rewards: []
+  icon: {fileID: 1470612892, guid: 0445461f8f4c34527bf4fc89c3a07aeb, type: 3}

@@ -75,6 +75,7 @@ namespace FloodFill.Development.AutoSolver
 
         private bool TryCaptureSnapshot(bool allowTerminalState, out AutoSolverBoardSnapshot snapshot, out string error)
         {
+            if (!allowTerminalState) (Manager as FloodFill.ThreeD.FloodFillGameManager3D)?.MarkAchievementAttemptIneligible("Development Auto Solver");
             snapshot = null;
             error = null;
             if (!IsAlive)

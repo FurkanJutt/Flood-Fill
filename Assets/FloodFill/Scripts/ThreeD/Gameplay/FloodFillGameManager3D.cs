@@ -102,8 +102,9 @@ namespace FloodFill.ThreeD
         private void Update()
         {
             FlushSelectionSave();
+            SampleAchievementTime();
             if (skipElapsedTick) { skipElapsedTick = false; return; }
-            if (elapsedTimerActive && !elapsedTimerSuspended && (CanInteract || PowerUps != null && PowerUps.IsExecuting && State == GameState.Playing && !IsLoading && !audioPaused) && Time.timeScale > 0)
+            if ((Application.isFocused || Application.isBatchMode) && elapsedTimerActive && !elapsedTimerSuspended && (CanInteract || PowerUps != null && PowerUps.IsExecuting && State == GameState.Playing && !IsLoading && !audioPaused) && Time.timeScale > 0)
                 ElapsedSeconds += Time.unscaledDeltaTime;
         }
 
@@ -196,6 +197,7 @@ namespace FloodFill.ThreeD
 
         public void RestartCurrentGame()
         {
+            achievementRestartRequested=true;
             FloodAudioSignals.Restart();
             RestartGame();
         }
@@ -349,6 +351,7 @@ namespace FloodFill.ThreeD
             if (PowerUps != null && PowerUps.HandleCube(voxel)) return;
             if (SelectedColorIndex < 0) return;
 
+            var achievementProbe = BeforeAchievementAction(voxel, SelectedColorIndex, false);
             if (!boardManager.RecolorConnectedRegion(voxel, SelectedColorIndex))
             {
                 return;
@@ -357,6 +360,7 @@ namespace FloodFill.ThreeD
             MoveCount++;
             SecondaryGoals?.Move(MoveCount, boardManager.LastNewlyCapturedCount, boardManager.CapturedVoxelCount);
             AwardScore(PowerUpScoreCount(boardManager.LastNewlyCapturedCount));
+            RecordAchievementAction(achievementProbe, -1);
             RefreshUI();
             if (boardManager.IsFullyCaptured)
             {
@@ -374,6 +378,7 @@ namespace FloodFill.ThreeD
 
         public void RestartGame()
         {
+            AbandonAchievementAttempt();
             ResetPowerUpAttempt();
             elapsedTimerActive = false; ElapsedSeconds = 0;
             ActiveLevelDefinition = null; SecondaryGoals = null; preparedGoalTrace = null;
@@ -472,6 +477,7 @@ namespace FloodFill.ThreeD
             loadingCoroutine = null;
             boardManager.PlayStartAnimation();
             elapsedTimerActive = true;
+            BeginAchievementAttempt();
             RefreshUI();
             if (boardManager.IsFullyCaptured) ScheduleResult(GameState.Won);
         }
@@ -1057,6 +1063,7 @@ namespace FloodFill.ThreeD
             }
 
             Score += baseScore * multiplier;
+            achievementLastMultiplier = multiplier;
         }
 
         private void ScheduleResult(GameState state)
@@ -1215,6 +1222,7 @@ namespace FloodFill.ThreeD
             }
             orbitCamera.FrameBounds(bounds);
             orbitCamera.RestorePersistentState(saved.camera);
+            RestoreAchievementAttempt(saved);
             RefreshUI();
             if (State == GameState.Calculating) BeginMoveBudgetCalculation(solverGenerationId);
 
@@ -1297,6 +1305,9 @@ namespace FloodFill.ThreeD
                 moveCount = MoveCount,
                 powerUpRevision = FloodFill.ThreeD.PowerUps.FloodPowerUpInventory3D.Revision,
                 powerUpAttempt = CapturePowerUpAttempt(),
+                achievementAttempt = AchievementCheckpoint(),
+                abandonedAchievementAttemptId = pendingAchievementAbandonId,
+                abandonedAchievementWasRestart = pendingAchievementRestart,
                 elapsedSeconds = ElapsedSeconds,
                 secondaryGoalAttempt = SecondaryGoals?.Attempt,
                 score = Score,

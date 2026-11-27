@@ -162,6 +162,9 @@ namespace FloodFill.ThreeD.PowerUps
         }
         private void BeginHint(bool development)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if(development)game.MarkAchievementAttemptIneligible("Free development hint preview");
+#endif
             if(!Ready||!board.TryCreateSolverSnapshot(out var snapshot))return;
             freeHint=development;SelectedKind=FloodPowerUpKind.SmartHint;State=FloodPowerUpState.Calculating;hintRevision=board.PowerUpRevision;
             var captured=new int[board.CapturedCells.Count];for(int i=0;i<captured.Length;i++)captured[i]=board.LogicalIndex(board.CapturedCells[i]);
@@ -240,16 +243,40 @@ namespace FloodFill.ThreeD.PowerUps
             if(active&&game!=null&&ui!=null&&ui.PowerUpGameplayVisible)game.RefreshPowerUpUI();
             if(active&&settings!=null)Sound(settings.cancellationSound);Refresh();
         }
-        [Button("Add Color Swap")] public void AddColorSwap(){if(Application.isPlaying)FloodPowerUpInventory3D.Add(FloodPowerUpKind.ColorSwap,1);}
-        [Button("Add Smart Hint")] public void AddSmartHint(){if(Application.isPlaying)FloodPowerUpInventory3D.Add(FloodPowerUpKind.SmartHint,1);}
-        [Button("Add Color Blast")] public void AddColorBlast(){if(Application.isPlaying)FloodPowerUpInventory3D.Add(FloodPowerUpKind.ColorBlast,1);}
-        [Button("Refill All Power-Ups")] public void RefillAll(){if(!Application.isPlaying)return;for(int i=0;i<3;i++){var k=(FloodPowerUpKind)i;FloodPowerUpInventory3D.Add(k,settings.Definition(k).startingQuantity-FloodPowerUpInventory3D.Quantity(k));}}
-        [Button("Clear Power-Up Inventory")] public void ClearInventory(){if(!Application.isPlaying)return;for(int i=0;i<3;i++){var k=(FloodPowerUpKind)i;FloodPowerUpInventory3D.Add(k,-FloodPowerUpInventory3D.Quantity(k));}}
+        [Button("Add Color Swap")] public void AddColorSwap(){
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Achievements.FloodAchievementService.MarkDevelopment("Development inventory operation");
+#endif
+if(Application.isPlaying)FloodPowerUpInventory3D.Add(FloodPowerUpKind.ColorSwap,1);}
+        [Button("Add Smart Hint")] public void AddSmartHint(){
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Achievements.FloodAchievementService.MarkDevelopment("Development inventory operation");
+#endif
+if(Application.isPlaying)FloodPowerUpInventory3D.Add(FloodPowerUpKind.SmartHint,1);}
+        [Button("Add Color Blast")] public void AddColorBlast(){
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Achievements.FloodAchievementService.MarkDevelopment("Development inventory operation");
+#endif
+if(Application.isPlaying)FloodPowerUpInventory3D.Add(FloodPowerUpKind.ColorBlast,1);}
+        [Button("Refill All Power-Ups")] public void RefillAll(){
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Achievements.FloodAchievementService.MarkDevelopment("Development inventory operation");
+#endif
+if(!Application.isPlaying)return;for(int i=0;i<3;i++){var k=(FloodPowerUpKind)i;FloodPowerUpInventory3D.Add(k,settings.Definition(k).startingQuantity-FloodPowerUpInventory3D.Quantity(k));}}
+        [Button("Clear Power-Up Inventory")] public void ClearInventory(){
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Achievements.FloodAchievementService.MarkDevelopment("Development inventory operation");
+#endif
+if(!Application.isPlaying)return;for(int i=0;i<3;i++){var k=(FloodPowerUpKind)i;FloodPowerUpInventory3D.Add(k,-FloodPowerUpInventory3D.Quantity(k));}}
         [Button("Calculate Smart Hint")] public void CalculateHintPreview(){if(Application.isPlaying&&Ready){CancelActivePowerUp();BeginHint(true);}}
         [Button("Preview Smart Hint Camera")] public void PreviewHintCamera(){if(Application.isPlaying&&CurrentHint!=null&&cameraRig.TryFindHintView(board,primary,settings,out var view))cameraRig.FocusHint(view,settings);}
         [Button("Preview Color Swap")] public void PreviewSwap(){Preview(false);}
         [Button("Preview Color Blast")] public void PreviewBlast(){Preview(true);}
-        private void Preview(bool blast){if(!Application.isPlaying||!Ready)return;CancelActivePowerUp();board.PreviewPowerVisual(board.StartingVoxel,blast,settings);}
+        private void Preview(bool blast){
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            game?.MarkAchievementAttemptIneligible("Development visual preview");
+#endif
+if(!Application.isPlaying||!Ready)return;CancelActivePowerUp();board.PreviewPowerVisual(board.StartingVoxel,blast,settings);}
         [Button("Reload Power-Up Settings")]
         public void ReloadSettings(){if(!Application.isPlaying)return;CancelActivePowerUp();FloodPowerUpInventory3D.Configure(settings);highlights?.Initialize(settings.outlineMaterial);Refresh();}
         [Button("Reset Visual States")]

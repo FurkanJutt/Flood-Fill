@@ -41,21 +41,26 @@ namespace FloodFill.ThreeD
             if(!CanInteract||State!=GameState.Playing||Time.time<boardManager.VisualsSettledAt||!FloodPowerUpInventory3D.Available(kind))return false;
             var definition=settings.Definition(kind);int cost=Mathf.Max(0,definition.moveCost);
             if(cost>currentMoveBudget-MoveCount)return false;
+            #if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if(settings.Unlimited)MarkAchievementAttemptIneligible("Unlimited development inventory");
+#endif
             var before=CapturePowerUpCheckpoint();if(before==null)return false;
             // Clone only at a paid transaction boundary, not on every frame or every cube.
             var rollback=JsonUtility.FromJson<FloodFillSessionSaveData3D>(JsonUtility.ToJson(before));var randomState=UnityEngine.Random.state;var previousSolver=LastSolverResult;
+            var achievementProbe=BeforeDirectAchievementAction(target,color,kind==FloodPowerUpKind.ColorBlast);
             if(!boardManager.TryPowerRecolor(target,color,kind==FloodPowerUpKind.ColorBlast,settings))return false;
             MoveCount+=cost;powerUpAttempt.scoreGuardActive=true;
             int fresh=PowerUpScoreCount(boardManager.LastNewlyCapturedCount);
             if(settings.awardScoreForPowerUpCaptures)AwardScore(fresh);
             if(settings.trackPowerUpUsage)powerUpAttempt.used[(int)kind]++;
             SecondaryGoals?.PowerUpChange(MoveCount,boardManager.LastNewlyCapturedCount,boardManager.CapturedVoxelCount,settings.allowCompatibleGoalProgressFromPowerUps);
+            RecordAchievementAction(achievementProbe,(int)kind);
             LastSolverResult=null;var after=CapturePowerUpCheckpoint();
             if(boardManager.IsFullyCaptured)after.gameState=(int)GameState.Won;
             else if(MoveCount>=currentMoveBudget)after.gameState=(int)GameState.Lost;
             if(!FloodPowerUpInventory3D.Commit(kind,after))
             {
-                boardManager.RestorePersistentState(rollback.board,colors);MoveCount=rollback.moveCount;Score=rollback.score;RestorePowerUpAttempt(rollback.powerUpAttempt);RestoreSecondaryAttempt(rollback);UnityEngine.Random.state=randomState;LastSolverResult=previousSolver;
+                boardManager.RestorePersistentState(rollback.board,colors);MoveCount=rollback.moveCount;Score=rollback.score;RestorePowerUpAttempt(rollback.powerUpAttempt);RestoreSecondaryAttempt(rollback);achievementAttempt=rollback.achievementAttempt;RestoreAchievementConnections();UnityEngine.Random.state=randomState;LastSolverResult=previousSolver;
                 RefreshUI();return false;
             }
             if(boardManager.IsFullyCaptured)ScheduleResult(GameState.Won);
@@ -66,8 +71,14 @@ namespace FloodFill.ThreeD
         public bool CommitHintUse(FloodPowerUpSettings3D settings)
         {
             if(!CanInteract||State!=GameState.Playing)return false;
+            #if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if(settings.Unlimited)MarkAchievementAttemptIneligible("Unlimited development inventory");
+#endif
+            var previousAchievement=achievementAttempt!=null?JsonUtility.FromJson<Achievements.AchievementAttempt>(JsonUtility.ToJson(achievementAttempt)):null;
+            RecordAchievementHint();
             if(settings.trackPowerUpUsage)powerUpAttempt.used[(int)FloodPowerUpKind.SmartHint]++;
             if(FloodPowerUpInventory3D.Commit(FloodPowerUpKind.SmartHint,CapturePowerUpCheckpoint()))return true;
+            achievementAttempt=previousAchievement;
             if(settings.trackPowerUpUsage)powerUpAttempt.used[(int)FloodPowerUpKind.SmartHint]--;return false;
         }
         public void ExecuteHintMove(VoxelCell3D cube,int color){SelectColor(color);HandleVoxelClicked(cube);}

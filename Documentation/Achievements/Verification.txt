@@ -1,0 +1,14 @@
+Verification: 2026-11-27
+Unity 6000.5.8f1; isolated verification project
+
+PASS: 220 pure logic assertions; 112 definitions / 242 tiers.
+PASS: 171 Unity asset, Editor import, UI, checkpoint, actual power-up, hint attribution, Continue, final-move win and persistence assertions.
+PASS: Android production player scripts compiled, 70 assemblies. No device build/run claimed.
+PASS: iOS production player scripts compiled, 70 assemblies. No device build/run claimed.
+PASS: 112 published definition assets; 103 enabled / 215 enabled tiers.
+PASS: new metadata present; asset GUID references resolve, including Unity packages; no duplicate asset GUIDs.
+PASS: all 1,077 original production save files unchanged by SHA-256.
+PASS: supplied achievement artwork pixels unchanged.
+
+No APK/IPA build or physical device run performed.
+Internal Unity SearchDatabase cache exception occurred during Editor startup; feature assertions passed.
